@@ -213,7 +213,8 @@ FocusScope {
                 }
             }
         // Floats over the code, bottom-right. Secondary (Save is the only accent
-        // button); fixed width (fits "Compiling…") so nothing shifts. Fades when
+        // button). Sized to its content; right-anchored and floating, so the longer
+        // "Compiling…" grows it leftwards without shifting anything. Fades when
         // the text cursor sits on a line it covers.
         Rectangle {
             id: compileBtn
@@ -223,11 +224,11 @@ FocusScope {
             z: 2
             readonly property real cursorY: flick.y + code.y + code.cursorRectangle.y - flick.contentY
             readonly property bool covers: code.activeFocus && cursorY + code.cursorRectangle.height > y && cursorY < y + height
-            width: 12 + Math.max(tmA.advanceWidth, tmB.advanceWidth) + 8 + cbHint.implicitWidth + 12
+            width: 12 + cbLabel.implicitWidth + 8 + cbHint.implicitWidth + 12
             height: 28; radius: 0
             color: Qt.lighter(ui.bg2, 1.3)
             border.width: 1
-            border.color: activeFocus || cbMouse.containsMouse ? ui.accent : Qt.rgba(ui.muted.r, ui.muted.g, ui.muted.b, 0.25)
+            border.color: activeFocus || cbMouse.containsMouse ? ui.accent : Qt.rgba(ui.muted.r, ui.muted.g, ui.muted.b, 0.35)
             opacity: (enabled_ ? 1 : 0.6) * (covers && !activeFocus ? 0.6 : 1)
             activeFocusOnTab: false
             KeyNavigation.tab: ed.broken ? errHead : slots.itemAt(0)
@@ -240,7 +241,7 @@ FocusScope {
             Label { id: cbLabel; x: 12; anchors.verticalCenter: parent.verticalCenter
                     font.pixelSize: 12; color: ui.fg
                     text: ed.compiling ? qsTr("Compiling…") : qsTr("Compile") }
-            Label { id: cbHint; anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+            Label { id: cbHint; anchors { left: cbLabel.right; leftMargin: 8; verticalCenter: parent.verticalCenter }
                     text: "Ctrl+↵"; font.pixelSize: 11; dim: true }
             MouseArea { id: cbMouse; anchors.fill: parent; hoverEnabled: true; onClicked: if (compileBtn.enabled_) ed.compile() }
         }
@@ -294,7 +295,7 @@ FocusScope {
                 }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: ed.errorsOpen = !ed.errorsOpen }
             }
-            Rectangle { y: results.headH; width: parent.width; height: 1
+            Rectangle { visible: ed.broken; y: results.headH; width: parent.width; height: 1
                         color: Qt.rgba(ui.muted.r, ui.muted.g, ui.muted.b, 0.25) }
             ListView {
                 id: errList
