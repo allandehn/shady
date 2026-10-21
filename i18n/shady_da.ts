@@ -74,139 +74,148 @@
 <context>
     <name>Editor</name>
     <message>
-        <location filename="../qml/Editor.qml" line="113" />
+        <location filename="../qml/Editor.qml" line="118" />
         <source>New shader</source>
         <translation>Ny shader</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="126" />
+        <location filename="../qml/Editor.qml" line="131" />
         <source>Name</source>
         <translation>Navn</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="127" />
+        <location filename="../qml/Editor.qml" line="132" />
         <source>Author</source>
         <translation>Forfatter</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="128" />
+        <location filename="../qml/Editor.qml" line="133" />
         <source>License (optional)</source>
         <translation>Licens (valgfri)</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="131" />
+        <location filename="../qml/Editor.qml" line="136" />
         <source>Description</source>
         <translation>Beskrivelse</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="139" />
+        <location filename="../qml/Editor.qml" line="144" />
         <source>Fragment shader</source>
         <translation>Fragment-shader</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="225" />
+        <location filename="../qml/Editor.qml" line="230" />
         <source>Compiling…</source>
         <translation>Kompilerer…</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="225" />
+        <location filename="../qml/Editor.qml" line="230" />
         <source>Compiled · 0 errors</source>
         <translation>Kompileret · 0 fejl</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="225" />
-        <location filename="../qml/Editor.qml" line="315" />
+        <location filename="../qml/Editor.qml" line="230" />
+        <location filename="../qml/Editor.qml" line="346" />
         <source>Not compiled</source>
         <translation>Ikke kompileret</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="201" />
+        <location filename="../qml/Editor.qml" line="206" />
         <source>Compile</source>
         <translation>Kompiler</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="21" />
+        <location filename="../qml/Editor.qml" line="22" />
         <source>1 error</source>
         <translation>1 fejl</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="21" />
+        <location filename="../qml/Editor.qml" line="22" />
         <source>1 error · line %1</source>
         <translation>1 fejl · linje %1</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="22" />
+        <location filename="../qml/Editor.qml" line="23" />
         <source>%1 errors</source>
         <translation>%1 fejl</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="22" />
+        <location filename="../qml/Editor.qml" line="23" />
         <source>%1 errors · first at line %2</source>
         <translation>%1 fejl · første i linje %2</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="297" />
+        <location filename="../qml/Editor.qml" line="328" />
         <source>Preview · last good compile</source>
         <translation>Forhåndsvisning · seneste ok</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="315" />
+        <location filename="../qml/Editor.qml" line="346" />
         <source>Preparing…</source>
         <translation>Forbereder…</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="328" />
+        <location filename="../qml/Editor.qml" line="359" />
         <source>Channels</source>
         <translation>Kanaler</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="400" />
-        <location filename="../qml/Editor.qml" line="401" />
+        <location filename="../qml/Editor.qml" line="429" />
+        <source>next error</source>
+        <translation>næste fejl</translation>
+    </message>
+    <message>
+        <location filename="../qml/Editor.qml" line="429" />
+        <source>leave</source>
+        <translation>forlad</translation>
+    </message>
+    <message>
+        <location filename="../qml/Editor.qml" line="429" />
+        <source>keys</source>
+        <translation>taster</translation>
+    </message>
+    <message>
+        <location filename="../qml/Editor.qml" line="430" />
         <source>cancel</source>
         <translation>annuller</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="400" />
+        <location filename="../qml/Editor.qml" line="429" />
         <source>jump to line</source>
         <translation>gå til linje</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="400" />
-        <source>next</source>
-        <translation>næste</translation>
-    </message>
-    <message>
-        <location filename="../qml/Editor.qml" line="407" />
+        <location filename="../qml/Editor.qml" line="436" />
         <source>Saves as draft</source>
         <translation>Gemmes som kladde</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="408" />
+        <location filename="../qml/Editor.qml" line="437" />
         <source>Save</source>
         <translation>Gem</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="422" />
+        <location filename="../qml/Editor.qml" line="453" />
         <source>Discard changes?</source>
         <translation>Kassér ændringer?</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="423" />
+        <location filename="../qml/Editor.qml" line="454" />
         <source>Your edits aren't saved.</source>
         <translation>Dine ændringer er ikke gemt.</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="425" />
+        <location filename="../qml/Editor.qml" line="456" />
         <source>Discard</source>
         <translation>Kassér</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="426" />
+        <location filename="../qml/Editor.qml" line="457" />
         <source>Keep editing</source>
         <translation>Fortsæt redigering</translation>
     </message>
     <message>
-        <location filename="../qml/Editor.qml" line="427" />
+        <location filename="../qml/Editor.qml" line="458" />
         <source>discard</source>
         <translation>kassér</translation>
     </message>
@@ -388,7 +397,7 @@
     <message>
         <location filename="../src/library.cpp" line="535" />
         <location filename="../src/library.cpp" line="615" />
-        <location filename="../src/selftest.cpp" line="315" />
+        <location filename="../src/selftest.cpp" line="327" />
         <source>Moved to Trash · Ctrl+Z undo</source>
         <translation>Flyttet til papirkurven · Ctrl+Z fortryd</translation>
     </message>
@@ -665,8 +674,8 @@
     </message>
     <message numerus="yes">
         <location filename="../qml/ShaderList.qml" line="146" />
-        <location filename="../src/selftest.cpp" line="319" />
-        <location filename="../src/selftest.cpp" line="320" />
+        <location filename="../src/selftest.cpp" line="331" />
+        <location filename="../src/selftest.cpp" line="332" />
         <source>%n shaders</source>
         <translation><numerusform>%n shader</numerusform><numerusform>%n shaders</numerusform></translation>
     </message>
@@ -723,7 +732,7 @@
     </message>
     <message>
         <location filename="../qml/ShaderList.qml" line="328" />
-        <location filename="../src/selftest.cpp" line="316" />
+        <location filename="../src/selftest.cpp" line="328" />
         <source>Empty Trash</source>
         <translation>Tøm papirkurv</translation>
     </message>
@@ -924,7 +933,7 @@
     </message>
     <message>
         <location filename="../qml/Viewer.qml" line="197" />
-        <location filename="../src/selftest.cpp" line="317" />
+        <location filename="../src/selftest.cpp" line="329" />
         <source>This shader is too heavy here. Try lower quality?</source>
         <translation>Denne shader er for tung her. Prøv lavere kvalitet?</translation>
     </message>

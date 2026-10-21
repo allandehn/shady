@@ -612,9 +612,27 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
     if (errList && errs.size() >= 2) {
         QMetaObject::invokeMethod(errList, "forceActiveFocus");
         key(win, Qt::Key_Down);
-        check(editor->property("focusedError").toString() == errs[1].toMap().value("text").toString(),
-              "the focused error's full message shows in the hint row");
-        shotAs("editor-errors-focused");
+        waitFor([] { return false; }, 300); // 120 ms expansion
+        QQuickItem *openRow = nullptr; int openCount = 0;
+        auto *content = qvariant_cast<QQuickItem *>(errList->property("contentItem"));
+        for (QQuickItem *r : content ? content->childItems() : QList<QQuickItem *>()) {
+            auto *src = r->findChild<QQuickItem *>("errorSource", Qt::FindDirectChildrenOnly);
+            if (src && src->isVisible()) { openRow = r; ++openCount; }
+        }
+        const QString want1 = errs[1].toMap().value("text").toString();
+        auto *m = openRow ? openRow->findChild<QQuickItem *>("errorMessage", Qt::FindDirectChildrenOnly) : nullptr;
+        check(openCount == 1 && m && m->property("text").toString() == want1 && m->property("lineCount").toInt() >= 2,
+              QString("↓ moves focus and only that row expands, wrapped (%1 open, %2 lines)").arg(openCount)
+                  .arg(m ? m->property("lineCount").toInt() : 0));
+        if (auto *src = openRow ? openRow->findChild<QQuickItem *>("errorSource", Qt::FindDirectChildrenOnly) : nullptr)
+            check(src->property("text").toString().startsWith(errs[1].toMap().value("line").toString() + " │ vec3 b"),
+                  "the source line shows under the message: " + src->property("text").toString());
+        shotAs("editor-errors-focused-long");
+        key(win, Qt::Key_Up);
+        waitFor([] { return false; }, 300);
+        shotAs("editor-errors-focused-short");
+        key(win, Qt::Key_Down);
+        waitFor([] { return false; }, 300);
         key(win, Qt::Key_Return);
         const int want = errs[1].toMap().value("line").toInt();
         const QString t = code->property("text").toString();
@@ -862,6 +880,8 @@ void runDanishShot(QQuickWindow *win, Library *lib, const QString &shot)
         QMetaObject::invokeMethod(c, "forceActiveFocus");
         key(win, Qt::Key_Return, "", Qt::ControlModifier);
         waitFor([&] { return !editor->property("compiling").toBool(); }, 20000);
+        if (auto *el = editor->findChild<QQuickItem *>("errorList")) {
+            QMetaObject::invokeMethod(el, "forceActiveFocus"); key(win, Qt::Key_Down); waitFor([] { return false; }, 300); }
         step("editor-errors");
         c->setProperty("text", editor->property("template")); // back to unchanged, so Esc closes later
         key(win, Qt::Key_Return, "", Qt::ControlModifier);
@@ -883,6 +903,8 @@ void runDanishShot(QQuickWindow *win, Library *lib, const QString &shot)
         QMetaObject::invokeMethod(c, "forceActiveFocus");
         key(win, Qt::Key_Return, "", Qt::ControlModifier);
         waitFor([&] { return !editor->property("compiling").toBool(); }, 20000);
+        if (auto *el = editor->findChild<QQuickItem *>("errorList")) {
+            QMetaObject::invokeMethod(el, "forceActiveFocus"); key(win, Qt::Key_Down); waitFor([] { return false; }, 300); }
         step("narrow-editor-errors");
         c->setProperty("text", editor->property("template"));
     }

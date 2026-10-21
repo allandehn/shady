@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls as QQC
 
 // 2. Editor: Name, Author, License (optional), Description, the code with
 // line numbers, and a preview of the last successful compile. Compiling is
@@ -20,6 +21,10 @@ FocusScope {
         const n = errors.length, l = n ? errors[0].line : 0
         if (n === 1) return l > 0 ? qsTr("1 error · line %1").arg(l) : qsTr("1 error")
         return l > 0 ? qsTr("%1 errors · first at line %2").arg(n).arg(l) : qsTr("%1 errors").arg(n)
+    }
+    function sourceLine(n) {
+        const l = code.text.split("\n")[n - 1]
+        return l === undefined ? "" : l.trim()
     }
     readonly property string focusedError: errList.activeFocus && errors[errList.currentIndex] ? errors[errList.currentIndex].text : ""
     readonly property var errorLines: errors.map(x => x.line)
@@ -216,7 +221,7 @@ FocusScope {
             readonly property real maxH: Math.max(errHead.height + 1 + rowH * 2, Math.round(body.height * 0.25))
             height: !ed.broken ? quiet.height
                   : !ed.errorsOpen ? errHead.height
-                  : Math.min(maxH, errHead.height + 1 + errList.count * rowH)
+                  : Math.min(maxH, errHead.height + 1 + errList.contentHeight)
             Label {
                 id: quiet
                 visible: !ed.broken
@@ -265,28 +270,54 @@ FocusScope {
                 KeyNavigation.tab: slots.itemAt(0); KeyNavigation.backtab: errHead
                 Keys.onReturnPressed: ed.gotoLine(ed.errors[currentIndex].line)
                 Keys.onEnterPressed: ed.gotoLine(ed.errors[currentIndex].line)
+                // The focused row (and only it) expands in place: full message, wrapped
+                // (max 4 lines, tooltip for the rest), and the source line under it.
+                onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
+                Keys.onEscapePressed: code.forceActiveFocus()
+                Keys.onPressed: (e) => { if (e.key === Qt.Key_Question) { edKeys.open(); e.accepted = true } }
                 delegate: Item {
                     id: errRow
                     required property var modelData
                     required property int index
                     readonly property bool focused: errList.activeFocus && ListView.isCurrentItem
-                    width: errList.width; height: results.rowH
+                    readonly property string source: modelData.line > 0 ? ed.sourceLine(modelData.line) : ""
+                    width: errList.width
+                    height: focused ? Math.max(results.rowH, 4 + msg.height + (src.visible ? 6 + src.height + 8 : 3)) : results.rowH
+                    clip: true
+                    Behavior on height { enabled: theme.animations; NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+                    onHeightChanged: if (focused) errList.positionViewAtIndex(index, ListView.Contain)
                     Rectangle { anchors.fill: parent; visible: errRow.focused
                                 color: Qt.rgba(ui.accent.r, ui.accent.g, ui.accent.b, 0.12) }
                     Rectangle { visible: errRow.focused; width: 2; height: parent.height; color: ui.accent }
-                    // Same column as the code gutter: 34 px, right-aligned, 11 px.
+                    // Same column as the code gutter: right-aligned 11 px mono, top-aligned.
                     Label {
                         id: num
-                        width: 26; anchors.verticalCenter: parent.verticalCenter
+                        width: 26; y: 4; height: 18; verticalAlignment: Text.AlignVCenter
                         horizontalAlignment: Text.AlignRight
                         text: errRow.modelData.line > 0 ? errRow.modelData.line : "–"
                         color: theme.error; font.pixelSize: 11
                     }
                     Label {
-                        anchors { left: parent.left; leftMargin: 46; right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                        id: msg
+                        objectName: "errorMessage"
+                        x: 56; y: 4; width: parent.width - 56 - 12
                         text: errRow.modelData.text
                         font.pixelSize: 12
+                        lineHeightMode: Text.FixedHeight; lineHeight: 18
+                        wrapMode: errRow.focused ? Text.WrapAtWordBoundaryOrAnywhere : Text.NoWrap
+                        maximumLineCount: errRow.focused ? 4 : 1
                         color: errRow.focused ? ui.fg : ui.muted
+                        QQC.ToolTip.visible: errRow.focused && truncated
+                        QQC.ToolTip.text: errRow.modelData.text
+                        QQC.ToolTip.delay: 400
+                    }
+                    Label {
+                        id: src
+                        objectName: "errorSource"
+                        visible: errRow.focused && errRow.modelData.line > 0
+                        x: 56; y: msg.y + msg.height + 6; width: parent.width - 56 - 12
+                        text: errRow.modelData.line + " │ " + errRow.source
+                        font.pixelSize: 11; dim: true
                     }
                     MouseArea { anchors.fill: parent; cursorShape: errRow.modelData.line > 0 ? Qt.PointingHandCursor : Qt.ArrowCursor
                                 onClicked: { errList.currentIndex = errRow.index; ed.gotoLine(errRow.modelData.line) } }
@@ -386,25 +417,24 @@ FocusScope {
     Rectangle {
         id: footer
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-        height: Math.max(54, footLeft.implicitHeight + 24)
+        height: 54
         color: ui.bg
         Rectangle { width: parent.width; height: 1; color: ui.bg2 }
-        // Hint row. When an error row is focused, its full message shows here.
-        Column {
+        // Hint row: keys only, one line.
+        Hint {
             id: footLeft
             x: 20; anchors.verticalCenter: parent.verticalCenter
             width: footRight.x - 20 - 16
-            spacing: 3
-            Label { visible: ed.focusedError !== ""; width: parent.width; text: ed.focusedError
-                    font.pixelSize: 11; wrapMode: Text.WrapAtWordBoundaryOrAnywhere; maximumLineCount: 2 }
-            Hint { keys: ed.broken ? [["Esc", qsTr("cancel")], ["↵", qsTr("jump to line")], ["Tab", qsTr("next")]]
-                                   : [["Esc", qsTr("cancel")]] }
+            singleLine: true
+            keys: ed.broken && ed.errorsOpen
+                  ? [["↵", qsTr("jump to line")], ["↑↓", qsTr("next error")], ["Tab", qsTr("leave")], ["?", qsTr("keys")]]
+                  : [["Esc", qsTr("cancel")]]
         }
         Row {
             id: footRight
             anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
             spacing: 16
-            Label { visible: ed.broken; text: qsTr("Saves as draft"); dim: true; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter }
+            Label { visible: ed.broken && ed.width >= 560; text: qsTr("Saves as draft"); dim: true; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter }
             Button { id: saveBtn; primary: true; text: qsTr("Save"); onClicked: ed.save()
                      KeyNavigation.tab: name; KeyNavigation.backtab: slots.itemAt(3) }
         }
@@ -416,6 +446,8 @@ FocusScope {
         for (let i = 1; i < n; ++i) { const k = code.text.indexOf("\n", pos); if (k < 0) break; pos = k + 1 }
         return code.positionToRectangle(pos).y
     }
+
+    KeySheet { id: edKeys; objectName: "editorKeys"; z: 20; onVisibleChanged: if (!visible) errList.forceActiveFocus() }
 
     Confirm {
         id: discard
