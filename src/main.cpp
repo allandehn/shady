@@ -47,8 +47,9 @@ int main(int argc, char *argv[])
     QCommandLineOption ui(QStringLiteral("ui-test"), QStringLiteral("Drive the app's own window through the main flows and exit."));
     QCommandLineOption potato(QStringLiteral("potato-test"), QStringLiteral("Benchmark, iChannels, auto-adapt and too-heavy checks, then exit."));
     QCommandLineOption danish(QStringLiteral("danish-shot"), QStringLiteral("Save Danish screenshots to --screenshot and exit."));
+    QCommandLineOption docs(QStringLiteral("doc-shots"), QStringLiteral("Save the README screenshots (list, editor) into <dir> and exit."), QStringLiteral("dir"));
     QCommandLineOption shot(QStringLiteral("screenshot"), QStringLiteral("With --ui-test: save the list to <png> (and <png>-viewer.png)."), QStringLiteral("png"));
-    p.addOptions({version, self, ui, potato, danish, shot});
+    p.addOptions({version, self, ui, potato, danish, docs, shot});
     p.process(app);
 
     if (p.isSet(version)) { std::printf("shady %s\n", SHADY_VERSION); return 0; }
@@ -105,9 +106,9 @@ int main(int argc, char *argv[])
         QMetaObject::invokeMethod(&theme, [&theme, sw] { theme.setSoftware(sw); });
     }, Qt::DirectConnection);
 
-    if (p.isSet(ui) || p.isSet(potato) || p.isSet(danish)) {
-        const QString out = p.value(shot);
-        const int mode = p.isSet(potato) ? 1 : p.isSet(danish) ? 2 : 0;
+    if (p.isSet(ui) || p.isSet(potato) || p.isSet(danish) || p.isSet(docs)) {
+        const QString out = p.isSet(docs) ? p.value(docs) : p.value(shot);
+        const int mode = p.isSet(potato) ? 1 : p.isSet(danish) ? 2 : p.isSet(docs) ? 3 : 0;
         QTimer::singleShot(300, win, [win, &library, out, mode] {
             if (win->rendererInterface()->graphicsApi() == QSGRendererInterface::Software) {
                 std::printf("FAIL no GPU scene graph (software backend can't run shaders)\n");
@@ -116,6 +117,7 @@ int main(int argc, char *argv[])
             }
             if (mode == 1) runPotatoTest(win, &library, out);
             else if (mode == 2) runDanishShot(win, &library, out);
+            else if (mode == 3) runDocShots(win, &library, out);
             else runUiTest(win, &library, out);
         });
     }

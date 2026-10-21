@@ -925,3 +925,23 @@ void runDanishShot(QQuickWindow *win, Library *lib, const QString &shot)
     std::printf(g_fails ? "DANISH SHOT FAILED (%d)\n" : "ALL PASS\n", g_fails);
     QCoreApplication::exit(g_fails ? 1 : 0);
 }
+
+// ---- README screenshots: the fresh start page and the editor on an example.
+void runDocShots(QQuickWindow *win, Library *lib, const QString &dir)
+{
+    QDir().mkpath(dir);
+    auto *list = win->findChild<QQuickItem *>("list");
+    auto *editor = win->findChild<QQuickItem *>("editor");
+    waitFor([&] { return lib->preparing() == 0; }, 60000);
+    waitFor([] { return false; }, 1500);
+    fits(win, "doc list");
+    check(win->grabWindow().save(dir + "/list.png"), "saved " + dir + "/list.png");
+    QMetaObject::invokeMethod(list, "focusSlug", Q_ARG(QVariant, QStringLiteral("northern-veil")));
+    key(win, Qt::Key_E, "", Qt::ControlModifier);
+    waitFor([&] { return editor->property("upToDate").toBool() && !editor->property("compiling").toBool(); }, 30000);
+    waitFor([] { return false; }, 1500);
+    fits(win, "doc editor");
+    check(win->grabWindow().save(dir + "/editor.png"), "saved " + dir + "/editor.png");
+    std::printf(g_fails ? "DOC SHOTS FAILED (%d)\n" : "ALL PASS\n", g_fails);
+    QCoreApplication::exit(g_fails ? 1 : 0);
+}

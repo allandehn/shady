@@ -9,6 +9,7 @@
 - `/workspace/shader-saver-design/design-brief.md` is the source of truth for
   behaviour and design; the v2 mockups show it. v1 is historical.
 - Commit, push, tag or release only when Allan asks for it.
+- Never touch Allan's desktop or his computers: no input, no `DISPLAY`/`WAYLAND_DISPLAY`, no copying files to them. Test headlessly only (below).
 - Stack: C++17, Qt 6 Quick, shaders through RHI (Vulkan, OpenGL fallback),
   compiled with `qsb`. Priorities: smooth frames, low CPU/GPU, small RSS, fast
   startup. It must run fairly on potato machines (quality down to 10%, fps
@@ -44,8 +45,11 @@
   as Latest and checks it publicly. It stops at the first failure.
 - If gpg needs a passphrase it can't get, stop and ask Allan to unlock the key.
 
-## Tests (added)
+## Tests (more)
 `tests/headless.sh` runs these: self-test, UI test, `--potato-test` (with SHADY_SOFTWARE=0, it covers the benchmark, iChannels on screen, auto-adapt and the too-heavy pause) and `--danish-shot` (SHADY_LANG=da). Run `i18n/update.sh` after you change qsTr strings. Danish strings live in i18n/da.py.
+
+## README screenshots
+`./build/shady --doc-shots docs` (in the same throwaway, headless setup as the tests, with SHADY_LANG=en) refreshes `docs/list.png` and `docs/editor.png`.
 
 ## Text fit
 Every screenshot step in the UI, potato and language tests runs `fits()`. It fails if any visible Text spills past the nearest background, clip or window, or overlaps another Text in the same box. The language test (`--danish-shot`, run with SHADY_LANG=da and en) also checks a narrow 440 px window. Give a Label a width and let it elide, or let the layout reflow. Install iA Writer Mono (github.com/iaolo/iA-Fonts) system-wide so headless screenshots match Omarchy.

@@ -1,3 +1,19 @@
+# Build output
 /build/
-*.pkg.tar.zst
+/build-*/
 *.qsb
+__pycache__/
+*.pyc
+
+# Release / makepkg working directories (scripts/release.sh works in /tmp)
+/packaging/src/
+/packaging/pkg/
+/packaging/*.tar.gz
+/packaging/*.tar.zst
+*.pkg.tar.zst
+*.pkg.tar.zst.sig
+/dist/
+/release/
+
+# Test screenshots (the README's are in docs/)
+/screenshot*.png
