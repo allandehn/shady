@@ -20,8 +20,10 @@
   `dbus-run-session`, and throwaway `XDG_DATA_HOME` / `XDG_CONFIG_HOME` /
   `XDG_CACHE_HOME`. If the offscreen plugin has no GL (Debian), the render test
   reruns on a private `xvfb-run -a` display, never a real one.
-- `./build/shady --self-test` for the core tests;
-  `./build/shady --screenshot out.png` renders a frame and fails if it's blank.
+- `./build/shady --self-test` for the core tests (storage, TOML, fps steps,
+  qsb compiling, error line mapping); `./build/shady --ui-test [--screenshot
+  out.png]` drives the app's own window (list, star, hide, filter, viewer keys,
+  saved settings). Both need fresh throwaway XDG dirs; the script does that.
 - Never send input to Allan's desktop, never use his `DISPLAY` /
   `WAYLAND_DISPLAY`, and never touch his running Shady or his real data.
 

@@ -3,26 +3,58 @@ import QtQuick.Window
 
 Window {
     id: win
-    width: 960
-    height: 540
+    width: 620
+    height: 760
     visible: true
-    color: "black"
+    color: ui.bg
     title: qsTr("Shady")
 
-    ShaderView {
-        id: view
-        anchors.fill: parent
-        quality: shadyQuality
-        fps: shadyFps
-        focus: true
-        running: win.visibility !== Window.Hidden && win.visibility !== Window.Minimized
-
-        Keys.onPressed: (e) => {
-            if (e.key === Qt.Key_Escape || e.key === Qt.Key_Q) Qt.quit()
-            else if (e.key === Qt.Key_F)
-                win.visibility = win.visibility === Window.FullScreen ? Window.Windowed : Window.FullScreen
-            else if (e.key === Qt.Key_Up) view.quality = Math.min(1.0, Math.round(view.quality * 10 + 1) / 10)
-            else if (e.key === Qt.Key_Down) view.quality = Math.max(0.1, Math.round(view.quality * 10 - 1) / 10)
-        }
+    // Theme colors, crossfading over ~840 ms when the theme changes.
+    QtObject {
+        id: ui
+        property color bg: theme.background
+        property color bg2: theme.lighterBackground
+        property color fg: theme.foreground
+        property color muted: theme.muted
+        property color accent: theme.accent
+        Behavior on bg { enabled: theme.animations; ColorAnimation { duration: 840 } }
+        Behavior on bg2 { enabled: theme.animations; ColorAnimation { duration: 840 } }
+        Behavior on fg { enabled: theme.animations; ColorAnimation { duration: 840 } }
+        Behavior on muted { enabled: theme.animations; ColorAnimation { duration: 840 } }
+        Behavior on accent { enabled: theme.animations; ColorAnimation { duration: 840 } }
     }
+
+    readonly property bool hiddenOrOff: win.visibility === Window.Hidden || win.visibility === Window.Minimized
+    property string mode: "list"
+
+    ShaderList {
+        id: list
+        objectName: "list"
+        anchors.fill: parent
+        visible: win.mode === "list" && !win.hiddenOrOff
+        focus: win.mode === "list"
+        note: theme.software ? qsTr("Software rendering · shaders start at minimum settings") : ""
+        onOpen: (r) => {
+            viewer.load(r, list.resume[library.get(r).slug] || 0)
+            win.mode = "viewer"
+            viewer.forceActiveFocus()
+        }
+        onClose: Qt.quit()
+    }
+
+    Viewer {
+        id: viewer
+        objectName: "viewer"
+        anchors.fill: parent
+        visible: win.mode === "viewer" && !win.hiddenOrOff
+        onClose: {
+            if (win.visibility === Window.FullScreen) win.visibility = Window.Windowed
+            win.mode = "list"
+            list.focusRow(viewer.row)
+            list.forceActiveFocus()
+        }
+        onToggleFullscreen: win.visibility = win.visibility === Window.FullScreen ? Window.Windowed : Window.FullScreen
+    }
+
+    Component.onCompleted: list.forceActiveFocus()
 }
