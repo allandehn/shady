@@ -1,0 +1,36 @@
+# Maintainer: Allan Kristensen <allanjorch@proton.me>
+pkgname=shady
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Shadertoy-style shader screensaver and viewer for Omarchy"
+arch=('x86_64')
+url="https://github.com/allandehn/shady"
+license=('MIT')
+depends=(
+  'qt6-base'         # Core, Gui (RHI: Vulkan, OpenGL)
+  'qt6-declarative'  # Qml, Quick (ShaderEffect)
+  'qt6-shadertools'  # qsb, for compiling user shaders at runtime
+  'glibc'
+  'gcc-libs'
+)
+makedepends=('cmake' 'ninja')
+checkdepends=('xorg-server-xvfb')
+options=('!debug')
+# Release: the GitHub tag tarball. scripts/release.sh --dry-run drops a tarball
+# of the working tree under the same name, so makepkg uses that instead.
+source=("$pkgname-$pkgver.tar.gz::https://github.com/allandehn/shady/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  cmake -S "$pkgname-$pkgver" -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+  cmake --build build
+}
+
+check() {
+  QT_QPA_PLATFORM=offscreen ./build/shady --self-test
+  test "$(./build/shady --version)" = "shady $pkgver"
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+}

@@ -1,0 +1,37 @@
+# Notes for agents working on Shady
+
+- App id and data folders: `shady` (`~/.local/share/shady/`, `~/.cache/shady/`).
+- `/workspace/shader-saver-design/design-brief.md` is the source of truth for
+  behaviour and design; the v2 mockups show it. v1 is historical.
+- Commit, push, tag or release only when Allan asks for it.
+- Stack: C++17, Qt 6 Quick, shaders through RHI (Vulkan, OpenGL fallback),
+  compiled with `qsb`. Priorities: smooth frames, low CPU/GPU, small RSS, fast
+  startup. It must run fairly on potato machines (quality down to 10%, fps
+  down to 10). Only one shader renders at a time.
+
+## Building
+
+    cmake -S . -B build -G Ninja && cmake --build build
+
+## Testing
+
+- Headless only: `tests/headless.sh ./build/shady`. It uses
+  `QT_QPA_PLATFORM=offscreen`, `QT_FORCE_STDERR_LOGGING=1`, a private D-Bus via
+  `dbus-run-session`, and throwaway `XDG_DATA_HOME` / `XDG_CONFIG_HOME` /
+  `XDG_CACHE_HOME`. If the offscreen plugin has no GL (Debian), the render test
+  reruns on a private `xvfb-run -a` display, never a real one.
+- `./build/shady --self-test` for the core tests;
+  `./build/shady --screenshot out.png` renders a frame and fails if it's blank.
+- Never send input to Allan's desktop, never use his `DISPLAY` /
+  `WAYLAND_DISPLAY`, and never touch his running Shady or his real data.
+
+## Releasing
+
+- Always use `scripts/release.sh X.Y.Z [NOTES_FILE]`; never hand-roll a release.
+  Run `scripts/release.sh --dry-run X.Y.Z` first.
+- It runs preflight checks, bumps `CMakeLists.txt` and `packaging/PKGBUILD`,
+  builds, runs the headless tests, commits "Release X.Y.Z", tags and pushes,
+  signs the package with key AC6FF13C76D8916CCCF2DA05C3225162B5257DB4, updates
+  the signed pacman repo on the `repo` GitHub release, publishes "Shady X.Y.Z"
+  as Latest and checks it publicly. It stops at the first failure.
+- If gpg needs a passphrase it can't get, stop and ask Allan to unlock the key.
