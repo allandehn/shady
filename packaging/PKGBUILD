@@ -1,6 +1,6 @@
 # Maintainer: Allan Kristensen <allanjorch@proton.me>
 pkgname=shady
-pkgver=0.1.0
+pkgver=0.1.1
 pkgrel=1
 pkgdesc="Shadertoy-style shader screensaver and viewer for Omarchy"
 arch=('x86_64')
