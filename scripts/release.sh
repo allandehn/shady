@@ -82,7 +82,7 @@ if (( DRY )); then
   git archive --format=tar.gz --prefix="shady-$VER/" -o "$WORK/shady-$VER.tar.gz" "$SNAP"
 else
   step "Commit, tag v$VER, push"
-  git commit -qam "Release $VER"
+  git diff --quiet HEAD || git commit -qam "Release $VER"
   git tag -a "v$VER" -m "Shady $VER"
   git push -q origin main
   git push -q origin "v$VER"
