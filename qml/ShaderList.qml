@@ -193,7 +193,7 @@ FocusScope {
         // Square previews: as many ~200 px columns as fit, never fewer than two.
         readonly property int columns: Math.max(2, Math.floor((width + 10) / 200))
         cellWidth: Math.floor(width / columns)
-        cellHeight: (cellWidth - 10) + 54
+        cellHeight: (cellWidth - 10) + 58
         keyNavigationEnabled: true
         highlightFollowsCurrentItem: false
         boundsBehavior: Flickable.StopAtBounds

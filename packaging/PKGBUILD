@@ -28,7 +28,8 @@ build() {
 }
 
 check() {
-  QT_QPA_PLATFORM=offscreen ./build/shady --self-test
+  export QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME=
+  ./build/shady --self-test
   test "$(./build/shady --version)" = "shady $pkgver"
 }
 
