@@ -158,12 +158,12 @@ FocusScope {
             Flickable {
                 id: flick
                 anchors.fill: parent; anchors.margins: 1
-                contentWidth: width; contentHeight: code.contentHeight + 16
+                contentWidth: width; contentHeight: code.contentHeight + 16 + 44 // room to scroll clear of the Compile button
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
                 function ensureVisible(r) {
                     if (contentY >= r.y) contentY = r.y
-                    else if (contentY + height <= r.y + r.height + 16) contentY = r.y + r.height + 16 - height
+                    else if (contentY + height <= r.y + r.height + 60) contentY = Math.min(contentHeight - height, r.y + r.height + 60 - height)
                 }
                 // The focused error's line (errors list has focus): faint accent tint, behind the text.
                 Rectangle {
@@ -212,6 +212,38 @@ FocusScope {
                     onTextChanged: if (!ed.licenseTouched) { const h = library.licenseHint(text); if (h) license.text = h }
                 }
             }
+        // Floats over the code, bottom-right. Secondary (Save is the only accent
+        // button); fixed width (fits "Compiling…") so nothing shifts. Fades when
+        // the text cursor sits on a line it covers.
+        Rectangle {
+            id: compileBtn
+            objectName: "compileButton"
+            readonly property bool enabled_: !ed.compiling
+            anchors { right: parent.right; bottom: parent.bottom; margins: 10 }
+            z: 2
+            readonly property real cursorY: flick.y + code.y + code.cursorRectangle.y - flick.contentY
+            readonly property bool covers: code.activeFocus && cursorY + code.cursorRectangle.height > y && cursorY < y + height
+            width: 12 + Math.max(tmA.advanceWidth, tmB.advanceWidth) + 8 + cbHint.implicitWidth + 12
+            height: 28; radius: 0
+            color: Qt.lighter(ui.bg2, 1.3)
+            border.width: 1
+            border.color: activeFocus || cbMouse.containsMouse ? ui.accent : Qt.rgba(ui.muted.r, ui.muted.g, ui.muted.b, 0.25)
+            opacity: (enabled_ ? 1 : 0.6) * (covers && !activeFocus ? 0.6 : 1)
+            activeFocusOnTab: false
+            KeyNavigation.tab: ed.broken ? errHead : slots.itemAt(0)
+            KeyNavigation.backtab: code
+            Keys.onReturnPressed: if (enabled_) ed.compile()
+            Keys.onEnterPressed: if (enabled_) ed.compile()
+            Keys.onSpacePressed: if (enabled_) ed.compile()
+            TextMetrics { id: tmA; font: cbLabel.font; text: qsTr("Compile") }
+            TextMetrics { id: tmB; font: cbLabel.font; text: qsTr("Compiling…") }
+            Label { id: cbLabel; x: 12; anchors.verticalCenter: parent.verticalCenter
+                    font.pixelSize: 12; color: ui.fg
+                    text: ed.compiling ? qsTr("Compiling…") : qsTr("Compile") }
+            Label { id: cbHint; anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                    text: "Ctrl+↵"; font.pixelSize: 11; dim: true }
+            MouseArea { id: cbMouse; anchors.fill: parent; hoverEnabled: true; onClicked: if (compileBtn.enabled_) ed.compile() }
+        }
         }
         // Compile result: full width under everything, flat on the background.
         // OK / compiling / not compiled is one quiet line. With errors: a summary
@@ -233,7 +265,7 @@ FocusScope {
                 id: quiet
                 objectName: "compileStatus"
                 visible: !ed.broken
-                width: compileBtn.x - 12; height: results.headH; verticalAlignment: Text.AlignVCenter
+                width: parent.width; height: results.headH; verticalAlignment: Text.AlignVCenter
                 font.pixelSize: 12; dim: true
                 text: ed.compiling ? qsTr("Compiling…") : ed.upToDate ? qsTr("Compiled · 0 errors") : qsTr("Not compiled")
             }
@@ -241,7 +273,7 @@ FocusScope {
                 id: errHead
                 objectName: "errorsHeader"
                 visible: ed.broken
-                width: compileBtn.x - 12; height: results.headH
+                width: parent.width; height: results.headH
                 activeFocusOnTab: false
                 KeyNavigation.tab: ed.errorsOpen ? errList : slots.itemAt(0); KeyNavigation.backtab: compileBtn
                 Keys.onReturnPressed: ed.errorsOpen = !ed.errorsOpen
@@ -261,34 +293,6 @@ FocusScope {
                     Label { id: toggle; text: ed.errorsOpen ? "▾" : "▸"; dim: true; font.pixelSize: 12 }
                 }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: ed.errorsOpen = !ed.errorsOpen }
-            }
-            // Secondary button: neutral border, fg text, square corners. Fixed width
-            // (fits "Compiling…") so nothing shifts while compiling.
-            Rectangle {
-                id: compileBtn
-                objectName: "compileButton"
-                readonly property bool enabled_: !ed.compiling
-                anchors { right: parent.right; verticalCenter: quiet.verticalCenter }
-                width: 12 + Math.max(tmA.advanceWidth, tmB.advanceWidth) + 8 + cbHint.implicitWidth + 12
-                height: 28; radius: 0
-                color: "transparent"
-                border.width: 1
-                border.color: activeFocus ? ui.accent : Qt.rgba(ui.muted.r, ui.muted.g, ui.muted.b, 0.5)
-                opacity: enabled_ ? 1 : 0.6
-                activeFocusOnTab: false
-                KeyNavigation.tab: ed.broken ? errHead : slots.itemAt(0)
-                KeyNavigation.backtab: code
-                Keys.onReturnPressed: if (enabled_) ed.compile()
-                Keys.onEnterPressed: if (enabled_) ed.compile()
-                Keys.onSpacePressed: if (enabled_) ed.compile()
-                TextMetrics { id: tmA; font: cbLabel.font; text: qsTr("Compile") }
-                TextMetrics { id: tmB; font: cbLabel.font; text: qsTr("Compiling…") }
-                Label { id: cbLabel; x: 12; anchors.verticalCenter: parent.verticalCenter
-                        font.pixelSize: 12; color: ui.fg
-                        text: ed.compiling ? qsTr("Compiling…") : qsTr("Compile") }
-                Label { id: cbHint; anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
-                        text: "Ctrl+↵"; font.pixelSize: 11; dim: true }
-                MouseArea { anchors.fill: parent; onClicked: if (compileBtn.enabled_) ed.compile() }
             }
             Rectangle { y: results.headH; width: parent.width; height: 1
                         color: Qt.rgba(ui.muted.r, ui.muted.g, ui.muted.b, 0.25) }
