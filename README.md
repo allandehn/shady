@@ -76,3 +76,4 @@ MIT, see [LICENSE](LICENSE).
 - **Auto-adapt:** a shader that can't hold its fps gets a lower resolution for this session only (A toggles it). A frame that takes over 500 ms pauses the shader and offers "Try N%".
 - **First-run benchmark:** a short, silent check picks starting quality and fps for new shaders. Software rendering starts at the lowest settings.
 - **Translations:** Danish (`SHADY_LANG=da` forces it). Run `i18n/update.sh` after you change UI strings.
+- **Compile errors:** a full-width pane under the editor lists every error, wraps long messages and scrolls when the list is long. Click an error, or press Enter on it, to jump to its line. A clean compile shows one quiet line. Listing every error needs `glslangValidator` (Arch: `glslang`, optional); without it you get the first error only.

@@ -557,6 +557,8 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
     const int before2 = lib->count();
     key(win, Qt::Key_N, "n");
     check(editor->isVisible(), "N opens the editor");
+    waitFor([&] { return editor->property("upToDate").toBool() && !editor->property("compiling").toBool(); }, 20000);
+    shotAs("editor-ok");
     auto *code = editor->findChild<QObject *>("code");
     auto *nameF = editor->findChild<QObject *>("nameField");
     nameF->setProperty("text", "Glass Rain");
@@ -568,6 +570,37 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
     check(editor->property("errorLine").toInt() == 5, QString("error on the user's line (%1: %2)")
           .arg(editor->property("errorLine").toInt()).arg(editor->property("errorText").toString()));
     shotAs("editor");
+
+    // Several errors: all listed in the full-width pane; Enter on one jumps to its line.
+    const QString single = code->property("text").toString();
+    code->setProperty("text", "// Copyright Ana Example, 2024\nvoid mainImage(out vec4 o, in vec2 p)\n{\n"
+        "    float a = undefinedThing * 2.0;\n    vec3 b = vec2(1.0);\n"
+        "    float c = someOtherMissingFunctionWithAVeryLongNameThatShouldWrapInThePane(p.x, p.y, a);\n"
+        "    o = vec4(b, c);\n}\n");
+    QMetaObject::invokeMethod(code, "forceActiveFocus");
+    key(win, Qt::Key_Return, "", Qt::ControlModifier);
+    waitFor([&] { return !editor->property("compiling").toBool(); }, 20000);
+    const QVariantList errs = editor->property("errors").toList();
+    QStringList el; for (const auto &e : errs) el << e.toMap().value("line").toString();
+    check(errs.size() >= 3, QString("every error is listed (%1 on lines %2)").arg(errs.size()).arg(el.join(", ")));
+    auto *errList = editor->findChild<QQuickItem *>("errorList");
+    auto *results = editor->findChild<QQuickItem *>("results");
+    check(errList && results && results->width() >= editor->width() - 41, "error pane spans the editor's full width");
+    shotAs("editor-errors");
+    if (errList && errs.size() >= 2) {
+        QMetaObject::invokeMethod(errList, "forceActiveFocus");
+        key(win, Qt::Key_Down);
+        key(win, Qt::Key_Return);
+        const int want = errs[1].toMap().value("line").toInt();
+        const QString t = code->property("text").toString();
+        const int pos = code->property("cursorPosition").toInt();
+        const int line = t.left(pos).count(u'\n') + 1;
+        check(line == want && code->property("activeFocus").toBool(), QString("Enter on an error jumps to line %1 (got %2)").arg(want).arg(line));
+    }
+    code->setProperty("text", single);
+    QMetaObject::invokeMethod(code, "forceActiveFocus");
+    key(win, Qt::Key_Return, "", Qt::ControlModifier);
+    waitFor([&] { return !editor->property("compiling").toBool(); }, 20000);
     key(win, Qt::Key_S, "", Qt::ControlModifier);
     waitFor([&] { return !editor->isVisible(); }, 20000);
     const int nr = lib->rowOf("glass-rain");
@@ -798,6 +831,17 @@ void runDanishShot(QQuickWindow *win, Library *lib, const QString &shot)
     lib->setFilter(Library::All);
     QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
     key(win, Qt::Key_N, "n"); step("editor");
+    if (auto *c = editor ? editor->findChild<QObject *>("code") : nullptr) {
+        c->setProperty("text", "void mainImage(out vec4 o, in vec2 p)\n{\n    float a = ukendt * 2.0;\n    vec3 b = vec2(1.0);\n"
+                               "    o = vec4(b, a + mangler(p.x));\n}\n");
+        QMetaObject::invokeMethod(c, "forceActiveFocus");
+        key(win, Qt::Key_Return, "", Qt::ControlModifier);
+        waitFor([&] { return !editor->property("compiling").toBool(); }, 20000);
+        step("editor-errors");
+        c->setProperty("text", editor->property("template")); // back to unchanged, so Esc closes later
+        key(win, Qt::Key_Return, "", Qt::ControlModifier);
+        waitFor([&] { return !editor->property("compiling").toBool(); }, 20000);
+    }
     if (editor) { if (editor->findChild<QQuickItem *>("picker")) {
         QMetaObject::invokeMethod(editor, "pickerFor", Q_ARG(QVariant, 0)); step("channels"); key(win, Qt::Key_Escape); } }
     key(win, Qt::Key_Escape); // close the editor (no changes)
@@ -807,7 +851,17 @@ void runDanishShot(QQuickWindow *win, Library *lib, const QString &shot)
     key(win, Qt::Key_Escape);
     win->resize(440, 700);
     step("narrow");
-    key(win, Qt::Key_N, "n"); step("narrow-editor"); key(win, Qt::Key_Escape);
+    key(win, Qt::Key_N, "n"); step("narrow-editor");
+    if (auto *c = editor ? editor->findChild<QObject *>("code") : nullptr) {
+        c->setProperty("text", "void mainImage(out vec4 o, in vec2 p)\n{\n    float a = ukendt * 2.0;\n    vec3 b = vec2(1.0);\n"
+                               "    o = vec4(b, a + mangler(p.x));\n}\n");
+        QMetaObject::invokeMethod(c, "forceActiveFocus");
+        key(win, Qt::Key_Return, "", Qt::ControlModifier);
+        waitFor([&] { return !editor->property("compiling").toBool(); }, 20000);
+        step("narrow-editor-errors");
+        c->setProperty("text", editor->property("template"));
+    }
+    key(win, Qt::Key_Escape);
     key(win, Qt::Key_Comma, ","); step("narrow-settings"); key(win, Qt::Key_Escape);
     key(win, Qt::Key_Question, "?"); step("narrow-keys"); key(win, Qt::Key_Escape);
     std::printf(g_fails ? "DANISH SHOT FAILED (%d)\n" : "ALL PASS\n", g_fails);

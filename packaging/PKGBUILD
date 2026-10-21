@@ -13,6 +13,7 @@ depends=(
   'glibc'
   'gcc-libs'
 )
+optdepends=('glslang: list every compile error in the editor, not just the first')
 makedepends=('cmake' 'ninja')
 checkdepends=('xorg-server-xvfb')
 options=('!debug')

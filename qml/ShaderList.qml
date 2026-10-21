@@ -345,7 +345,7 @@ FocusScope {
                            : library.filter === 2 ? [["H", qsTr("unhide")], ["Enter", qsTr("open")], ["Esc", qsTr("close")]]
                            : [["Enter", qsTr("open")], ["S", qsTr("star")], ["H", qsTr("hide")], ["Del", qsTr("trash")]] }
                 Hint { keys: panel.selecting ? [["Space", qsTr("toggle")], ["Shift+←→↑↓", qsTr("extend")], ["Esc", qsTr("clear")]]
-                           : panel.inTrash ? [["Tab", qsTr("footer")], ["Esc", qsTr("close")]]
+                           : panel.inTrash ? [["Tab", qsTr("empty trash")], ["Esc", qsTr("close")]]
                            : library.filter === 2 ? [["Tab", qsTr("next view")], ["?", qsTr("all keys")]]
                            : [["Space", qsTr("select")], ["N", qsTr("new")], ["?", qsTr("all keys")]] }
             }

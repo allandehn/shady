@@ -1,3 +1,4 @@
+#include <QSet>
 #include "compiler.h"
 #include <QCryptographicHash>
 #include <QDir>
@@ -135,24 +136,56 @@ QString Compiler::cachedPath(const QString &user, const QString &types) const
 CompileResult Compiler::parseErrors(const QString &log, int prefixLines)
 {
     CompileResult r;
-    // glslang: "ERROR: <file>:LINE: 'tok' : message"
-    static const QRegularExpression re(QStringLiteral("ERROR:\\s*[^:\\n]*:(\\d+):\\s*(.*)"));
-    const auto m = re.match(log);
-    if (m.hasMatch()) {
+    // glslang: "ERROR: <file>:LINE: 'tok' : message", one per line; keep them all.
+    static const QRegularExpression re(QStringLiteral("ERROR:\\s*[^:\\n]*:(\\d+):\\s*([^\\n]*)"));
+    static const QRegularExpression empty(QStringLiteral("^''\\s*:\\s*"));
+    QSet<QString> seen;
+    for (auto it = re.globalMatch(log); it.hasNext();) {
+        const auto m = it.next();
         int line = m.captured(1).toInt();
         // With #line 1 the number is already the user's; guard against
         // errors inside the hidden wrapper.
         if (line > 100000) line -= prefixLines;
-        r.errorLine = line > 0 ? line : 0;
+        line = std::max(line, 0);
         // "'' :  syntax error, ..." -> "syntax error, ..."; "'foo' : undeclared" keeps the name.
         QString t = m.captured(2).trimmed();
-        static const QRegularExpression empty(QStringLiteral("^''\\s*:\\s*"));
         t.remove(empty);
-        r.errorText = t.simplified();
-    } else {
-        r.errorText = log.trimmed().section(u'\n', 0, 0);
-        if (r.errorText.isEmpty()) r.errorText = QStringLiteral("Couldn't compile");
+        t = t.simplified();
+        if (t == QLatin1String("compilation terminated")) continue;
+        if (t.isEmpty() || seen.contains(QString::number(line) + t)) continue;
+        seen.insert(QString::number(line) + t);
+        r.errors << QVariantMap{{QStringLiteral("line"), line}, {QStringLiteral("text"), t}};
     }
+    if (r.errors.isEmpty()) {
+        QString t = log.trimmed().section(u'\n', 0, 0);
+        if (t.isEmpty()) t = QStringLiteral("Couldn't compile");
+        r.errors << QVariantMap{{QStringLiteral("line"), 0}, {QStringLiteral("text"), t}};
+    }
+    r.errorLine = r.errors.first().toMap().value(QStringLiteral("line")).toInt();
+    r.errorText = r.errors.first().toMap().value(QStringLiteral("text")).toString();
+    return r;
+}
+
+// Qt's built-in glslang stops at the first error. When glslangValidator is installed
+// (Arch: glslang), re-run it with cascading errors so the editor can list every error.
+// Optional: without it the editor shows qsb's single error.
+static CompileResult withAllErrors(CompileResult r, const QString &in, int prefixLines)
+{
+    static const QString tool = [] {
+        for (const char *n : {"glslangValidator", "glslang"}) {
+            const QString p = QStandardPaths::findExecutable(QLatin1String(n));
+            if (!p.isEmpty()) return p;
+        }
+        return QString();
+    }();
+    if (tool.isEmpty() || qEnvironmentVariableIsSet("SHADY_NO_GLSLANG")) return r;
+    QProcess g;
+    g.setProcessChannelMode(QProcess::MergedChannels);
+    g.start(tool, {QStringLiteral("-C"), QStringLiteral("-V"), QStringLiteral("-S"), QStringLiteral("frag"),
+                   QStringLiteral("-o"), QStringLiteral("/dev/null"), in});
+    if (!g.waitForFinished(5000)) { g.kill(); g.waitForFinished(500); return r; }
+    const CompileResult all = Compiler::parseErrors(QString::fromUtf8(g.readAll()), prefixLines);
+    if (all.errors.size() > r.errors.size()) { r.errors = all.errors; r.errorLine = all.errorLine; r.errorText = all.errorText; }
     return r;
 }
 
@@ -174,7 +207,7 @@ CompileResult Compiler::compileSync(const QString &user, const QString &types)
     p.start(qsbTool(), qsbArgs(in, out + QStringLiteral(".tmp")));
     CompileResult r;
     if (!p.waitForFinished(30000) || p.exitStatus() != QProcess::NormalExit || p.exitCode() != 0) {
-        r = parseErrors(QString::fromUtf8(p.readAll()), prefix);
+        r = withAllErrors(parseErrors(QString::fromUtf8(p.readAll()), prefix), in, prefix);
         QFile::remove(out + QStringLiteral(".tmp"));
     } else {
         QFile::remove(out);
@@ -213,7 +246,7 @@ void Compiler::next()
             r.ok = true;
             r.qsbPath = out;
         } else {
-            r = parseErrors(QString::fromUtf8(m_proc->readAll()), prefix);
+            r = withAllErrors(parseErrors(QString::fromUtf8(m_proc->readAll()), prefix), in, prefix);
             QFile::remove(out + QStringLiteral(".tmp"));
         }
         QFile::remove(in);

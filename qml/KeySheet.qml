@@ -12,9 +12,9 @@ FocusScope {
             ["Enter", qsTr("open")], ["N", qsTr("new")], ["S", qsTr("star / unstar")], ["H", qsTr("hide / unhide")],
             ["Ctrl+E", qsTr("edit")], ["Shift+F10", qsTr("menu (or Menu key)")], ["Del", qsTr("move to Trash")],
             ["Shift+Del", qsTr("delete permanently")], ["Ctrl+Z", qsTr("undo")], ["Tab", qsTr("next view")],
-            [",", qsTr("settings")], ["?", qsTr("all keys")], ["Esc", qsTr("close")]] },
+            [",", qsTr("settings")], ["?", qsTr("this page")], ["Esc", qsTr("close")]] },
         { title: qsTr("Trash"), keys: [
-            ["Enter", qsTr("restore")], ["Del", qsTr("delete forever")], ["Tab", qsTr("footer")]] },
+            ["Enter", qsTr("restore")], ["Del", qsTr("delete forever")], ["Tab", qsTr("empty trash")]] },
         { title: qsTr("Viewer"), keys: [
             ["↑↓", qsTr("quality")], ["←→", qsTr("fps")], ["F", qsTr("fullscreen")], ["Esc", qsTr("close")]] },
         { title: qsTr("Editor"), keys: [
@@ -57,7 +57,7 @@ FocusScope {
                             required property var modelData
                             width: parent.width
                             spacing: 8
-                            Label { id: keyCap; width: 84; text: keyRow.modelData[0]; font.pixelSize: 11; font.bold: true }
+                            Label { id: keyCap; width: 74; text: keyRow.modelData[0]; font.pixelSize: 11; font.bold: true }
                             Label { width: keyRow.width - keyCap.width - keyRow.spacing; text: keyRow.modelData[1]; font.pixelSize: 11; dim: true }
                         }
                     }

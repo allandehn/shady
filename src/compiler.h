@@ -3,6 +3,7 @@
 // with Qt's `qsb` tool into a cached .qsb (~/.cache/shady/qsb/<hash>.qsb).
 // One compile runs at a time (a separate qsb process), so the app itself
 // never links glslang and stays small.
+#include <QVariantList>
 #include <QObject>
 #include <QProcess>
 #include <QQueue>
@@ -13,6 +14,7 @@ struct CompileResult {
     QString qsbPath;
     int errorLine = 0;   // in the user's own code, 1-based; 0 if unknown
     QString errorText;
+    QVariantList errors; // every error: {line, text}, in log order (line 0 = unknown)
     QString user;        // the source this result is for
     QString types;
 };

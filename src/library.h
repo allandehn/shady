@@ -134,7 +134,7 @@ signals:
     void settingsChanged();
     void slowMachineChanged();
     void noted(const QString &text); // status note: "Moved to Trash · Ctrl+Z undo"
-    void draftCompiled(bool ok, const QUrl &url, int errorLine, const QString &errorText, const QString &code, const QString &types);
+    void draftCompiled(bool ok, const QUrl &url, int errorLine, const QString &errorText, const QString &code, const QString &types, const QVariantList &errors);
 
 private:
     struct Undo { enum Kind { Trashed, Restored, Hid, Unhid } kind; QStringList slugs; };

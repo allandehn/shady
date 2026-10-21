@@ -43,7 +43,7 @@ Library::Library(const QString &dataDir, const QString &cacheDir, int maxFps, QO
     connect(&m_saveTimer, &QTimer::timeout, this, &Library::flush);
     connect(&m_compiler, &Compiler::finished, this, [this](const QString &slug, const CompileResult &r) {
         if (slug == m_draftId) {
-            emit draftCompiled(r.ok, r.ok ? QUrl::fromLocalFile(r.qsbPath) : QUrl(), r.errorLine, r.errorText, r.user, r.types);
+            emit draftCompiled(r.ok, r.ok ? QUrl::fromLocalFile(r.qsbPath) : QUrl(), r.errorLine, r.errorText, r.user, r.types, r.errors);
             return;
         }
         for (int i = 0; i < m_entries.size(); ++i) {
@@ -693,7 +693,7 @@ void Library::compileDraft(const QString &code, const QVariantList &channels)
         t += c < channels.size() && Textures::is3d(channels[c].toMap().value("source").toString()) ? u'3' : u'2';
     const QString cached = m_compiler.cachedPath(code, t);
     if (!cached.isEmpty()) {
-        QMetaObject::invokeMethod(this, [this, cached, code, t] { emit draftCompiled(true, QUrl::fromLocalFile(cached), 0, {}, code, t); },
+        QMetaObject::invokeMethod(this, [this, cached, code, t] { emit draftCompiled(true, QUrl::fromLocalFile(cached), 0, {}, code, t, {}); },
                                   Qt::QueuedConnection);
         return;
     }

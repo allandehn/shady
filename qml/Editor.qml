@@ -14,6 +14,16 @@ FocusScope {
     property bool lastOk: false
     property int errorLine: 0
     property string errorText: ""
+    property var errors: []          // every error from the last compile: {line, text}
+    readonly property var errorLines: errors.map(x => x.line)
+    function gotoLine(n) {
+        if (n <= 0) return
+        let pos = 0
+        for (let i = 1; i < n; ++i) { const k = code.text.indexOf("\n", pos); if (k < 0) break; pos = k + 1 }
+        code.forceActiveFocus()
+        code.cursorPosition = pos
+        flick.ensureVisible(code.cursorRectangle)
+    }
     property bool pendingSave: false
     property bool licenseTouched: false
     property var channels: [{}, {}, {}, {}]   // {source, filter, wrap}
@@ -54,7 +64,7 @@ FocusScope {
         name.text = saved.name; author.text = saved.author; license.text = saved.license
         description.text = saved.description; code.text = saved.code
         licenseTouched = saved.license !== ""
-        previewUrl = ""; compiledCode = ""; errorLine = 0; errorText = ""; lastOk = false; pendingSave = false
+        previewUrl = ""; compiledCode = ""; errorLine = 0; errorText = ""; errors = []; lastOk = false; pendingSave = false
         compile()
         name.forceActiveFocus()
     }
@@ -66,7 +76,7 @@ FocusScope {
 
     Connections {
         target: library
-        function onDraftCompiled(ok, url, line, text, src, types) {
+        function onDraftCompiled(ok, url, line, text, src, types, errs) {
             if (!ed.visible || src + types !== ed.pendingKey) return // a stale result
             ed.compiling = false
             ed.compiledCode = src
@@ -74,6 +84,7 @@ FocusScope {
             ed.lastOk = ok
             ed.errorLine = ok ? 0 : line
             ed.errorText = ok ? "" : text
+            ed.errors = ok ? [] : (errs && errs.length ? errs : [{ line: line, text: text }])
             if (ok) ed.previewUrl = url // a broken edit never blanks the preview
             if (ed.pendingSave) {
                 ed.pendingSave = false
@@ -120,7 +131,7 @@ FocusScope {
         Label { id: codeLabel; text: qsTr("Fragment shader"); smallCaps: true; dim: true }
         Rectangle {
             id: codeBox
-            anchors { left: parent.left; top: codeLabel.bottom; topMargin: 6; bottom: status.top; bottomMargin: 8 }
+            anchors { left: parent.left; top: codeLabel.bottom; topMargin: 6; bottom: compileRow.top; bottomMargin: 8 }
             width: parent.width - body.previewW - 14
             color: ui.bg2; radius: theme.rounding; clip: true
             border.width: 1; border.color: code.activeFocus ? ui.accent : "transparent"
@@ -135,11 +146,14 @@ FocusScope {
                     else if (contentY + height <= r.y + r.height + 16) contentY = r.y + r.height + 16 - height
                 }
                 // Error line: faint tint and a 2 px red bar (the only red in the app).
-                Rectangle {
-                    visible: ed.errorLine > 0 && ed.upToDate
-                    y: code.y + ed.lineY(ed.errorLine); width: parent.width; height: code.lineH
-                    color: Qt.rgba(theme.error.r, theme.error.g, theme.error.b, 0.10)
-                    Rectangle { width: 2; height: parent.height; color: theme.error }
+                Repeater {
+                    model: ed.upToDate ? ed.errors.filter(x => x.line > 0) : []
+                    Rectangle {
+                        required property var modelData
+                        y: code.y + ed.lineY(modelData.line); width: parent.width; height: code.lineH
+                        color: Qt.rgba(theme.error.r, theme.error.g, theme.error.b, 0.10)
+                        Rectangle { width: 2; height: parent.height; color: theme.error }
+                    }
                 }
                 Column {
                     id: gutter
@@ -148,7 +162,7 @@ FocusScope {
                         model: code.lineCount
                         Label { required property int index; width: gutter.width - 8; height: code.lineH
                                 horizontalAlignment: Text.AlignRight; text: index + 1; font.pixelSize: 11
-                                color: index + 1 === ed.errorLine && ed.upToDate ? theme.error : ui.muted }
+                                color: ed.upToDate && ed.errorLines.indexOf(index + 1) >= 0 ? theme.error : ui.muted }
                     }
                 }
                 TextEdit {
@@ -173,25 +187,83 @@ FocusScope {
             }
         }
         Item {
-            id: status
-            anchors { left: codeBox.left; right: codeBox.right; bottom: parent.bottom }
+            id: compileRow
+            anchors { left: codeBox.left; right: codeBox.right; bottom: results.top; bottomMargin: 10 }
             height: 30
-            Row {
-                anchors.verticalCenter: parent.verticalCenter
-                spacing: 6
-                width: parent.width - compileBtn.width - 10
-                Label { visible: ed.broken && ed.errorLine > 0; text: qsTr("Line %1").arg(ed.errorLine); color: theme.error; font.pixelSize: 12 }
-                Label {
-                    width: parent.width - 70
-                    font.pixelSize: 12
-                    dim: !ed.broken
-                    text: ed.compiling ? qsTr("Compiling…")
-                        : ed.broken ? ed.errorText
-                        : ed.upToDate ? qsTr("Compiled · 0 errors") : qsTr("Not compiled")
+            Button { id: compileBtn; anchors.right: parent.right; text: qsTr("Compile"); keyHint: "Ctrl+↵"
+                     onClicked: ed.compile(); KeyNavigation.tab: errList.count > 0 && ed.broken ? errList : slots.itemAt(0)
+                     KeyNavigation.backtab: code }
+        }
+
+        // Compile result: full width under everything so errors get the most room.
+        // OK / compiling / not compiled stays a quiet single line; errors get a pane
+        // that lists every error, wraps long ones and scrolls. Click or Enter jumps.
+        Item {
+            id: results
+            objectName: "results"
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+            readonly property real maxH: Math.max(80, Math.round(body.height * 0.4))
+            height: ed.broken ? Math.min(maxH, errHead.height + 12 + errList.contentHeight + 12) : quiet.height
+            Label {
+                id: quiet
+                visible: !ed.broken
+                width: parent.width
+                font.pixelSize: 12; dim: true
+                text: ed.compiling ? qsTr("Compiling…") : ed.upToDate ? qsTr("Compiled · 0 errors") : qsTr("Not compiled")
+            }
+            Rectangle {
+                anchors.fill: parent
+                visible: ed.broken
+                color: ui.bg2; radius: theme.rounding; clip: true
+                border.width: 1; border.color: errList.activeFocus ? ui.accent : Qt.rgba(theme.error.r, theme.error.g, theme.error.b, 0.35)
+                Row {
+                    id: errHead
+                    x: 12; y: 8; width: parent.width - 24; spacing: 12
+                    Label { id: errCount; text: ed.errors.length === 1 ? qsTr("1 error") : qsTr("%1 errors").arg(ed.errors.length); smallCaps: true; color: theme.error }
+                    Label { width: parent.width - errCount.width - parent.spacing; dim: true; font.pixelSize: 11
+                            horizontalAlignment: Text.AlignRight
+                            text: ed.compiling ? qsTr("Compiling…") : qsTr("↵ or click jumps to the line") }
+                }
+                ListView {
+                    id: errList
+                    objectName: "errorList"
+                    anchors { left: parent.left; right: parent.right; top: errHead.bottom; bottom: parent.bottom; topMargin: 6; bottomMargin: 6 }
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    model: ed.broken ? ed.errors : []
+                    currentIndex: 0
+                    activeFocusOnTab: false
+                    KeyNavigation.tab: slots.itemAt(0); KeyNavigation.backtab: compileBtn
+                    Keys.onReturnPressed: ed.gotoLine(ed.errors[currentIndex].line)
+                    Keys.onEnterPressed: ed.gotoLine(ed.errors[currentIndex].line)
+                    delegate: Rectangle {
+                        id: errRow
+                        required property var modelData
+                        required property int index
+                        width: errList.width
+                        height: Math.max(lineCol.implicitHeight, msg.implicitHeight) + 8
+                        color: errList.activeFocus && ListView.isCurrentItem ? Qt.rgba(ui.accent.r, ui.accent.g, ui.accent.b, 0.12) : "transparent"
+                        Rectangle { visible: errList.activeFocus && errRow.ListView.isCurrentItem; width: 2; height: parent.height; color: ui.accent }
+                        Label {
+                            id: lineCol
+                            x: 12; y: 4; width: 76
+                            text: errRow.modelData.line > 0 ? qsTr("Line %1").arg(errRow.modelData.line) : "—"
+                            color: theme.error; font.pixelSize: 12
+                        }
+                        Label {
+                            id: msg
+                            anchors { left: lineCol.right; leftMargin: 8; right: parent.right; rightMargin: 12 }
+                            y: 4
+                            text: errRow.modelData.text
+                            font.pixelSize: 12
+                            wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+                            elide: Text.ElideNone
+                        }
+                        MouseArea { anchors.fill: parent; cursorShape: errRow.modelData.line > 0 ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                    onClicked: { errList.currentIndex = errRow.index; ed.gotoLine(errRow.modelData.line) } }
+                    }
                 }
             }
-            Button { id: compileBtn; anchors.right: parent.right; text: qsTr("Compile"); keyHint: "Ctrl+↵"
-                     onClicked: ed.compile(); KeyNavigation.tab: slots.itemAt(0); KeyNavigation.backtab: code }
         }
 
         Label { id: prevLabel; x: codeBox.width + 14; text: qsTr("Preview · last good compile"); smallCaps: true; dim: true
@@ -200,7 +272,9 @@ FocusScope {
             id: previewBox
             x: codeBox.width + 14
             anchors { top: prevLabel.bottom; topMargin: 6 }
-            width: body.previewW; height: Math.round(width * 0.9)
+            width: body.previewW
+            // Shrinks so the four channel slots always fit above the results pane.
+            height: Math.max(40, Math.min(Math.round(width * 0.9), results.y - 14 - y - 14 - chBlock.height))
             color: ui.bg2; radius: theme.rounding; clip: true
             ShaderView {
                 anchors.fill: parent
@@ -222,6 +296,7 @@ FocusScope {
         x: codeBox.width + 14
         y: previewBox.y + previewBox.height + 14
         width: body.previewW
+        height: chLabel.height + 6 + 4 * 40 + 3 * 6
         Label { id: chLabel; text: qsTr("Channels"); smallCaps: true; dim: true }
         Grid {
             y: chLabel.height + 6
