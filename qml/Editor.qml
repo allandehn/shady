@@ -151,7 +151,7 @@ FocusScope {
         Label { id: codeLabel; text: qsTr("Fragment shader"); smallCaps: true; dim: true }
         Rectangle {
             id: codeBox
-            anchors { left: parent.left; top: codeLabel.bottom; topMargin: 6; bottom: compileRow.top; bottomMargin: 8 }
+            anchors { left: parent.left; top: codeLabel.bottom; topMargin: 6; bottom: results.top; bottomMargin: 10 }
             width: parent.width - body.previewW - 14
             color: ui.bg2; radius: theme.rounding; clip: true
             border.width: 1; border.color: code.activeFocus ? ui.accent : "transparent"
@@ -213,15 +213,6 @@ FocusScope {
                 }
             }
         }
-        Item {
-            id: compileRow
-            anchors { left: codeBox.left; right: codeBox.right; bottom: results.top; bottomMargin: 10 }
-            height: 30
-            Button { id: compileBtn; anchors.right: parent.right; text: qsTr("Compile"); keyHint: "Ctrl+↵"
-                     onClicked: ed.compile(); KeyNavigation.tab: ed.broken ? errHead : slots.itemAt(0)
-                     KeyNavigation.backtab: code }
-        }
-
         // Compile result: full width under everything, flat on the background.
         // OK / compiling / not compiled is one quiet line. With errors: a summary
         // header ("3 errors · first at line 12", ▾ to collapse), a 1 px divider and
@@ -232,14 +223,17 @@ FocusScope {
             objectName: "results"
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
             readonly property real rowH: 25
-            readonly property real maxH: Math.max(errHead.height + 1 + rowH * 2, Math.round(body.height * 0.25))
-            height: !ed.broken ? quiet.height
-                  : !ed.errorsOpen ? errHead.height
-                  : Math.min(maxH, errHead.height + 1 + errList.contentHeight)
+            readonly property real maxH: Math.max(headH + 1 + rowH * 2, Math.round(body.height * 0.25))
+            readonly property real headH: 32
+            height: !ed.broken || !ed.errorsOpen ? headH + 1
+                  : Math.min(maxH, headH + 1 + errList.contentHeight)
+            // Header row: status on the left (aligned with the code pane), the
+            // Compile action on the right (aligned with the channels column).
             Label {
                 id: quiet
+                objectName: "compileStatus"
                 visible: !ed.broken
-                width: parent.width; height: 24; verticalAlignment: Text.AlignVCenter
+                width: compileBtn.x - 12; height: results.headH; verticalAlignment: Text.AlignVCenter
                 font.pixelSize: 12; dim: true
                 text: ed.compiling ? qsTr("Compiling…") : ed.upToDate ? qsTr("Compiled · 0 errors") : qsTr("Not compiled")
             }
@@ -247,34 +241,62 @@ FocusScope {
                 id: errHead
                 objectName: "errorsHeader"
                 visible: ed.broken
-                width: parent.width; height: 26
+                width: compileBtn.x - 12; height: results.headH
                 activeFocusOnTab: false
                 KeyNavigation.tab: ed.errorsOpen ? errList : slots.itemAt(0); KeyNavigation.backtab: compileBtn
                 Keys.onReturnPressed: ed.errorsOpen = !ed.errorsOpen
                 Keys.onEnterPressed: ed.errorsOpen = !ed.errorsOpen
                 Keys.onSpacePressed: ed.errorsOpen = !ed.errorsOpen
-                Rectangle { anchors.fill: parent; color: "transparent"; radius: theme.rounding
+                Rectangle { anchors.fill: parent; anchors.leftMargin: -6; color: "transparent"; radius: theme.rounding
                             border.width: errHead.activeFocus ? 1 : 0; border.color: ui.accent }
-                Label {
-                    x: 12; width: parent.width - 12 - toggle.width - 8
+                Row {
                     anchors.verticalCenter: parent.verticalCenter
-                    font.pixelSize: 12
-                    text: ed.errorSummary
-                }
-                Label {
-                    id: toggle
-                    anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
-                    text: ed.errorsOpen ? "▾" : "▸"; dim: true; font.pixelSize: 12
+                    spacing: 8
+                    Label {
+                        id: summary
+                        width: Math.min(implicitWidth, errHead.width - toggle.width - 8)
+                        font.pixelSize: 12
+                        text: ed.errorSummary
+                    }
+                    Label { id: toggle; text: ed.errorsOpen ? "▾" : "▸"; dim: true; font.pixelSize: 12 }
                 }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: ed.errorsOpen = !ed.errorsOpen }
             }
-            Rectangle { visible: ed.broken && ed.errorsOpen; y: errHead.height; width: parent.width; height: 1
+            // Secondary button: neutral border, fg text, square corners. Fixed width
+            // (fits "Compiling…") so nothing shifts while compiling.
+            Rectangle {
+                id: compileBtn
+                objectName: "compileButton"
+                readonly property bool enabled_: !ed.compiling
+                anchors { right: parent.right; verticalCenter: quiet.verticalCenter }
+                width: 12 + Math.max(tmA.advanceWidth, tmB.advanceWidth) + 8 + cbHint.implicitWidth + 12
+                height: 28; radius: 0
+                color: "transparent"
+                border.width: 1
+                border.color: activeFocus ? ui.accent : Qt.rgba(ui.muted.r, ui.muted.g, ui.muted.b, 0.5)
+                opacity: enabled_ ? 1 : 0.6
+                activeFocusOnTab: false
+                KeyNavigation.tab: ed.broken ? errHead : slots.itemAt(0)
+                KeyNavigation.backtab: code
+                Keys.onReturnPressed: if (enabled_) ed.compile()
+                Keys.onEnterPressed: if (enabled_) ed.compile()
+                Keys.onSpacePressed: if (enabled_) ed.compile()
+                TextMetrics { id: tmA; font: cbLabel.font; text: qsTr("Compile") }
+                TextMetrics { id: tmB; font: cbLabel.font; text: qsTr("Compiling…") }
+                Label { id: cbLabel; x: 12; anchors.verticalCenter: parent.verticalCenter
+                        font.pixelSize: 12; color: ui.fg
+                        text: ed.compiling ? qsTr("Compiling…") : qsTr("Compile") }
+                Label { id: cbHint; anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                        text: "Ctrl+↵"; font.pixelSize: 11; dim: true }
+                MouseArea { anchors.fill: parent; onClicked: if (compileBtn.enabled_) ed.compile() }
+            }
+            Rectangle { y: results.headH; width: parent.width; height: 1
                         color: Qt.rgba(ui.muted.r, ui.muted.g, ui.muted.b, 0.25) }
             ListView {
                 id: errList
                 objectName: "errorList"
                 visible: ed.broken && ed.errorsOpen
-                anchors { left: parent.left; right: parent.right; top: errHead.bottom; topMargin: 1; bottom: parent.bottom }
+                anchors { left: parent.left; right: parent.right; top: parent.top; topMargin: results.headH + 1; bottom: parent.bottom }
                 clip: true
                 spacing: 0
                 boundsBehavior: Flickable.StopAtBounds
