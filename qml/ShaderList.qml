@@ -12,6 +12,7 @@ FocusScope {
     property string swNote: ""
     property string note: ""
     readonly property int currentRow: grid.currentIndex
+    readonly property int columns: grid.columns
     readonly property bool inTrash: library.filter === 3
     readonly property bool overlayOpen: menu.visible || confirm.visible || keys.visible || settings.visible
 
@@ -189,8 +190,10 @@ FocusScope {
         clip: true
         focus: true
         model: library
-        cellWidth: Math.floor(width / 2)
-        cellHeight: Math.round((cellWidth - 10) * 0.46) + 60
+        // Square previews: as many ~200 px columns as fit, never fewer than two.
+        readonly property int columns: Math.max(2, Math.floor((width + 10) / 200))
+        cellWidth: Math.floor(width / columns)
+        cellHeight: (cellWidth - 10) + 54
         keyNavigationEnabled: true
         highlightFollowsCurrentItem: false
         boundsBehavior: Flickable.StopAtBounds
@@ -219,8 +222,9 @@ FocusScope {
             }
             else if (e.key === Qt.Key_Space) panel.toggle(r)
             else if (shift && (e.key === Qt.Key_Left || e.key === Qt.Key_Right || e.key === Qt.Key_Up || e.key === Qt.Key_Down)) {
-                const step = e.key === Qt.Key_Left ? -1 : e.key === Qt.Key_Right ? 1 : e.key === Qt.Key_Up ? -2 : 2
-                const to = Math.max(0, Math.min(library.count - 1, r + step))
+                const step = e.key === Qt.Key_Left ? -1 : e.key === Qt.Key_Right ? 1 : e.key === Qt.Key_Up ? -grid.columns : grid.columns
+                let to = Math.max(0, Math.min(library.count - 1, r + step))
+                while (to > 0 && !panel.isShader(to)) --to // stop at the last shader, not the New card
                 if (to !== r || !panel.selecting) panel.extend(to)
             }
             else if (e.key === Qt.Key_A && ctrl) panel.selectAll()
@@ -265,7 +269,7 @@ FocusScope {
     // PNG in the cache, so cards show still frames without running shaders.
     Item {
         id: maker
-        x: panel.width + 50; width: 320; height: 148
+        x: panel.width + 50; width: 256; height: 256
         property string slug: ""
         ShaderView { id: makerView; anchors.fill: parent; running: false; time: 2.0; quality: 1.0 }
         Timer { id: makerWait; interval: 250; onTriggered: maker.grab() }
@@ -287,7 +291,7 @@ FocusScope {
                 maker.slug = ""
                 makerView.source = ""
                 Qt.callLater(maker.kick)
-            }, Qt.size(320, 148))
+            }, Qt.size(256, 256))
         }
         Connections { target: library; function onCountChanged() { Qt.callLater(maker.kick) } }
         Component.onCompleted: Qt.callLater(kick)

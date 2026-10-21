@@ -78,7 +78,7 @@ grep -q 'ALL PASS' "$WORK/test.log" || die "headless tests did not report ALL PA
 
 if (( DRY )); then
   step "[dry-run] skip commit, tag and push; package the working tree instead"
-  SNAP=$(git stash create); SNAP=${SNAP:-HEAD}
+  SNAP=$(git stash create 2>/dev/null || true); SNAP=${SNAP:-HEAD}
   git archive --format=tar.gz --prefix="shady-$VER/" -o "$WORK/shady-$VER.tar.gz" "$SNAP"
 else
   step "Commit, tag v$VER, push"

@@ -158,7 +158,7 @@ void Library::compile(ShaderEntry &e)
 
 QString Library::stillFile(const ShaderEntry &e) const
 {
-    return m_cacheDir + QStringLiteral("/stills/") + Compiler::hashOf(e.code + channelKey(e.meta), types(e)) + QStringLiteral(".png");
+    return m_cacheDir + QStringLiteral("/stills/") + Compiler::hashOf(e.code + channelKey(e.meta), types(e)) + QStringLiteral("-sq.png"); // square stills
 }
 
 void Library::rebuild()

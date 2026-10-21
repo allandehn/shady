@@ -68,7 +68,7 @@ Item {
             visible: !card.isNew
             x: 1; y: 1
             width: parent.width - 2
-            height: Math.round(width * 0.46)
+            height: width // square
 
             Rectangle { anchors.fill: parent; color: ui.bg2 }
             Image {
@@ -78,7 +78,7 @@ Item {
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
                 cache: false
-                sourceSize: Qt.size(320, 148)
+                sourceSize: Qt.size(256, 256)
             }
             ShaderView {
                 id: view
@@ -141,7 +141,7 @@ Item {
 
         Column {
             visible: !card.isNew
-            anchors { left: parent.left; right: parent.right; top: preview.bottom; margins: 10; topMargin: 9 }
+            anchors { left: parent.left; right: parent.right; top: preview.bottom; margins: 10; topMargin: 8 }
             spacing: 3
             Label { width: parent.width; text: card.name; font.bold: true }
             Label {
