@@ -23,7 +23,7 @@
 static void pickGraphicsApi()
 {
     if (qEnvironmentVariableIsSet("QSG_RHI_BACKEND")) return;
-#if QT_CONFIG(vulkan)
+#if QT_CONFIG(vulkan) && __has_include(<vulkan/vulkan.h>)
     static QVulkanInstance probe;
     if (probe.create() && !probe.supportedApiVersion().isNull()) {
         QQuickWindow::setGraphicsApi(QSGRendererInterface::Vulkan);

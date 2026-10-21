@@ -14,7 +14,7 @@ depends=(
   'glibc'
   'gcc-libs'
 )
-makedepends=('cmake' 'ninja' 'qt6-tools')
+makedepends=('cmake' 'ninja' 'qt6-tools' 'vulkan-headers')
 checkdepends=('xorg-server-xvfb')
 options=('!debug')
 # Release: the GitHub tag tarball. scripts/release.sh --dry-run drops a tarball

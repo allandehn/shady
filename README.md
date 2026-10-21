@@ -24,9 +24,9 @@ For now, build from source (below). A pacman repo, so you can run `omarchy pkg a
 
 ## Build from source
 
-Needs Qt 6.6+ (`qt6-base`, `qt6-declarative`, `qt6-shadertools`, plus `qt6-tools` to build), `glslang`, CMake and Ninja:
+Needs Qt 6.6+ (`qt6-base`, `qt6-declarative`, `qt6-shadertools`, plus `qt6-tools` and `vulkan-headers` to build), `glslang`, CMake and Ninja:
 
-    sudo pacman -S --needed qt6-base qt6-declarative qt6-shadertools qt6-tools glslang cmake ninja
+    sudo pacman -S --needed qt6-base qt6-declarative qt6-shadertools qt6-tools vulkan-headers glslang cmake ninja
     cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
     cmake --build build
     sudo cmake --install build      # installs /usr/local/bin/shady
