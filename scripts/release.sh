@@ -70,7 +70,7 @@ step "Build"
 rm -rf build
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -Wno-dev >/dev/null
 cmake --build build >/dev/null
-[[ $(QT_QPA_PLATFORM=offscreen ./build/shady --version) == "shady $VER" ]] || die "built binary reports $(QT_QPA_PLATFORM=offscreen ./build/shady --version 2>&1)"
+[[ $(QT_QPA_PLATFORMTHEME= QT_QPA_PLATFORM=offscreen ./build/shady --version) == "shady $VER" ]] || die "built binary reports $(QT_QPA_PLATFORMTHEME= QT_QPA_PLATFORM=offscreen ./build/shady --version 2>&1)"
 
 step "Headless tests (offscreen, private D-Bus, throwaway XDG dirs)"
 tests/headless.sh ./build/shady > "$WORK/test.log" 2>&1 || { grep -E 'FAIL' "$WORK/test.log" >&2 || true; die "headless tests failed"; }
