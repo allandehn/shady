@@ -48,8 +48,9 @@
   GIT_TERMINAL_PROMPT=0, stdin from /dev/null).
 - Every step prints `[HH:MM:SS] ==> Step` and runs under `timeout`; a hang fails
   loudly with the step name. Scale the limits with `SHADY_TIMEOUT_SCALE=2`.
-- gpg runs with pinentry disabled. If preflight says the key may need unlocking,
-  stop and ask Allan to run `echo | gpg --clearsign -u <KEY> >/dev/null`.
+- Signing uses gpg-agent's normal graphical pinentry: preflight makes a test
+  signature (300s timeout), which may pop up a passphrase dialog on Allan's
+  desktop. If it times out, tell Allan a passphrase dialog may be waiting.
 
 ## Tests (more)
 `tests/headless.sh` runs these: self-test, UI test, `--potato-test` (with SHADY_SOFTWARE=0, it covers the benchmark, iChannels on screen, auto-adapt and the too-heavy pause) and `--danish-shot` (SHADY_LANG=da). Run `i18n/update.sh` after you change qsTr strings. Danish strings live in i18n/da.py.

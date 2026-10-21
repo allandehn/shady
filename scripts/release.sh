@@ -12,9 +12,10 @@
 # line and its commands run under coreutils `timeout` (per-step limits below,
 # scale them all with SHADY_TIMEOUT_SCALE=2 etc.). A timeout fails loudly with
 # the step name. stdin is /dev/null for anything that could prompt, and
-# GIT_EDITOR/EDITOR=false, GIT_TERMINAL_PROMPT=0. gpg runs in batch mode with
-# pinentry disabled: if the key is locked, the signing check fails right away
-# and tells you to unlock it (echo | gpg --clearsign -u KEY >/dev/null).
+# GIT_EDITOR/EDITOR=false, GIT_TERMINAL_PROMPT=0. gpg signing uses the normal
+# gpg-agent pinentry, so a passphrase dialog may pop up on the desktop:
+# preflight makes a test signature (300s), and makepkg/repo-add signing
+# allow at least 300s. A timeout says a dialog may be waiting there.
 # --dry-run does everything locally (bump, build, tests, signed package and
 # repo db from the working tree) but never commits, tags, pushes, uploads or
 # publishes, and restores CMakeLists.txt / PKGBUILD at the end. A dry run
@@ -68,9 +69,10 @@ step "Preflight"
 for t in cmake ninja makepkg repo-add dbus-run-session gpg curl; do command -v $t >/dev/null || die "missing tool: $t"; done
 t 30 gpg --batch --list-secret-keys "$KEY" >/dev/null 2>&1 || die "signing key $KEY not in gpg"
 git rev-parse -q --verify "refs/tags/v$VER" >/dev/null && die "tag v$VER exists locally"
-TIMEOUT_HINT="gpg may be waiting for a passphrase: unlock the key with: echo | gpg --clearsign -u $KEY >/dev/null, then rerun"
-t 30 gpg --batch --no-tty --pinentry-mode error -u "$KEY" --clearsign >/dev/null 2>&1 \
-  || die "gpg cannot sign non-interactively with $KEY; the key may need unlocking: echo | gpg --clearsign -u $KEY >/dev/null, then rerun"
+echo "Test signature with $KEY (gpg's passphrase dialog may pop up on the desktop)..."
+TIMEOUT_HINT="a gpg passphrase dialog may be waiting on the desktop; enter the passphrase there and rerun"
+t 300 gpg -u "$KEY" --clearsign >/dev/null 2>&1 \
+  || die "test signature with $KEY failed (passphrase dialog cancelled or wrong passphrase?)"
 TIMEOUT_HINT=
 if (( ! DRY )); then
   command -v gh >/dev/null || die "missing tool: gh"
@@ -118,14 +120,14 @@ fi
 
 step "Build and sign the package (makepkg --sign)"
 cp packaging/PKGBUILD "$WORK/"
-TIMEOUT_HINT="gpg may be waiting for a passphrase; the key may need unlocking: echo | gpg --clearsign -u $KEY >/dev/null"
+TIMEOUT_HINT="a gpg passphrase dialog may be waiting on the desktop"
 ( cd "$WORK" && t 1200 makepkg --sign --key "$KEY" -f --noconfirm >"$WORK/makepkg.log" 2>&1 ) \
   || { tail -20 "$WORK/makepkg.log" >&2; die "makepkg failed (if gpg asked for a passphrase, unlock the key with: echo | gpg --clearsign -u $KEY >/dev/null, then rerun)"; }
 
 step "Signed repo database"
 mkdir -p "$WORK/r" "$WORK/up"
 cp "$WORK/$PKG" "$WORK/$PKG.sig" "$WORK/r/"
-( cd "$WORK/r" && t 120 repo-add -q -s -k "$KEY" shady.db.tar.gz "$PKG" )
+( cd "$WORK/r" && t 300 repo-add -q -s -k "$KEY" shady.db.tar.gz "$PKG" )
 for f in db files; do
   cp "$WORK/r/shady.$f.tar.gz" "$WORK/up/shady.$f"
   cp "$WORK/r/shady.$f.tar.gz.sig" "$WORK/up/shady.$f.sig"
