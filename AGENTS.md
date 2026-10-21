@@ -43,7 +43,13 @@
   signs the package with key AC6FF13C76D8916CCCF2DA05C3225162B5257DB4, updates
   the signed pacman repo on the `repo` GitHub release, publishes "Shady X.Y.Z"
   as Latest and checks it publicly. It stops at the first failure.
-- If gpg needs a passphrase it can't get, stop and ask Allan to unlock the key.
+- Release notes come from NOTES_FILE or `$NOTES`; a real run with neither dies
+  at once. It never opens an editor or prompt (GIT_EDITOR/EDITOR=false,
+  GIT_TERMINAL_PROMPT=0, stdin from /dev/null).
+- Every step prints `[HH:MM:SS] ==> Step` and runs under `timeout`; a hang fails
+  loudly with the step name. Scale the limits with `SHADY_TIMEOUT_SCALE=2`.
+- gpg runs with pinentry disabled. If preflight says the key may need unlocking,
+  stop and ask Allan to run `echo | gpg --clearsign -u <KEY> >/dev/null`.
 
 ## Tests (more)
 `tests/headless.sh` runs these: self-test, UI test, `--potato-test` (with SHADY_SOFTWARE=0, it covers the benchmark, iChannels on screen, auto-adapt and the too-heavy pause) and `--danish-shot` (SHADY_LANG=da). Run `i18n/update.sh` after you change qsTr strings. Danish strings live in i18n/da.py.
