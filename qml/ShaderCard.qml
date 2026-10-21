@@ -87,7 +87,7 @@ Item {
                 running: visible
                 source: visible ? card.shaderUrl : ""
                 channels: card.channels
-                quality: 0.35
+                quality: ui.crisp ? 1.0 : 0.35
                 fps: Math.min(30, card.fps)
                 // Resume where this card left off during this session.
                 onVisibleChanged: {

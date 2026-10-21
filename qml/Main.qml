@@ -12,6 +12,9 @@ Window {
     // Theme colors, crossfading over ~840 ms when the theme changes.
     QtObject {
         id: ui
+        objectName: "ui"
+        // --doc-shots only: the live card renders at full quality so README images are sharp.
+        property bool crisp: false
         property color bg: theme.background
         property color bg2: theme.lighterBackground
         property color fg: theme.foreground

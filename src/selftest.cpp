@@ -14,6 +14,7 @@
 #include <QGuiApplication>
 #include <QImage>
 #include <QKeyEvent>
+#include <QMouseEvent>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QStandardPaths>
@@ -932,6 +933,10 @@ void runDocShots(QQuickWindow *win, Library *lib, const QString &dir)
     QDir().mkpath(dir);
     auto *list = win->findChild<QQuickItem *>("list");
     auto *editor = win->findChild<QQuickItem *>("editor");
+    if (auto *ui = win->findChild<QObject *>("ui")) ui->setProperty("crisp", true);
+    // Pointer off the window: no hover state in the shot.
+    QMouseEvent leave(QEvent::Leave, QPointF(-10, -10), QPointF(-10, -10), Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(win, &leave);
     waitFor([&] { return lib->preparing() == 0; }, 60000);
     waitFor([] { return false; }, 1500);
     fits(win, "doc list");
