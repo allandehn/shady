@@ -16,6 +16,7 @@
 #include <QKeyEvent>
 #include <QQuickItem>
 #include <QQuickWindow>
+#include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTimer>
 #include <rhi/qshader.h>
@@ -97,6 +98,17 @@ int runSelfTest()
     r = c.compileSync(broken);
     check(!r.ok && r.errorLine == 4, QString("error maps to the user's line (got %1: %2)").arg(r.errorLine).arg(r.errorText));
     check(!QFile::exists(c.pathFor(broken)), "a broken shader leaves no .qsb");
+    {
+        const QString multi = "void mainImage(out vec4 o, in vec2 p)\n{\n  float a = nope;\n  vec3 b = vec2(1.0);\n  o = vec4(b, a);\n}\n";
+        const bool haveGlslang = !QStandardPaths::findExecutable("glslangValidator").isEmpty()
+                              || !QStandardPaths::findExecutable("glslang").isEmpty();
+        const CompileResult all = c.compileSync(multi);
+        check(!haveGlslang || all.errors.size() >= 2, QString("glslang lists every error (%1)").arg(all.errors.size()));
+        qputenv("SHADY_NO_GLSLANG", "1");
+        const CompileResult one = c.compileSync(multi + " ");
+        qunsetenv("SHADY_NO_GLSLANG");
+        check(!one.ok && one.errors.size() == 1 && one.errorLine == 3, "without glslangValidator: falls back to the first error");
+    }
     Q_UNUSED(good);
 
     // Library storage
@@ -569,6 +581,7 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
     waitFor([&] { return !editor->property("compiling").toBool(); }, 20000);
     check(editor->property("errorLine").toInt() == 5, QString("error on the user's line (%1: %2)")
           .arg(editor->property("errorLine").toInt()).arg(editor->property("errorText").toString()));
+    check(!editor->property("errorsOpen").toBool(), "one error: the pane starts collapsed to its summary");
     shotAs("editor");
 
     // Several errors: all listed in the full-width pane; Enter on one jumps to its line.
@@ -586,10 +599,22 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
     auto *errList = editor->findChild<QQuickItem *>("errorList");
     auto *results = editor->findChild<QQuickItem *>("results");
     check(errList && results && results->width() >= editor->width() - 41, "error pane spans the editor's full width");
+    check(editor->property("errorsOpen").toBool(), "several errors: the pane starts open");
     shotAs("editor-errors");
+    if (auto *head = editor->findChild<QQuickItem *>("errorsHeader")) {
+        QMetaObject::invokeMethod(head, "forceActiveFocus");
+        key(win, Qt::Key_Space, " ");
+        check(!editor->property("errorsOpen").toBool(), "Space on the summary collapses the pane");
+        shotAs("editor-errors-collapsed");
+        key(win, Qt::Key_Return);
+        check(editor->property("errorsOpen").toBool(), "Enter expands it again");
+    }
     if (errList && errs.size() >= 2) {
         QMetaObject::invokeMethod(errList, "forceActiveFocus");
         key(win, Qt::Key_Down);
+        check(editor->property("focusedError").toString() == errs[1].toMap().value("text").toString(),
+              "the focused error's full message shows in the hint row");
+        shotAs("editor-errors-focused");
         key(win, Qt::Key_Return);
         const int want = errs[1].toMap().value("line").toInt();
         const QString t = code->property("text").toString();

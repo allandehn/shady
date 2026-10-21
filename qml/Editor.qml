@@ -15,6 +15,13 @@ FocusScope {
     property int errorLine: 0
     property string errorText: ""
     property var errors: []          // every error from the last compile: {line, text}
+    property bool errorsOpen: true   // the errors pane; starts collapsed when there's one error
+    readonly property string errorSummary: {
+        const n = errors.length, l = n ? errors[0].line : 0
+        if (n === 1) return l > 0 ? qsTr("1 error · line %1").arg(l) : qsTr("1 error")
+        return l > 0 ? qsTr("%1 errors · first at line %2").arg(n).arg(l) : qsTr("%1 errors").arg(n)
+    }
+    readonly property string focusedError: errList.activeFocus && errors[errList.currentIndex] ? errors[errList.currentIndex].text : ""
     readonly property var errorLines: errors.map(x => x.line)
     function gotoLine(n) {
         if (n <= 0) return
@@ -85,6 +92,7 @@ FocusScope {
             ed.errorLine = ok ? 0 : line
             ed.errorText = ok ? "" : text
             ed.errors = ok ? [] : (errs && errs.length ? errs : [{ line: line, text: text }])
+            ed.errorsOpen = ed.errors.length > 1
             if (ok) ed.previewUrl = url // a broken edit never blanks the preview
             if (ed.pendingSave) {
                 ed.pendingSave = false
@@ -151,7 +159,7 @@ FocusScope {
                     Rectangle {
                         required property var modelData
                         y: code.y + ed.lineY(modelData.line); width: parent.width; height: code.lineH
-                        color: Qt.rgba(theme.error.r, theme.error.g, theme.error.b, 0.10)
+                        color: "transparent" // one red: just the 2 px bar and the gutter number
                         Rectangle { width: 2; height: parent.height; color: theme.error }
                     }
                 }
@@ -191,77 +199,97 @@ FocusScope {
             anchors { left: codeBox.left; right: codeBox.right; bottom: results.top; bottomMargin: 10 }
             height: 30
             Button { id: compileBtn; anchors.right: parent.right; text: qsTr("Compile"); keyHint: "Ctrl+↵"
-                     onClicked: ed.compile(); KeyNavigation.tab: errList.count > 0 && ed.broken ? errList : slots.itemAt(0)
+                     onClicked: ed.compile(); KeyNavigation.tab: ed.broken ? errHead : slots.itemAt(0)
                      KeyNavigation.backtab: code }
         }
 
-        // Compile result: full width under everything so errors get the most room.
-        // OK / compiling / not compiled stays a quiet single line; errors get a pane
-        // that lists every error, wraps long ones and scrolls. Click or Enter jumps.
+        // Compile result: full width under everything, flat on the background.
+        // OK / compiling / not compiled is one quiet line. With errors: a summary
+        // header ("3 errors · first at line 12", ▾ to collapse), a 1 px divider and
+        // fixed 25 px rows (gutter-style number + one elided message). The focused
+        // row's full message shows in the hint row. Up to 25% of the page, then scrolls.
         Item {
             id: results
             objectName: "results"
             anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-            readonly property real maxH: Math.max(80, Math.round(body.height * 0.4))
-            height: ed.broken ? Math.min(maxH, errHead.height + 12 + errList.contentHeight + 12) : quiet.height
+            readonly property real rowH: 25
+            readonly property real maxH: Math.max(errHead.height + 1 + rowH * 2, Math.round(body.height * 0.25))
+            height: !ed.broken ? quiet.height
+                  : !ed.errorsOpen ? errHead.height
+                  : Math.min(maxH, errHead.height + 1 + errList.count * rowH)
             Label {
                 id: quiet
                 visible: !ed.broken
-                width: parent.width
+                width: parent.width; height: 24; verticalAlignment: Text.AlignVCenter
                 font.pixelSize: 12; dim: true
                 text: ed.compiling ? qsTr("Compiling…") : ed.upToDate ? qsTr("Compiled · 0 errors") : qsTr("Not compiled")
             }
-            Rectangle {
-                anchors.fill: parent
+            FocusScope {
+                id: errHead
+                objectName: "errorsHeader"
                 visible: ed.broken
-                color: ui.bg2; radius: theme.rounding; clip: true
-                border.width: 1; border.color: errList.activeFocus ? ui.accent : Qt.rgba(theme.error.r, theme.error.g, theme.error.b, 0.35)
-                Row {
-                    id: errHead
-                    x: 12; y: 8; width: parent.width - 24; spacing: 12
-                    Label { id: errCount; text: ed.errors.length === 1 ? qsTr("1 error") : qsTr("%1 errors").arg(ed.errors.length); smallCaps: true; color: theme.error }
-                    Label { width: parent.width - errCount.width - parent.spacing; dim: true; font.pixelSize: 11
-                            horizontalAlignment: Text.AlignRight
-                            text: ed.compiling ? qsTr("Compiling…") : qsTr("↵ or click jumps to the line") }
+                width: parent.width; height: 26
+                activeFocusOnTab: false
+                KeyNavigation.tab: ed.errorsOpen ? errList : slots.itemAt(0); KeyNavigation.backtab: compileBtn
+                Keys.onReturnPressed: ed.errorsOpen = !ed.errorsOpen
+                Keys.onEnterPressed: ed.errorsOpen = !ed.errorsOpen
+                Keys.onSpacePressed: ed.errorsOpen = !ed.errorsOpen
+                Rectangle { anchors.fill: parent; color: "transparent"; radius: theme.rounding
+                            border.width: errHead.activeFocus ? 1 : 0; border.color: ui.accent }
+                Label {
+                    x: 12; width: parent.width - 12 - toggle.width - 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    font.pixelSize: 12
+                    text: ed.errorSummary
                 }
-                ListView {
-                    id: errList
-                    objectName: "errorList"
-                    anchors { left: parent.left; right: parent.right; top: errHead.bottom; bottom: parent.bottom; topMargin: 6; bottomMargin: 6 }
-                    clip: true
-                    boundsBehavior: Flickable.StopAtBounds
-                    model: ed.broken ? ed.errors : []
-                    currentIndex: 0
-                    activeFocusOnTab: false
-                    KeyNavigation.tab: slots.itemAt(0); KeyNavigation.backtab: compileBtn
-                    Keys.onReturnPressed: ed.gotoLine(ed.errors[currentIndex].line)
-                    Keys.onEnterPressed: ed.gotoLine(ed.errors[currentIndex].line)
-                    delegate: Rectangle {
-                        id: errRow
-                        required property var modelData
-                        required property int index
-                        width: errList.width
-                        height: Math.max(lineCol.implicitHeight, msg.implicitHeight) + 8
-                        color: errList.activeFocus && ListView.isCurrentItem ? Qt.rgba(ui.accent.r, ui.accent.g, ui.accent.b, 0.12) : "transparent"
-                        Rectangle { visible: errList.activeFocus && errRow.ListView.isCurrentItem; width: 2; height: parent.height; color: ui.accent }
-                        Label {
-                            id: lineCol
-                            x: 12; y: 4; width: 76
-                            text: errRow.modelData.line > 0 ? qsTr("Line %1").arg(errRow.modelData.line) : "—"
-                            color: theme.error; font.pixelSize: 12
-                        }
-                        Label {
-                            id: msg
-                            anchors { left: lineCol.right; leftMargin: 8; right: parent.right; rightMargin: 12 }
-                            y: 4
-                            text: errRow.modelData.text
-                            font.pixelSize: 12
-                            wrapMode: Text.WrapAtWordBoundaryOrAnywhere
-                            elide: Text.ElideNone
-                        }
-                        MouseArea { anchors.fill: parent; cursorShape: errRow.modelData.line > 0 ? Qt.PointingHandCursor : Qt.ArrowCursor
-                                    onClicked: { errList.currentIndex = errRow.index; ed.gotoLine(errRow.modelData.line) } }
+                Label {
+                    id: toggle
+                    anchors { right: parent.right; rightMargin: 8; verticalCenter: parent.verticalCenter }
+                    text: ed.errorsOpen ? "▾" : "▸"; dim: true; font.pixelSize: 12
+                }
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: ed.errorsOpen = !ed.errorsOpen }
+            }
+            Rectangle { visible: ed.broken && ed.errorsOpen; y: errHead.height; width: parent.width; height: 1
+                        color: Qt.rgba(ui.muted.r, ui.muted.g, ui.muted.b, 0.25) }
+            ListView {
+                id: errList
+                objectName: "errorList"
+                visible: ed.broken && ed.errorsOpen
+                anchors { left: parent.left; right: parent.right; top: errHead.bottom; topMargin: 1; bottom: parent.bottom }
+                clip: true
+                spacing: 0
+                boundsBehavior: Flickable.StopAtBounds
+                model: ed.broken ? ed.errors : []
+                currentIndex: 0
+                activeFocusOnTab: false
+                KeyNavigation.tab: slots.itemAt(0); KeyNavigation.backtab: errHead
+                Keys.onReturnPressed: ed.gotoLine(ed.errors[currentIndex].line)
+                Keys.onEnterPressed: ed.gotoLine(ed.errors[currentIndex].line)
+                delegate: Item {
+                    id: errRow
+                    required property var modelData
+                    required property int index
+                    readonly property bool focused: errList.activeFocus && ListView.isCurrentItem
+                    width: errList.width; height: results.rowH
+                    Rectangle { anchors.fill: parent; visible: errRow.focused
+                                color: Qt.rgba(ui.accent.r, ui.accent.g, ui.accent.b, 0.12) }
+                    Rectangle { visible: errRow.focused; width: 2; height: parent.height; color: ui.accent }
+                    // Same column as the code gutter: 34 px, right-aligned, 11 px.
+                    Label {
+                        id: num
+                        width: 26; anchors.verticalCenter: parent.verticalCenter
+                        horizontalAlignment: Text.AlignRight
+                        text: errRow.modelData.line > 0 ? errRow.modelData.line : "–"
+                        color: theme.error; font.pixelSize: 11
                     }
+                    Label {
+                        anchors { left: parent.left; leftMargin: 46; right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                        text: errRow.modelData.text
+                        font.pixelSize: 12
+                        color: errRow.focused ? ui.fg : ui.muted
+                    }
+                    MouseArea { anchors.fill: parent; cursorShape: errRow.modelData.line > 0 ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                onClicked: { errList.currentIndex = errRow.index; ed.gotoLine(errRow.modelData.line) } }
                 }
             }
         }
@@ -358,13 +386,22 @@ FocusScope {
     Rectangle {
         id: footer
         anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
-        height: 54
+        height: Math.max(54, footLeft.implicitHeight + 24)
         color: ui.bg
         Rectangle { width: parent.width; height: 1; color: ui.bg2 }
-        Row { x: 20; anchors.verticalCenter: parent.verticalCenter; spacing: 6
-            Label { text: "Esc"; font.bold: true; font.pixelSize: 11 }
-            Label { text: qsTr("cancel"); dim: true; font.pixelSize: 11 } }
+        // Hint row. When an error row is focused, its full message shows here.
+        Column {
+            id: footLeft
+            x: 20; anchors.verticalCenter: parent.verticalCenter
+            width: footRight.x - 20 - 16
+            spacing: 3
+            Label { visible: ed.focusedError !== ""; width: parent.width; text: ed.focusedError
+                    font.pixelSize: 11; wrapMode: Text.WrapAtWordBoundaryOrAnywhere; maximumLineCount: 2 }
+            Hint { keys: ed.broken ? [["Esc", qsTr("cancel")], ["↵", qsTr("jump to line")], ["Tab", qsTr("next")]]
+                                   : [["Esc", qsTr("cancel")]] }
+        }
         Row {
+            id: footRight
             anchors { right: parent.right; rightMargin: 20; verticalCenter: parent.verticalCenter }
             spacing: 16
             Label { visible: ed.broken; text: qsTr("Saves as draft"); dim: true; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter }

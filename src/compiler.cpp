@@ -167,8 +167,8 @@ CompileResult Compiler::parseErrors(const QString &log, int prefixLines)
 }
 
 // Qt's built-in glslang stops at the first error. When glslangValidator is installed
-// (Arch: glslang), re-run it with cascading errors so the editor can list every error.
-// Optional: without it the editor shows qsb's single error.
+// (Arch: glslang, a required dependency), re-run it with cascading errors to list every error.
+// Fallback if it is somehow missing at runtime: qsb's single error.
 static CompileResult withAllErrors(CompileResult r, const QString &in, int prefixLines)
 {
     static const QString tool = [] {

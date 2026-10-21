@@ -10,10 +10,10 @@ depends=(
   'qt6-base'         # Core, Gui (RHI: Vulkan, OpenGL)
   'qt6-declarative'  # Qml, Quick (ShaderEffect)
   'qt6-shadertools'  # qsb, for compiling user shaders at runtime
+  'glslang'          # glslangValidator: lists every compile error in the editor
   'glibc'
   'gcc-libs'
 )
-optdepends=('glslang: list every compile error in the editor, not just the first')
 makedepends=('cmake' 'ninja')
 checkdepends=('xorg-server-xvfb')
 options=('!debug')
