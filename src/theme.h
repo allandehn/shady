@@ -15,6 +15,7 @@ class Theme : public QObject
     Q_PROPERTY(QColor muted READ muted NOTIFY changed)
     Q_PROPERTY(QColor accent READ accent NOTIFY changed)
     Q_PROPERTY(QColor error READ error NOTIFY changed)
+    Q_PROPERTY(QString name MEMBER m_name NOTIFY changed)
     Q_PROPERTY(int rounding MEMBER m_rounding CONSTANT)
     Q_PROPERTY(bool animations MEMBER m_animations CONSTANT)
     Q_PROPERTY(QString mono MEMBER m_mono CONSTANT)
@@ -39,7 +40,8 @@ signals:
 
 private:
     void reload();
-    QString m_path;
+    void rewatch();
+    QString m_path, m_dir, m_namePath, m_name;
     QFileSystemWatcher m_watch;
     QColor m_bg{"#1a1b26"}, m_bg2{"#24283b"}, m_fg{"#c0caf5"}, m_accent{"#7aa2f7"}, m_error{"#f7768e"};
     int m_rounding = 0;

@@ -43,6 +43,15 @@ Compiler::Compiler(const QString &cacheDir, QObject *parent) : QObject(parent), 
     QDir().mkpath(m_dir);
 }
 
+Compiler::~Compiler()
+{
+    if (m_proc) {
+        m_proc->disconnect(this);
+        m_proc->kill();
+        m_proc->waitForFinished(1000);
+    }
+}
+
 QString Compiler::wrap(const QString &user, int *prefixLines)
 {
     QString code = user;
@@ -103,7 +112,11 @@ CompileResult Compiler::parseErrors(const QString &log, int prefixLines)
         // errors inside the hidden wrapper.
         if (line > 100000) line -= prefixLines;
         r.errorLine = line > 0 ? line : 0;
-        r.errorText = m.captured(2).trimmed();
+        // "'' :  syntax error, ..." -> "syntax error, ..."; "'foo' : undeclared" keeps the name.
+        QString t = m.captured(2).trimmed();
+        static const QRegularExpression empty(QStringLiteral("^''\\s*:\\s*"));
+        t.remove(empty);
+        r.errorText = t.simplified();
     } else {
         r.errorText = log.trimmed().section(u'\n', 0, 0);
         if (r.errorText.isEmpty()) r.errorText = QStringLiteral("Couldn't compile");
@@ -174,8 +187,11 @@ void Compiler::next()
         QFile::remove(in);
         m_proc->deleteLater();
         m_proc = nullptr;
-        emit finished(m_current.id, r);
-        next();
+        r.user = m_current.user;
+        const QString id = m_current.id;
+        emit finished(id, r);
+        if (!m_proc) next(); // a slot may already have started the next job
+
     };
     connect(m_proc, &QProcess::finished, this, [this, done](int code, QProcess::ExitStatus st) {
         done(st == QProcess::NormalExit && code == 0);

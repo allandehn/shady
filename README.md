@@ -10,8 +10,10 @@ Designed together by [Allan Kristensen](https://github.com/allandehn) and [Grok]
 
 ![The viewer](screenshot-list-viewer.png)
 
-> Early version: the shader list, the viewer and per-shader settings work.
-> The editor, Trash, iChannels and screensaver mode come next.
+![The editor](screenshot-list-editor.png)
+
+> Early version: list, Trash, editor, viewer, per-shader settings and
+> Settings work. iChannels, multi-select and screensaver mode come next.
 
 ## Build
 
@@ -25,11 +27,18 @@ Options: `--self-test`, `--ui-test [--screenshot out.png]`, `--version`.
 
 ## Keys
 
-List: `←→↑↓` move · `Enter` open · `S` star/unstar · `H` hide/unhide ·
-`Tab` All / Starred / Hidden · `Esc` close
+Press `?` in the list for all of them.
+
+List: `←→↑↓` move · `Enter` open · `N` new · `Ctrl+E` edit · `S` star · `H` hide ·
+`Del` move to Trash · `Shift+Del` delete permanently · `Ctrl+Z` undo ·
+`Shift+F10`/Menu menu · `Tab` All / Starred / Hidden / Trash · `,` settings · `Esc` close
+
+Trash: `Enter` restore · `Del` delete forever · `Tab` to Empty Trash
 
 Viewer: `↑↓` quality (10% steps, 10–100%) · `←→` fps (10, 15, 24, 30, 60, 120,
 then your display's max) · `F` fullscreen · `Esc`/`Q` back
+
+Editor: `Ctrl+↵` compile · `Ctrl+S` save (a broken shader saves as a draft) · `Esc` cancel
 
 ## Your shaders
 
@@ -37,7 +46,9 @@ Each shader is a plain folder in `~/.local/share/shady/shaders/<slug>/`:
 `shader.glsl` is your code exactly as written, `shader.toml` holds name, author,
 license, description, quality, fps, starred, hidden and the channel setup.
 Compiled shaders and preview stills live in `~/.cache/shady/` and can be
-deleted any time. On first run Shady adds four small example shaders of its own.
+deleted any time (Settings → Clear cache). Trashed shaders move to
+`~/.local/share/shady/trash/`. Colours follow Omarchy's current theme
+(`~/.local/state/omarchy/current/theme/colors.toml`). On first run Shady adds four small example shaders of its own.
 
 ## How it works
 

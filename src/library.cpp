@@ -5,13 +5,25 @@
 #include <QFileInfo>
 #include <QSaveFile>
 #include <QUrl>
+#include <QGuiApplication>
+#include <QRegularExpression>
 #include <algorithm>
 
-Library::Library(const QString &dataDir, const QString &cacheDir, int maxFps, QObject *parent)
-    : QAbstractListModel(parent), m_dataDir(dataDir), m_cacheDir(cacheDir), m_maxFps(maxFps),
+Library::Library(const QString &dataDir, const QString &cacheDir, int maxFps, QObject *parent,
+                 const QString &configDir)
+    : QAbstractListModel(parent), m_dataDir(dataDir), m_cacheDir(cacheDir),
+      m_configDir(configDir.isEmpty() ? dataDir + QStringLiteral("/config") : configDir), m_maxFps(maxFps),
       m_compiler(cacheDir + QStringLiteral("/qsb"))
 {
     QDir().mkpath(shadersDir());
+    QDir().mkpath(trashDir());
+    {
+        QFile f(configFile());
+        if (f.open(QIODevice::ReadOnly)) {
+            const QString v = Toml::parse(QString::fromUtf8(f.readAll())).value("screensaver_on").toString();
+            if (v == QLatin1String("all") || v == QLatin1String("primary")) m_screensaverOn = v;
+        }
+    }
     QDir().mkpath(m_cacheDir + QStringLiteral("/stills"));
     // Settings changed in the viewer are saved straight away, but batched
     // about half a second apart so a held arrow key doesn't hammer the disk.
@@ -19,6 +31,10 @@ Library::Library(const QString &dataDir, const QString &cacheDir, int maxFps, QO
     m_saveTimer.setInterval(500);
     connect(&m_saveTimer, &QTimer::timeout, this, &Library::flush);
     connect(&m_compiler, &Compiler::finished, this, [this](const QString &slug, const CompileResult &r) {
+        if (slug == m_draftId) {
+            emit draftCompiled(r.ok, r.ok ? QUrl::fromLocalFile(r.qsbPath) : QUrl(), r.errorLine, r.errorText, r.user);
+            return;
+        }
         for (int i = 0; i < m_entries.size(); ++i) {
             ShaderEntry &e = m_entries[i];
             if (e.slug != slug) continue;
@@ -84,24 +100,27 @@ void Library::load()
 {
     beginResetModel();
     m_entries.clear();
-    const QDir dir(shadersDir());
-    for (const QString &slug : dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
-        ShaderEntry e;
-        e.slug = slug;
-        e.dir = dir.filePath(slug);
-        bool okT = false, okG = false;
-        QString err;
-        const QString toml = readText(e.dir + QStringLiteral("/shader.toml"), &okT);
-        e.code = readText(e.dir + QStringLiteral("/shader.glsl"), &okG);
-        if (okT) e.meta = Toml::parse(toml, &err);
-        e.readable = okT && okG && err.isEmpty();
-        if (!e.readable) {
-            e.state = QStringLiteral("unreadable");
-        } else {
-            e.meta.insert(QStringLiteral("quality"), std::clamp(e.meta.value("quality", 50).toInt(), 10, 100));
-            e.meta.insert(QStringLiteral("fps"), std::clamp(e.meta.value("fps", 30).toInt(), 10, m_maxFps));
+    for (bool trashed : {false, true}) {
+        const QDir dir(trashed ? trashDir() : shadersDir());
+        for (const QString &slug : dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+            ShaderEntry e;
+            e.slug = slug;
+            e.dir = dir.filePath(slug);
+            e.trashed = trashed;
+            bool okT = false, okG = false;
+            QString err;
+            const QString toml = readText(e.dir + QStringLiteral("/shader.toml"), &okT);
+            e.code = readText(e.dir + QStringLiteral("/shader.glsl"), &okG);
+            if (okT) e.meta = Toml::parse(toml, &err);
+            e.readable = okT && okG && err.isEmpty();
+            if (!e.readable) {
+                e.state = QStringLiteral("unreadable");
+            } else {
+                e.meta.insert(QStringLiteral("quality"), std::clamp(e.meta.value("quality", 50).toInt(), 10, 100));
+                e.meta.insert(QStringLiteral("fps"), std::clamp(e.meta.value("fps", 30).toInt(), 10, m_maxFps));
+            }
+            m_entries << e;
         }
-        m_entries << e;
     }
     for (ShaderEntry &e : m_entries)
         if (e.readable) compile(e);
@@ -135,24 +154,50 @@ void Library::rebuild()
         const ShaderEntry &e = m_entries[i];
         const bool hidden = e.meta.value("hidden").toBool();
         const bool starred = e.meta.value("starred").toBool();
+        if (m_filter == Trash) { if (e.trashed) m_rows << i; continue; }
+        if (e.trashed) continue;
         if (m_filter == All && hidden) continue;
         if (m_filter == Starred && (!starred || hidden)) continue;
         if (m_filter == Hidden && !hidden) continue;
         m_rows << i;
+    }
+    if (m_filter == Trash) {
+        // Newest removal first.
+        std::stable_sort(m_rows.begin(), m_rows.end(), [this](int a, int b) {
+            return m_entries[a].meta.value("trashed").toString() > m_entries[b].meta.value("trashed").toString();
+        });
+        return;
     }
     // Starred first, then by name.
     std::stable_sort(m_rows.begin(), m_rows.end(), [this](int a, int b) {
         const ShaderEntry &x = m_entries[a], &y = m_entries[b];
         const bool sx = x.meta.value("starred").toBool(), sy = y.meta.value("starred").toBool();
         if (sx != sy) return sx;
-        const QString nx = x.meta.value("name", x.slug).toString(), ny = y.meta.value("name", y.slug).toString();
-        return QString::localeAwareCompare(nx, ny) < 0;
+        return QString::localeAwareCompare(nameOf(x), nameOf(y)) < 0;
     });
+}
+
+void Library::reset()
+{
+    beginResetModel();
+    rebuild();
+    endResetModel();
+    emit countChanged();
+}
+
+int Library::rowCount(const QModelIndex &) const
+{
+    return m_rows.size() + (m_filter == All ? 1 : 0); // + the "New shader" card
+}
+
+int Library::trashCount() const
+{
+    return int(std::count_if(m_entries.begin(), m_entries.end(), [](const ShaderEntry &e) { return e.trashed; }));
 }
 
 void Library::setFilter(int f)
 {
-    if (f == m_filter || f < All || f > Hidden) return;
+    if (f == m_filter || f < All || f > Trash) return;
     beginResetModel();
     m_filter = f;
     rebuild();
@@ -173,7 +218,15 @@ int Library::preparing() const
 
 QVariant Library::data(const QModelIndex &idx, int role) const
 {
-    if (!idx.isValid() || idx.row() >= m_rows.size()) return {};
+    if (!idx.isValid()) return {};
+    if (idx.row() == m_rows.size()) {
+        if (role == IsNewRole) return true;
+        if (role == SlugRole || role == StateRole) return QString();
+        if (role == NameRole) return tr("New shader");
+        if (role == ShaderUrlRole || role == StillUrlRole) return QUrl();
+        return role == StarredRole || role == HiddenRole || role == TrashedRole ? QVariant(false) : QVariant(0);
+    }
+    if (idx.row() > m_rows.size()) return {};
     const ShaderEntry &e = m_entries[m_rows[idx.row()]];
     switch (role) {
     case SlugRole: return e.slug;
@@ -190,6 +243,14 @@ QVariant Library::data(const QModelIndex &idx, int role) const
     case ErrorTextRole: return e.errorText;
     case ShaderUrlRole: return e.qsbPath.isEmpty() ? QUrl() : QUrl::fromLocalFile(e.qsbPath);
     case StillUrlRole: return e.stillPath.isEmpty() ? QUrl() : QUrl::fromLocalFile(e.stillPath);
+    case IsNewRole: return false;
+    case TrashedRole: return e.trashed;
+    case RemovedRole: {
+        const QDateTime t = QDateTime::fromString(e.meta.value("trashed").toString(), Qt::ISODate);
+        if (!t.isValid()) return QString();
+        const qint64 d = t.date().daysTo(QDate::currentDate());
+        return d <= 0 ? tr("Removed today") : tr("%n d ago", "", int(d));
+    }
     }
     return {};
 }
@@ -200,7 +261,8 @@ QHash<int, QByteArray> Library::roleNames() const
             {DescriptionRole, "description"}, {QualityRole, "quality"}, {FpsRole, "fps"},
             {StarredRole, "starred"}, {HiddenRole, "hidden"}, {StateRole, "shaderState"},
             {ErrorLineRole, "errorLine"}, {ErrorTextRole, "errorText"}, {ShaderUrlRole, "shaderUrl"},
-            {StillUrlRole, "stillUrl"}};
+            {StillUrlRole, "stillUrl"}, {IsNewRole, "isNew"}, {TrashedRole, "trashed"},
+            {RemovedRole, "removed"}};
 }
 
 QVariantMap Library::get(int row) const
@@ -275,12 +337,11 @@ int Library::toggleHidden(int row)
     if (row < 0 || row >= m_rows.size()) return row;
     ShaderEntry &e = m_entries[m_rows[row]];
     if (!e.readable) return row;
-    e.meta.insert(QStringLiteral("hidden"), !e.meta.value("hidden").toBool());
+    const bool hide = !e.meta.value("hidden").toBool();
+    e.meta.insert(QStringLiteral("hidden"), hide);
     save(e);
-    beginResetModel();
-    rebuild();
-    endResetModel();
-    emit countChanged();
+    pushUndo(hide ? Undo::Hid : Undo::Unhid, e.slug);
+    reset();
     return std::clamp(row, m_rows.isEmpty() ? -1 : 0, int(m_rows.size()) - 1);
 }
 
@@ -335,8 +396,7 @@ int Library::nextNeedingStill() const
 
 QString Library::createShader(const QString &name, const QString &author, const QString &code)
 {
-    QString base = slugify(name), slug = base;
-    for (int n = 2; QFileInfo::exists(shadersDir() + u'/' + slug); ++n) slug = base + u'-' + QString::number(n);
+    const QString slug = freeSlug(shadersDir(), slugify(name));
     ShaderEntry e;
     e.slug = slug;
     e.dir = shadersDir() + u'/' + slug;
@@ -387,4 +447,256 @@ void Library::seedIfEmpty()
     }
     QSaveFile m(marker);
     if (m.open(QIODevice::WriteOnly)) m.commit();
+}
+
+QString Library::freeSlug(const QString &dir, const QString &base) const
+{
+    // Slugs are unique across the library and the Trash, so a slug always
+    // names exactly one shader.
+    auto taken = [&](const QString &s) {
+        if (QFileInfo::exists(dir + u'/' + s) || QFileInfo::exists(shadersDir() + u'/' + s)
+            || QFileInfo::exists(trashDir() + u'/' + s)) return true;
+        for (const ShaderEntry &e : m_entries) if (e.slug == s) return true;
+        return false;
+    };
+    QString slug = base;
+    for (int n = 2; taken(slug); ++n) slug = base + u'-' + QString::number(n);
+    return slug;
+}
+
+bool Library::moveEntry(ShaderEntry &e, bool toTrash)
+{
+    flush();
+    const QString target = toTrash ? trashDir() : shadersDir();
+    QString slug = e.slug;
+    if (QFileInfo::exists(target + u'/' + slug)) {
+        // Taken in the meantime: add a suffix (rename the folder, not the name).
+        QString base = slug, s = slug;
+        for (int n = 2; QFileInfo::exists(target + u'/' + s) || QFileInfo::exists(e.dir.section(u'/', 0, -2) + u'/' + s); ++n)
+            s = base + u'-' + QString::number(n);
+        slug = s;
+    }
+    const QString dst = target + u'/' + slug;
+    if (!QDir().rename(e.dir, dst)) {
+        m_status = tr("Couldn't move · %1").arg(nameOf(e));
+        emit statusChanged();
+        return false;
+    }
+    e.dir = dst;
+    e.slug = slug;
+    e.trashed = toTrash;
+    if (e.readable) {
+        if (toTrash) {
+            // Strictly increasing, so "newest first" is exact even within a millisecond.
+            QDateTime now = QDateTime::currentDateTime();
+            if (m_lastTrashed.isValid() && now <= m_lastTrashed) now = m_lastTrashed.addMSecs(1);
+            m_lastTrashed = now;
+            e.meta.insert(QStringLiteral("trashed"), now.toString(Qt::ISODateWithMs));
+        }
+        else e.meta.remove(QStringLiteral("trashed"));
+        save(e);
+    }
+    return true;
+}
+
+void Library::pushUndo(Undo::Kind k, const QString &slug)
+{
+    m_undo.append({k, slug});
+    if (m_undo.size() > 50) m_undo.removeFirst();
+    emit undoChanged();
+}
+
+int Library::moveToTrash(int row)
+{
+    if (row < 0 || row >= m_rows.size()) return row;
+    ShaderEntry &e = m_entries[m_rows[row]];
+    if (e.trashed || !moveEntry(e, true)) return row;
+    pushUndo(Undo::Trashed, e.slug);
+    reset();
+    emit noted(tr("Moved to Trash · Ctrl+Z undo"));
+    return std::max(0, std::min(row - 1, int(m_rows.size()) - 1)); // focus the previous card
+}
+
+int Library::restore(int row)
+{
+    if (row < 0 || row >= m_rows.size()) return row;
+    ShaderEntry &e = m_entries[m_rows[row]];
+    if (!e.trashed || !moveEntry(e, false)) return row;
+    pushUndo(Undo::Restored, e.slug);
+    const QString name = nameOf(e);
+    reset();
+    emit noted(tr("Restored %1 · Ctrl+Z undo").arg(name));
+    return std::clamp(row, m_rows.isEmpty() ? -1 : 0, int(m_rows.size()) - 1);
+}
+
+void Library::removeFiles(ShaderEntry &e)
+{
+    QDir(e.dir).removeRecursively();
+    QFile::remove(m_compiler.pathFor(e.code));
+    QFile::remove(stillFile(e));
+    const QString slug = e.slug;
+    m_undo.erase(std::remove_if(m_undo.begin(), m_undo.end(), [&](const Undo &u) { return u.slug == slug; }), m_undo.end());
+    emit undoChanged();
+}
+
+bool Library::deleteForever(int row)
+{
+    if (row < 0 || row >= m_rows.size()) return false;
+    const int i = m_rows[row];
+    removeFiles(m_entries[i]);
+    m_entries.removeAt(i);
+    reset();
+    return true;
+}
+
+int Library::emptyTrash()
+{
+    int n = 0;
+    for (int i = m_entries.size() - 1; i >= 0; --i)
+        if (m_entries[i].trashed) { removeFiles(m_entries[i]); m_entries.removeAt(i); ++n; }
+    reset();
+    return n;
+}
+
+QString Library::undo()
+{
+    while (!m_undo.isEmpty()) {
+        const Undo u = m_undo.takeLast();
+        emit undoChanged();
+        ShaderEntry *e = entry(u.slug);
+        if (!e) continue;
+        switch (u.kind) {
+        case Undo::Trashed: if (!e->trashed || !moveEntry(*e, false)) continue; break;
+        case Undo::Restored: if (e->trashed || !moveEntry(*e, true)) continue; break;
+        case Undo::Hid: case Undo::Unhid:
+            e->meta.insert(QStringLiteral("hidden"), u.kind == Undo::Unhid);
+            save(*e);
+            break;
+        }
+        const QString slug = e->slug;
+        reset();
+        return slug;
+    }
+    return {};
+}
+
+QString Library::licenseHint(const QString &code)
+{
+    // Only a leading comment counts: "// Copyright Inigo Quilez, 2013" -> "© Inigo Quilez 2013 · see source"
+    const QString head = code.trimmed().left(600);
+    if (!head.startsWith(QLatin1String("//")) && !head.startsWith(QLatin1String("/*"))) return {};
+    QString comment = head.startsWith(QLatin1String("/*")) ? head.section(QStringLiteral("*/"), 0, 0) : QString();
+    if (comment.isEmpty())
+        for (const QString &l : head.split(u'\n')) { if (!l.trimmed().startsWith(QLatin1String("//"))) break; comment += l + u'\n'; }
+    static const QRegularExpression re(QStringLiteral("(?:copyright|\\(c\\)|©)\\s*(?:\\(c\\)|©)?\\s*([^\\n]*)"),
+                                       QRegularExpression::CaseInsensitiveOption);
+    const auto m = re.match(comment);
+    if (m.hasMatch()) {
+        QString who = m.captured(1);
+        static const QRegularExpression year(QStringLiteral("\\b(19|20)\\d\\d\\b"));
+        const QString y = year.match(who).captured(0);
+        who.remove(year);
+        who = who.section(u'-', 0, 0).remove(QRegularExpression(QStringLiteral("[,.;]"))).simplified();
+        QString s = QStringLiteral("© ") + who;
+        if (!y.isEmpty()) s += u' ' + y;
+        return s.simplified() + QStringLiteral(" · see source");
+    }
+    static const QRegularExpression lic(QStringLiteral("(CC[ -]BY[\\w .-]*\\d\\.\\d|MIT License|MIT|Apache[ -]2\\.0|GPL[\\w.-]*)"));
+    const auto l = lic.match(comment);
+    return l.hasMatch() ? l.captured(1).trimmed() + QStringLiteral(" · see source") : QString();
+}
+
+void Library::compileDraft(const QString &code)
+{
+    const QString cached = m_compiler.cachedPath(code);
+    if (!cached.isEmpty()) {
+        QMetaObject::invokeMethod(this, [this, cached, code] { emit draftCompiled(true, QUrl::fromLocalFile(cached), 0, {}, code); },
+                                  Qt::QueuedConnection);
+        return;
+    }
+    m_compiler.enqueue(m_draftId, code);
+}
+
+QString Library::codeOf(const QString &slug) const
+{
+    for (const ShaderEntry &e : m_entries) if (e.slug == slug) return e.code;
+    return {};
+}
+
+QString Library::saveShader(const QString &slug, const QVariantMap &fields, const QString &code)
+{
+    QString s = slug;
+    if (s.isEmpty()) {
+        s = createShader(fields.value("name").toString().trimmed().isEmpty() ? tr("Untitled") : fields.value("name").toString(),
+                         fields.value("author").toString(), code);
+        if (s.isEmpty()) {
+            m_status = tr("Couldn't save · %1").arg(tr("can't write the shader folder"));
+            emit statusChanged();
+            return {};
+        }
+    }
+    ShaderEntry *e = entry(s);
+    if (!e) return {};
+    for (const char *k : {"name", "author", "license", "description"})
+        if (fields.contains(QLatin1String(k))) e->meta.insert(QLatin1String(k), fields.value(QLatin1String(k)).toString().trimmed());
+    if (e->meta.value("name").toString().isEmpty()) e->meta.insert(QStringLiteral("name"), tr("Untitled"));
+    if (e->code != code) {
+        QSaveFile g(e->dir + QStringLiteral("/shader.glsl"));
+        if (!g.open(QIODevice::WriteOnly) || g.write(code.toUtf8()) < 0 || !g.commit()) {
+            m_status = tr("Couldn't save · %1").arg(g.errorString());
+            emit statusChanged();
+            return {};
+        }
+        e->code = code;
+        e->stillPath.clear();
+    }
+    e->readable = true;
+    if (!save(*e)) return {};
+    if (m_status.startsWith(tr("Couldn't save"))) { m_status.clear(); emit statusChanged(); }
+    compile(*e);
+    reset();
+    return s;
+}
+
+qint64 Library::cacheBytes() const
+{
+    qint64 n = 0;
+    for (const QString &sub : {QStringLiteral("/qsb"), QStringLiteral("/stills")}) {
+        const QDir d(m_cacheDir + sub);
+        for (const QFileInfo &fi : d.entryInfoList(QDir::Files)) n += fi.size();
+    }
+    return n;
+}
+
+void Library::clearCache()
+{
+    // No confirmation: everything here is rebuilt when needed.
+    for (const QString &sub : {QStringLiteral("/qsb"), QStringLiteral("/stills")}) {
+        QDir(m_cacheDir + sub).removeRecursively();
+        QDir().mkpath(m_cacheDir + sub);
+    }
+    for (ShaderEntry &e : m_entries) {
+        e.stillPath.clear();
+        e.qsbPath.clear();
+        if (e.readable) compile(e);
+    }
+    reset();
+}
+
+int Library::monitorCount() const
+{
+    return std::max(1, int(QGuiApplication::screens().size()));
+}
+
+void Library::setScreensaverOn(const QString &v)
+{
+    if (v == m_screensaverOn || (v != QLatin1String("all") && v != QLatin1String("primary"))) return;
+    m_screensaverOn = v;
+    QDir().mkpath(m_configDir);
+    QSaveFile f(configFile());
+    if (f.open(QIODevice::WriteOnly)) {
+        f.write(Toml::serialize({{"screensaver_on", v}}).toUtf8());
+        f.commit();
+    }
+    emit settingsChanged();
 }

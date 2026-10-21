@@ -33,13 +33,29 @@ Window {
         anchors.fill: parent
         visible: win.mode === "list" && !win.hiddenOrOff
         focus: win.mode === "list"
-        note: theme.software ? qsTr("Software rendering · shaders start at minimum settings") : ""
+        swNote: theme.software ? qsTr("Software rendering · shaders start at minimum settings") : ""
         onOpen: (r) => {
             viewer.load(r, list.resume[library.get(r).slug] || 0)
             win.mode = "viewer"
             viewer.forceActiveFocus()
         }
         onClose: Qt.quit()
+        onEdit: (slug) => {
+            win.mode = "editor"
+            editor.openShader(slug)
+        }
+    }
+
+    Editor {
+        id: editor
+        objectName: "editor"
+        anchors.fill: parent
+        visible: win.mode === "editor" && !win.hiddenOrOff
+        onClosed: (slug) => {
+            win.mode = "list"
+            if (slug) list.focusSlug(slug)
+            list.forceActiveFocus()
+        }
     }
 
     Viewer {

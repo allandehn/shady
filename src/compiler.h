@@ -13,6 +13,7 @@ struct CompileResult {
     QString qsbPath;
     int errorLine = 0;   // in the user's own code, 1-based; 0 if unknown
     QString errorText;
+    QString user;        // the source this result is for
 };
 
 class Compiler : public QObject
@@ -20,6 +21,7 @@ class Compiler : public QObject
     Q_OBJECT
 public:
     explicit Compiler(const QString &cacheDir, QObject *parent = nullptr);
+    ~Compiler() override;
 
     static QString wrap(const QString &user, int *prefixLines = nullptr);
     static QString hashOf(const QString &user);

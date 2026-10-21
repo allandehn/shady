@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Headless tests for Shady. Never touches the user's desktop, data or running app:
-# throwaway XDG_* dirs, a private D-Bus (dbus-run-session), offscreen Qt, and
+# a throwaway HOME and XDG_* dirs, a private D-Bus (dbus-run-session), offscreen Qt, and
 # DISPLAY / WAYLAND_DISPLAY / HYPRLAND_INSTANCE_SIGNATURE removed.
 #
 #   tests/headless.sh [path/to/shady] [screenshot.png]
@@ -15,9 +15,10 @@ BIN=${1:-./build/shady}
 SHOT=${2:-}
 T=$(mktemp -d /tmp/shady-test.XXXX); trap 'rm -rf "$T"' EXIT
 iso() {
-  rm -rf "$T"/{data,config,cache}; mkdir -p "$T"/{data,config,cache}
-  env -u DISPLAY -u WAYLAND_DISPLAY -u HYPRLAND_INSTANCE_SIGNATURE \
-    XDG_DATA_HOME="$T/data" XDG_CONFIG_HOME="$T/config" XDG_CACHE_HOME="$T/cache" \
+  rm -rf "$T"/{data,config,cache,home}; mkdir -p "$T"/{data,config,cache,home}
+  # HOME too: Omarchy's palette lives at a fixed $HOME/.local/state path.
+  env -u DISPLAY -u WAYLAND_DISPLAY -u HYPRLAND_INSTANCE_SIGNATURE -u OMARCHY_PATH \
+    HOME="$T/home" XDG_DATA_HOME="$T/data" XDG_CONFIG_HOME="$T/config" XDG_CACHE_HOME="$T/cache" \
     QT_FORCE_STDERR_LOGGING=1 "$@"
 }
 UI=(--ui-test); [[ -n $SHOT ]] && UI+=(--screenshot "$SHOT")

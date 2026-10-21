@@ -1,6 +1,11 @@
 # Notes for agents working on Shady
 
-- App id and data folders: `shady` (`~/.local/share/shady/`, `~/.cache/shady/`).
+- App id and data folders: `shady` (`~/.local/share/shady/`, `~/.cache/shady/`,
+  `~/.config/shady/settings.toml`).
+- Theme: Omarchy 4 applies the palette at the fixed path
+  `$HOME/.local/state/omarchy/current/theme/colors.toml` (no env var, not
+  XDG_STATE_HOME) and the name in `.../current/theme.name`. Watch those and the
+  folder; never read `$OMARCHY_PATH/themes` or `~/.config/omarchy/themes`.
 - `/workspace/shader-saver-design/design-brief.md` is the source of truth for
   behaviour and design; the v2 mockups show it. v1 is historical.
 - Commit, push, tag or release only when Allan asks for it.
@@ -18,7 +23,8 @@
 - Headless only: `tests/headless.sh ./build/shady`. It uses
   `QT_QPA_PLATFORM=offscreen`, `QT_FORCE_STDERR_LOGGING=1`, a private D-Bus via
   `dbus-run-session`, and throwaway `XDG_DATA_HOME` / `XDG_CONFIG_HOME` /
-  `XDG_CACHE_HOME`. If the offscreen plugin has no GL (Debian), the render test
+  `XDG_CACHE_HOME`, plus a throwaway `HOME` (the Omarchy theme path is under it).
+  If the offscreen plugin has no GL (Debian), the UI test
   reruns on a private `xvfb-run -a` display, never a real one.
 - `./build/shady --self-test` for the core tests (storage, TOML, fps steps,
   qsb compiling, error line mapping); `./build/shady --ui-test [--screenshot

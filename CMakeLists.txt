@@ -31,6 +31,8 @@ qt_add_qml_module(shady
   QML_FILES
     qml/Main.qml qml/ShaderList.qml qml/ShaderCard.qml qml/Viewer.qml
     qml/ShaderView.qml qml/Label.qml qml/Hint.qml qml/Hatch.qml
+    qml/Button.qml qml/Confirm.qml qml/Menu.qml qml/KeySheet.qml qml/SettingsSheet.qml
+    qml/Editor.qml qml/Field.qml
   NO_RESOURCE_TARGET_PATH
 )
 

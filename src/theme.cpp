@@ -1,5 +1,6 @@
 #include "theme.h"
 #include "toml.h"
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QFontDatabase>
@@ -25,17 +26,17 @@ static QByteArray hyprctl(const QStringList &args)
 
 Theme::Theme(QObject *parent) : QObject(parent)
 {
-    const QString cfg = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation);
-    m_path = qEnvironmentVariable("SHADY_COLORS", cfg + QStringLiteral("/omarchy/current/theme/colors.toml"));
+    // Omarchy 4.x applies the palette at a fixed path under $HOME (it doesn't
+    // follow XDG_STATE_HOME). omarchy-theme-set copies the new theme into
+    // that folder and writes the theme name to theme.name, so watch both
+    // files and the folder. Stock and user theme folders are only sources.
+    const QString state = QDir::homePath() + QStringLiteral("/.local/state/omarchy/current");
+    m_dir = state + QStringLiteral("/theme");
+    m_path = m_dir + QStringLiteral("/colors.toml");
+    m_namePath = state + QStringLiteral("/theme.name");
     reload();
-    // Themes are switched by replacing a symlinked folder, so watch the folder
-    // and re-add the file each time.
-    m_watch.addPath(QFileInfo(m_path).absolutePath());
-    if (QFileInfo::exists(m_path)) m_watch.addPath(m_path);
-    auto again = [this] {
-        reload();
-        if (QFileInfo::exists(m_path) && !m_watch.files().contains(m_path)) m_watch.addPath(m_path);
-    };
+    rewatch();
+    auto again = [this] { reload(); rewatch(); };
     connect(&m_watch, &QFileSystemWatcher::fileChanged, this, again);
     connect(&m_watch, &QFileSystemWatcher::directoryChanged, this, again);
 
@@ -63,6 +64,14 @@ QColor Theme::muted() const
                             m_fg.blueF() * 0.55 + m_bg.blueF() * 0.45);
 }
 
+void Theme::rewatch()
+{
+    // Paths drop out of the watcher when a file is replaced; add them back.
+    for (const QString &p : {QFileInfo(m_namePath).absolutePath(), m_dir, m_path, m_namePath})
+        if (QFileInfo::exists(p) && !m_watch.files().contains(p) && !m_watch.directories().contains(p))
+            m_watch.addPath(p);
+}
+
 void Theme::reload()
 {
     QFile f(m_path);
@@ -77,5 +86,8 @@ void Theme::reload()
     pick("foreground", m_fg);
     pick("accent", m_accent);
     pick("color1", m_error);
+    if (!m.contains(QStringLiteral("lighter_background"))) m_bg2 = m_bg.lighter(130);
+    QFile n(m_namePath);
+    if (n.open(QIODevice::ReadOnly)) m_name = QString::fromUtf8(n.readAll()).trimmed();
     emit changed();
 }
