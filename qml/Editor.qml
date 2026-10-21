@@ -26,6 +26,13 @@ FocusScope {
         const l = code.text.split("\n")[n - 1]
         return l === undefined ? "" : l.trim()
     }
+    readonly property int focusedLine: errList.activeFocus && errors[errList.currentIndex] && upToDate
+                                       ? errors[errList.currentIndex].line : 0
+    // Scroll the code to the focused error's line; the cursor only moves on ↵.
+    onFocusedLineChanged: if (focusedLine > 0) {
+        const y = code.y + lineY(focusedLine)
+        flick.ensureVisible(Qt.rect(0, y, 1, code.lineH))
+    }
     readonly property string focusedError: errList.activeFocus && errors[errList.currentIndex] ? errors[errList.currentIndex].text : ""
     readonly property var errorLines: errors.map(x => x.line)
     function gotoLine(n) {
@@ -157,6 +164,13 @@ FocusScope {
                 function ensureVisible(r) {
                     if (contentY >= r.y) contentY = r.y
                     else if (contentY + height <= r.y + r.height + 16) contentY = r.y + r.height + 16 - height
+                }
+                // The focused error's line (errors list has focus): faint accent tint, behind the text.
+                Rectangle {
+                    objectName: "focusLineTint"
+                    visible: ed.focusedLine > 0
+                    y: code.y + (ed.focusedLine > 0 ? ed.lineY(ed.focusedLine) : 0); width: parent.width; height: code.lineH
+                    color: Qt.rgba(ui.accent.r, ui.accent.g, ui.accent.b, 0.09)
                 }
                 // Error line: faint tint and a 2 px red bar (the only red in the app).
                 Repeater {

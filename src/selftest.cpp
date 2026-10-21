@@ -627,6 +627,15 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         if (auto *src = openRow ? openRow->findChild<QQuickItem *>("errorSource", Qt::FindDirectChildrenOnly) : nullptr)
             check(src->property("text").toString().startsWith(errs[1].toMap().value("line").toString() + " │ vec3 b"),
                   "the source line shows under the message: " + src->property("text").toString());
+        {
+            auto *tint = editor->findChild<QQuickItem *>("focusLineTint");
+            const int pos0 = code->property("cursorPosition").toInt();
+            const int l1 = errs[1].toMap().value("line").toInt();
+            check(tint && tint->isVisible() && editor->property("focusedLine").toInt() == l1,
+                  QString("the focused error's code line %1 gets the accent tint").arg(l1));
+            QMetaObject::invokeMethod(errList, "forceActiveFocus");
+            check(code->property("cursorPosition").toInt() == pos0, "focusing an error doesn't move the cursor");
+        }
         shotAs("editor-errors-focused-long");
         key(win, Qt::Key_Up);
         waitFor([] { return false; }, 300);
@@ -639,6 +648,8 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         const int pos = code->property("cursorPosition").toInt();
         const int line = t.left(pos).count(u'\n') + 1;
         check(line == want && code->property("activeFocus").toBool(), QString("Enter on an error jumps to line %1 (got %2)").arg(want).arg(line));
+        auto *tint = editor->findChild<QQuickItem *>("focusLineTint");
+        check(tint && !tint->isVisible(), "the tint clears when the list loses focus");
     }
     code->setProperty("text", single);
     QMetaObject::invokeMethod(code, "forceActiveFocus");
