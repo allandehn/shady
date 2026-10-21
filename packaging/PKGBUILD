@@ -31,6 +31,8 @@ check() {
   export QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME=
   ./build/shady --self-test
   test "$(./build/shady --version)" = "shady $pkgver"
+  # The installed binary must work with no build tree beside it.
+  "$pkgname-$pkgver/tests/installed.sh" build
 }
 
 package() {

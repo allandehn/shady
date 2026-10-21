@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Shady
+GenericName=Shader Viewer
+Comment=Shadertoy-style shader screensaver and viewer
+Exec=shady
+Icon=shady
+Terminal=false
+Categories=Graphics;Development;
+Keywords=shader;glsl;shadertoy;screensaver;
+StartupWMClass=shady

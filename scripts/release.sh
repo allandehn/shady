@@ -136,6 +136,11 @@ for f in db files; do
 done
 cp "$WORK/$PKG" "$WORK/$PKG.sig" "$WORK/up/"
 for f in shady.db shady.files "$PKG"; do t 30 gpg --batch --verify "$WORK/up/$f.sig" "$WORK/up/$f" 2>/dev/null || die "bad signature on $f"; done
+PL=$(tar --zstd -tf "$WORK/$PKG")
+for f in usr/bin/shady usr/share/applications/shady.desktop usr/share/icons/hicolor/scalable/apps/shady.svg usr/share/licenses/shady/LICENSE; do
+  grep -qx "$f" <<<"$PL" || die "package lacks $f"
+done
+grep -q 'qmldir$' <<<"$PL" && die "package ships a qmldir; the QML module must be compiled into the binary"
 tar tzf "$WORK/up/shady.db" | grep -q "^shady-$VER-1/" || die "repo db does not list shady-$VER-1"
 TIMEOUT_HINT=
 
@@ -166,4 +171,6 @@ for u in "https://raw.githubusercontent.com/$REPO/main/install.sh" "https://gith
          "https://github.com/allandehn/omaear/releases/download/repo/omaear.asc"; do
   curl -fsIL --max-time 60 -o /dev/null "$u" || die "installer URL not reachable: $u"
 done
+curl -fsSL --max-time 300 "https://github.com/$REPO/releases/download/repo/$PKG" | tar --zstd -t | grep -qx usr/share/applications/shady.desktop \
+  || die "public package lacks usr/share/applications/shady.desktop"
 step "Released Shady $VER: https://github.com/$REPO/releases/tag/v$VER"

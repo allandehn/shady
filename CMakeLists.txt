@@ -38,7 +38,6 @@ qt_add_qml_module(shady
     qml/ShaderView.qml qml/Label.qml qml/Hint.qml qml/Hatch.qml
     qml/Button.qml qml/Confirm.qml qml/Menu.qml qml/KeySheet.qml qml/SettingsSheet.qml
     qml/Editor.qml qml/Field.qml qml/Channel.qml qml/ChannelPicker.qml qml/Benchmark.qml
-  NO_RESOURCE_TARGET_PATH
 )
 
 qt_add_resources(shady "examples"
@@ -53,4 +52,9 @@ qt_add_lrelease(shady TS_FILES i18n/shady_da.ts QM_FILES_OUTPUT_VARIABLE shady_q
 qt_add_resources(shady "translations" PREFIX "/i18n" BASE "${CMAKE_CURRENT_BINARY_DIR}" FILES ${shady_qm})
 
 target_link_libraries(shady PRIVATE Qt6::Core Qt6::Gui Qt6::GuiPrivate Qt6::Quick)
-install(TARGETS shady RUNTIME DESTINATION bin)
+include(GNUInstallDirs)
+install(TARGETS shady RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES packaging/linux/shady.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES packaging/linux/shady.svg DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/shady)
+install(FILES README.md DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/shady)

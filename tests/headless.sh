@@ -43,11 +43,18 @@ echo "== UI test"
 gui 120 "${UI[@]}"
 # Potato: the benchmark, iChannels on screen, auto-adapt and the too-heavy pause.
 # SHADY_SOFTWARE=0 so a software rasterizer is treated as a (very slow) GPU.
+if [[ -z ${SKIP_POTATO:-} ]]; then
 echo "== potato test"
 SHADY_SOFTWARE=0 gui 240 --potato-test
+fi
 # Text-fit sweep over every screen, normal and narrow, in Danish and English.
 echo "== Danish"
 SHADY_LANG=da gui 120 --danish-shot ${SHOT:+--screenshot "${SHOT%.png}-da.png"}
 echo "== English sweep"
 SHADY_LANG=en gui 120 --danish-shot ${SHOT:+--screenshot "${SHOT%.png}-en.png"}
+# Install regression (skipped when this run is already testing an installed binary).
+if [[ -z ${SKIP_POTATO:-} && -d $(dirname "$BIN") && -f $(dirname "$BIN")/cmake_install.cmake ]]; then
+  echo "== installed-package test"
+  "$(dirname "$0")/installed.sh" "$(dirname "$BIN")"
+fi
 echo "ALL PASS"

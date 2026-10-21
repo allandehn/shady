@@ -37,6 +37,7 @@ int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
     QGuiApplication::setApplicationName(QStringLiteral("shady"));
+    QGuiApplication::setDesktopFileName(QStringLiteral("shady"));
     QGuiApplication::setApplicationVersion(QStringLiteral(SHADY_VERSION));
 
     QCommandLineParser p;
