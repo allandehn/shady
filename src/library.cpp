@@ -1,5 +1,6 @@
 #include "library.h"
 #include "toml.h"
+#include "textures.h"
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -20,9 +21,19 @@ Library::Library(const QString &dataDir, const QString &cacheDir, int maxFps, QO
     {
         QFile f(configFile());
         if (f.open(QIODevice::ReadOnly)) {
-            const QString v = Toml::parse(QString::fromUtf8(f.readAll())).value("screensaver_on").toString();
+            const QVariantMap m = Toml::parse(QString::fromUtf8(f.readAll()));
+            const QString v = m.value("screensaver_on").toString();
             if (v == QLatin1String("all") || v == QLatin1String("primary")) m_screensaverOn = v;
+            m_autoAdapt = m.value("auto_adapt", true).toBool();
+            m_benchMs = m.value("benchmark_ms", 0).toDouble();
+            m_defQuality = std::clamp(m.value("default_quality", 50).toInt(), 10, 100);
+            m_defFps = std::clamp(m.value("default_fps", 30).toInt(), 10, std::max(10, maxFps));
         }
+    }
+    {
+        // A shader that froze or crashed the app last time opens at minimum.
+        QFile f(m_dataDir + QStringLiteral("/.viewing"));
+        if (f.open(QIODevice::ReadOnly)) m_crashed = QString::fromUtf8(f.readAll()).trimmed();
     }
     QDir().mkpath(m_cacheDir + QStringLiteral("/stills"));
     // Settings changed in the viewer are saved straight away, but batched
@@ -32,12 +43,13 @@ Library::Library(const QString &dataDir, const QString &cacheDir, int maxFps, QO
     connect(&m_saveTimer, &QTimer::timeout, this, &Library::flush);
     connect(&m_compiler, &Compiler::finished, this, [this](const QString &slug, const CompileResult &r) {
         if (slug == m_draftId) {
-            emit draftCompiled(r.ok, r.ok ? QUrl::fromLocalFile(r.qsbPath) : QUrl(), r.errorLine, r.errorText, r.user);
+            emit draftCompiled(r.ok, r.ok ? QUrl::fromLocalFile(r.qsbPath) : QUrl(), r.errorLine, r.errorText, r.user, r.types);
             return;
         }
         for (int i = 0; i < m_entries.size(); ++i) {
             ShaderEntry &e = m_entries[i];
             if (e.slug != slug) continue;
+            if (r.user != e.code || r.types != types(e)) continue; // stale: a newer compile is queued
             e.state = r.ok ? QStringLiteral("ready") : QStringLiteral("error");
             e.qsbPath = r.qsbPath;
             e.errorLine = r.errorLine;
@@ -89,6 +101,8 @@ int Library::stepFps(int fps, int dir) const
     return s[std::clamp(i + dir, 0, int(s.size()) - 1)]; // stop at the limits
 }
 
+QString channelKey(const QVariantMap &meta);
+
 static QString readText(const QString &path, bool *ok)
 {
     QFile f(path);
@@ -131,7 +145,7 @@ void Library::load()
 
 void Library::compile(ShaderEntry &e)
 {
-    const QString cached = m_compiler.cachedPath(e.code);
+    const QString cached = m_compiler.cachedPath(e.code, types(e));
     if (!cached.isEmpty()) {
         e.state = QStringLiteral("ready");
         e.qsbPath = cached;
@@ -139,12 +153,12 @@ void Library::compile(ShaderEntry &e)
         return;
     }
     e.state = QStringLiteral("compiling");
-    m_compiler.enqueue(e.slug, e.code);
+    m_compiler.enqueue(e.slug, e.code, types(e));
 }
 
 QString Library::stillFile(const ShaderEntry &e) const
 {
-    return m_cacheDir + QStringLiteral("/stills/") + Compiler::hashOf(e.code) + QStringLiteral(".png");
+    return m_cacheDir + QStringLiteral("/stills/") + Compiler::hashOf(e.code + channelKey(e.meta), types(e)) + QStringLiteral(".png");
 }
 
 void Library::rebuild()
@@ -245,6 +259,7 @@ QVariant Library::data(const QModelIndex &idx, int role) const
     case StillUrlRole: return e.stillPath.isEmpty() ? QUrl() : QUrl::fromLocalFile(e.stillPath);
     case IsNewRole: return false;
     case TrashedRole: return e.trashed;
+    case ChannelsRole: return channelsOf(e.slug);
     case RemovedRole: {
         const QDateTime t = QDateTime::fromString(e.meta.value("trashed").toString(), Qt::ISODate);
         if (!t.isValid()) return QString();
@@ -262,7 +277,7 @@ QHash<int, QByteArray> Library::roleNames() const
             {StarredRole, "starred"}, {HiddenRole, "hidden"}, {StateRole, "shaderState"},
             {ErrorLineRole, "errorLine"}, {ErrorTextRole, "errorText"}, {ShaderUrlRole, "shaderUrl"},
             {StillUrlRole, "stillUrl"}, {IsNewRole, "isNew"}, {TrashedRole, "trashed"},
-            {RemovedRole, "removed"}};
+            {RemovedRole, "removed"}, {ChannelsRole, "channels"}};
 }
 
 QVariantMap Library::get(int row) const
@@ -340,7 +355,7 @@ int Library::toggleHidden(int row)
     const bool hide = !e.meta.value("hidden").toBool();
     e.meta.insert(QStringLiteral("hidden"), hide);
     save(e);
-    pushUndo(hide ? Undo::Hid : Undo::Unhid, e.slug);
+    pushUndo(hide ? Undo::Hid : Undo::Unhid, {e.slug});
     reset();
     return std::clamp(row, m_rows.isEmpty() ? -1 : 0, int(m_rows.size()) - 1);
 }
@@ -352,6 +367,7 @@ void Library::setQuality(int row, int pct)
     pct = std::clamp(pct, 10, 100);
     if (e.meta.value("quality").toInt() == pct) return;
     e.meta.insert(QStringLiteral("quality"), pct);
+    e.meta.insert(QStringLiteral("tuned"), true);
     e.dirty = true;
     m_saveTimer.start();
     changed(m_rows[row], {QualityRole});
@@ -364,6 +380,7 @@ void Library::setFps(int row, int fps)
     fps = std::clamp(fps, 10, m_maxFps);
     if (e.meta.value("fps").toInt() == fps) return;
     e.meta.insert(QStringLiteral("fps"), fps);
+    e.meta.insert(QStringLiteral("tuned"), true);
     e.dirty = true;
     m_saveTimer.start();
     changed(m_rows[row], {FpsRole});
@@ -403,7 +420,7 @@ QString Library::createShader(const QString &name, const QString &author, const 
     QDir().mkpath(e.dir);
     const QString now = QDateTime::currentDateTime().toString(Qt::ISODate);
     e.meta = {{"name", name}, {"author", author}, {"license", QString()}, {"description", QString()},
-              {"quality", 50}, {"fps", std::min(30, m_maxFps)}, {"starred", false}, {"hidden", false},
+              {"quality", m_defQuality}, {"fps", std::min(m_defFps, m_maxFps)}, {"starred", false}, {"hidden", false},
               {"created", now}};
     for (int c = 0; c < 4; ++c) {
         const QString p = QStringLiteral("channel%1.").arg(c);
@@ -442,6 +459,7 @@ void Library::seedIfEmpty()
         if (ShaderEntry *e = entry(slug)) {
             e->meta.insert(QStringLiteral("description"), QString::fromUtf8(x.desc));
             e->meta.insert(QStringLiteral("license"), QStringLiteral("MIT"));
+            e->meta.insert(QStringLiteral("seeded"), true); // defaults follow the first-run benchmark
             save(*e);
         }
     }
@@ -499,9 +517,10 @@ bool Library::moveEntry(ShaderEntry &e, bool toTrash)
     return true;
 }
 
-void Library::pushUndo(Undo::Kind k, const QString &slug)
+void Library::pushUndo(Undo::Kind k, const QStringList &slugs)
 {
-    m_undo.append({k, slug});
+    if (slugs.isEmpty()) return;
+    m_undo.append({k, slugs});
     if (m_undo.size() > 50) m_undo.removeFirst();
     emit undoChanged();
 }
@@ -511,7 +530,7 @@ int Library::moveToTrash(int row)
     if (row < 0 || row >= m_rows.size()) return row;
     ShaderEntry &e = m_entries[m_rows[row]];
     if (e.trashed || !moveEntry(e, true)) return row;
-    pushUndo(Undo::Trashed, e.slug);
+    pushUndo(Undo::Trashed, {e.slug});
     reset();
     emit noted(tr("Moved to Trash · Ctrl+Z undo"));
     return std::max(0, std::min(row - 1, int(m_rows.size()) - 1)); // focus the previous card
@@ -522,7 +541,7 @@ int Library::restore(int row)
     if (row < 0 || row >= m_rows.size()) return row;
     ShaderEntry &e = m_entries[m_rows[row]];
     if (!e.trashed || !moveEntry(e, false)) return row;
-    pushUndo(Undo::Restored, e.slug);
+    pushUndo(Undo::Restored, {e.slug});
     const QString name = nameOf(e);
     reset();
     emit noted(tr("Restored %1 · Ctrl+Z undo").arg(name));
@@ -532,10 +551,11 @@ int Library::restore(int row)
 void Library::removeFiles(ShaderEntry &e)
 {
     QDir(e.dir).removeRecursively();
-    QFile::remove(m_compiler.pathFor(e.code));
+    QFile::remove(m_compiler.pathFor(e.code, types(e)));
     QFile::remove(stillFile(e));
     const QString slug = e.slug;
-    m_undo.erase(std::remove_if(m_undo.begin(), m_undo.end(), [&](const Undo &u) { return u.slug == slug; }), m_undo.end());
+    for (Undo &u : m_undo) u.slugs.removeAll(slug);
+    m_undo.erase(std::remove_if(m_undo.begin(), m_undo.end(), [](const Undo &u) { return u.slugs.isEmpty(); }), m_undo.end());
     emit undoChanged();
 }
 
@@ -563,21 +583,81 @@ QString Library::undo()
     while (!m_undo.isEmpty()) {
         const Undo u = m_undo.takeLast();
         emit undoChanged();
-        ShaderEntry *e = entry(u.slug);
-        if (!e) continue;
-        switch (u.kind) {
-        case Undo::Trashed: if (!e->trashed || !moveEntry(*e, false)) continue; break;
-        case Undo::Restored: if (e->trashed || !moveEntry(*e, true)) continue; break;
-        case Undo::Hid: case Undo::Unhid:
-            e->meta.insert(QStringLiteral("hidden"), u.kind == Undo::Unhid);
-            save(*e);
-            break;
+        QString first;
+        for (const QString &slug : u.slugs) {
+            ShaderEntry *e = entry(slug);
+            if (!e) continue;
+            bool ok = true;
+            switch (u.kind) {
+            case Undo::Trashed: ok = e->trashed && moveEntry(*e, false); break;
+            case Undo::Restored: ok = !e->trashed && moveEntry(*e, true); break;
+            case Undo::Hid: case Undo::Unhid:
+                e->meta.insert(QStringLiteral("hidden"), u.kind == Undo::Unhid);
+                save(*e);
+                break;
+            }
+            if (ok && first.isEmpty()) first = e->slug;
         }
-        const QString slug = e->slug;
+        if (first.isEmpty()) continue;
         reset();
-        return slug;
+        return first;
     }
     return {};
+}
+
+int Library::trashMany(const QStringList &slugs)
+{
+    QStringList done;
+    for (const QString &s : slugs)
+        if (ShaderEntry *e = entry(s); e && !e->trashed && moveEntry(*e, true)) done << e->slug;
+    pushUndo(Undo::Trashed, done);
+    reset();
+    if (!done.isEmpty()) emit noted(tr("Moved to Trash · Ctrl+Z undo"));
+    return done.size();
+}
+
+int Library::restoreMany(const QStringList &slugs)
+{
+    QStringList done;
+    QString name;
+    for (const QString &s : slugs)
+        if (ShaderEntry *e = entry(s); e && e->trashed && moveEntry(*e, false)) { done << e->slug; name = nameOf(*e); }
+    pushUndo(Undo::Restored, done);
+    reset();
+    if (done.size() == 1) emit noted(tr("Restored %1 · Ctrl+Z undo").arg(name));
+    else if (!done.isEmpty()) emit noted(tr("Restored %n shaders · Ctrl+Z undo", "", int(done.size())));
+    return done.size();
+}
+
+int Library::deleteMany(const QStringList &slugs)
+{
+    int n = 0;
+    for (const QString &s : slugs)
+        for (int i = 0; i < m_entries.size(); ++i)
+            if (m_entries[i].slug == s) { removeFiles(m_entries[i]); m_entries.removeAt(i); ++n; break; }
+    reset();
+    return n;
+}
+
+int Library::hideMany(const QStringList &slugs, bool hide)
+{
+    QStringList done;
+    for (const QString &s : slugs)
+        if (ShaderEntry *e = entry(s); e && e->readable && e->meta.value("hidden").toBool() != hide) {
+            e->meta.insert(QStringLiteral("hidden"), hide);
+            save(*e);
+            done << e->slug;
+        }
+    pushUndo(hide ? Undo::Hid : Undo::Unhid, done);
+    reset();
+    return done.size();
+}
+
+QStringList Library::allSlugs() const
+{
+    QStringList l;
+    for (int i : m_rows) l << m_entries[i].slug;
+    return l;
 }
 
 QString Library::licenseHint(const QString &code)
@@ -606,15 +686,18 @@ QString Library::licenseHint(const QString &code)
     return l.hasMatch() ? l.captured(1).trimmed() + QStringLiteral(" · see source") : QString();
 }
 
-void Library::compileDraft(const QString &code)
+void Library::compileDraft(const QString &code, const QVariantList &channels)
 {
-    const QString cached = m_compiler.cachedPath(code);
+    QString t;
+    for (int c = 0; c < 4; ++c)
+        t += c < channels.size() && Textures::is3d(channels[c].toMap().value("source").toString()) ? u'3' : u'2';
+    const QString cached = m_compiler.cachedPath(code, t);
     if (!cached.isEmpty()) {
-        QMetaObject::invokeMethod(this, [this, cached, code] { emit draftCompiled(true, QUrl::fromLocalFile(cached), 0, {}, code); },
+        QMetaObject::invokeMethod(this, [this, cached, code, t] { emit draftCompiled(true, QUrl::fromLocalFile(cached), 0, {}, code, t); },
                                   Qt::QueuedConnection);
         return;
     }
-    m_compiler.enqueue(m_draftId, code);
+    m_compiler.enqueue(m_draftId, code, t);
 }
 
 QString Library::codeOf(const QString &slug) const
@@ -637,6 +720,28 @@ QString Library::saveShader(const QString &slug, const QVariantMap &fields, cons
     }
     ShaderEntry *e = entry(s);
     if (!e) return {};
+    if (fields.contains(QStringLiteral("channels"))) {
+        const QVariantList ch = fields.value(QStringLiteral("channels")).toList();
+        for (int c = 0; c < 4 && c < ch.size(); ++c) {
+            const QVariantMap m = ch[c].toMap();
+            QString src = m.value("source").toString();
+            // User images are copied into the shader folder, so the shader never
+            // breaks when the original file moves.
+            if (QFileInfo(src).isAbsolute() && QFileInfo(src).absolutePath() != QFileInfo(e->dir).absoluteFilePath()) {
+                const QString name = QStringLiteral("channel%1.%2").arg(c).arg(QFileInfo(src).suffix().toLower());
+                QFile::remove(e->dir + u'/' + name);
+                if (QFile::copy(src, e->dir + u'/' + name)) src = name;
+                else { m_status = tr("Couldn't copy %1").arg(QFileInfo(src).fileName()); emit statusChanged(); src.clear(); }
+            } else if (QFileInfo(src).isAbsolute()) {
+                src = QFileInfo(src).fileName();
+            }
+            const QString p = QStringLiteral("channel%1.").arg(c);
+            e->meta.insert(p + "source", src);
+            e->meta.insert(p + "filter", m.value("filter").toString() == QLatin1String("nearest") ? "nearest" : "linear");
+            e->meta.insert(p + "wrap", m.value("wrap").toString() == QLatin1String("clamp") ? "clamp" : "repeat");
+        }
+        e->stillPath.clear();
+    }
     for (const char *k : {"name", "author", "license", "description"})
         if (fields.contains(QLatin1String(k))) e->meta.insert(QLatin1String(k), fields.value(QLatin1String(k)).toString().trimmed());
     if (e->meta.value("name").toString().isEmpty()) e->meta.insert(QStringLiteral("name"), tr("Untitled"));
@@ -692,11 +797,122 @@ void Library::setScreensaverOn(const QString &v)
 {
     if (v == m_screensaverOn || (v != QLatin1String("all") && v != QLatin1String("primary"))) return;
     m_screensaverOn = v;
+    saveSettings();
+    emit settingsChanged();
+}
+
+void Library::saveSettings()
+{
     QDir().mkpath(m_configDir);
     QSaveFile f(configFile());
+    QVariantMap m{{"screensaver_on", m_screensaverOn}, {"auto_adapt", m_autoAdapt},
+                  {"default_quality", m_defQuality}, {"default_fps", m_defFps}};
+    if (m_benchMs > 0) m.insert(QStringLiteral("benchmark_ms"), m_benchMs);
     if (f.open(QIODevice::WriteOnly)) {
-        f.write(Toml::serialize({{"screensaver_on", v}}).toUtf8());
+        f.write(Toml::serialize(m).toUtf8());
         f.commit();
     }
+}
+
+QString Library::types(const ShaderEntry &e) const
+{
+    QString t;
+    for (int c = 0; c < 4; ++c)
+        t += Textures::is3d(e.meta.value(QStringLiteral("channel%1.source").arg(c)).toString()) ? u'3' : u'2';
+    return t;
+}
+
+QString channelKey(const QVariantMap &meta)
+{
+    QString k;
+    for (int c = 0; c < 4; ++c)
+        for (const char *f : {"source", "filter", "wrap"})
+            k += meta.value(QStringLiteral("channel%1.%2").arg(c).arg(QLatin1String(f))).toString() + u'|';
+    return k;
+}
+
+QVariantList Library::builtinChannels() const
+{
+    QVariantList l;
+    for (const QString &n : Textures::builtins()) l << channelInfo(n);
+    return l;
+}
+
+QVariantMap Library::channelInfo(const QString &source, const QString &slug) const
+{
+    QVariantMap m{{"source", source}, {"is3d", Textures::is3d(source)}};
+    if (source.isEmpty()) {
+        m.insert("label", tr("Empty"));
+        m.insert("url", QStringLiteral("image://shady/empty"));
+        m.insert("resolution", QVariantList{0, 0, 0});
+    } else if (Textures::builtins().contains(source)) {
+        const QSize sz = Textures::size(source);
+        m.insert("label", Textures::label(source));
+        m.insert("url", QStringLiteral("image://shady/") + source);
+        m.insert("resolution", QVariantList{sz.width(), sz.height(), Textures::is3d(source) ? 32 : 1});
+    } else {
+        QString path = source;
+        if (!QFileInfo(path).isAbsolute()) {
+            for (const ShaderEntry &e : m_entries) if (e.slug == slug) path = e.dir + u'/' + source;
+        }
+        const QImage probe(path);
+        m.insert("label", QFileInfo(source).fileName());
+        m.insert("url", QUrl::fromLocalFile(path));
+        m.insert("resolution", QVariantList{probe.width(), probe.height(), 1});
+        m.insert("missing", probe.isNull());
+    }
+    return m;
+}
+
+QVariantList Library::channelsOf(const QString &slug) const
+{
+    QVariantList l;
+    const ShaderEntry *e = nullptr;
+    for (const ShaderEntry &x : m_entries) if (x.slug == slug) e = &x;
+    for (int c = 0; c < 4; ++c) {
+        const QString p = QStringLiteral("channel%1.").arg(c);
+        QVariantMap m = channelInfo(e ? e->meta.value(p + "source").toString() : QString(), slug);
+        m.insert("filter", e && e->meta.value(p + "filter").toString() == QLatin1String("nearest") ? "nearest" : "linear");
+        m.insert("wrap", e && e->meta.value(p + "wrap").toString() == QLatin1String("clamp") ? "clamp" : "repeat");
+        l << m;
+    }
+    return l;
+}
+
+void Library::setBenchmark(double ms, bool software)
+{
+    // Defaults for new shaders: modest on fast machines, minimum on slow ones.
+    m_benchMs = std::max(0.01, ms);
+    if (software || ms > 40) { m_defQuality = 10; m_defFps = 10; }
+    else if (ms > 12) { m_defQuality = 30; m_defFps = 24; }
+    else { m_defQuality = 50; m_defFps = 30; }
+    m_defFps = std::min(m_defFps, m_maxFps);
+    saveSettings();
+    // The first-run examples follow suit unless the user already changed them.
+    for (ShaderEntry &e : m_entries)
+        if (e.meta.value("seeded").toBool() && !e.meta.value("tuned").toBool()) {
+            e.meta.insert(QStringLiteral("quality"), m_defQuality);
+            e.meta.insert(QStringLiteral("fps"), m_defFps);
+            save(e);
+        }
+    reset();
     emit settingsChanged();
+}
+
+void Library::viewerOpened(const QString &slug)
+{
+    QSaveFile f(m_dataDir + QStringLiteral("/.viewing"));
+    if (f.open(QIODevice::WriteOnly)) { f.write(slug.toUtf8()); f.commit(); }
+}
+
+void Library::viewerClosed()
+{
+    QFile::remove(m_dataDir + QStringLiteral("/.viewing"));
+}
+
+bool Library::crashedLastTime(const QString &slug)
+{
+    if (slug.isEmpty() || slug != m_crashed) return false;
+    m_crashed.clear(); // only the next open
+    return true;
 }

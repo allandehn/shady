@@ -15,10 +15,59 @@ FocusScope {
     readonly property bool inTrash: library.filter === 3
     readonly property bool overlayOpen: menu.visible || confirm.visible || keys.visible || settings.visible
 
+    // Multi-select: slug -> true. The anchor is the first card picked.
+    property var sel: ({})
+    property int selCount: 0
+    property string anchor: ""
+    property var base: ({})
+    readonly property bool selecting: selCount > 0
+    function selected() { return Object.keys(sel).filter(k => sel[k]) }
+    function setSel(m) { sel = m; selCount = Object.keys(m).filter(k => m[k]).length; if (!selCount) anchor = "" }
+    function clearSel() { setSel({}); base = {} }
+    function toggle(r) {
+        if (!isShader(r)) return
+        const slug = library.get(r).slug
+        const m = Object.assign({}, sel)
+        m[slug] = !m[slug]
+        if (!m[slug]) delete m[slug]
+        if (m[slug] && !anchor) anchor = slug
+        base = Object.assign({}, m)
+        setSel(m)
+    }
+    function extend(to) {
+        // Shift+arrows: from the anchor to the new card, in reading order.
+        if (!isShader(to)) return
+        const cur = grid.currentIndex
+        if (!anchor && isShader(cur)) { anchor = library.get(cur).slug; base = Object.assign({}, sel) }
+        const a = library.rowOf(anchor)
+        const m = Object.assign({}, base)
+        for (let i = Math.min(a, to); i <= Math.max(a, to); ++i) m[library.get(i).slug] = true
+        setSel(m)
+        grid.currentIndex = to
+    }
+    function selectAll() {
+        const m = {}
+        for (const s of library.allSlugs()) m[s] = true
+        anchor = library.count ? library.get(0).slug : ""
+        base = Object.assign({}, m)
+        setSel(m)
+    }
+    function trashSelected() { const n = library.trashMany(selected()); clearSel(); focusRow(grid.currentIndex) }
+    function hideSelected() { library.hideMany(selected(), library.filter !== 2); clearSel(); focusRow(grid.currentIndex) }
+    function restoreSelected() { library.restoreMany(selected()); clearSel(); focusRow(0) }
+    function confirmDeleteSelected() {
+        const list = selected()
+        confirm.title = qsTr("Delete forever?")
+        confirm.line = qsTr("Permanently delete %n shaders?", "", list.length)
+        confirm.run = () => { library.deleteMany(list); clearSel(); focusRow(0) }
+        confirm.open()
+    }
+    Connections { target: library; function onFilterChanged() { panel.clearSel() } }
+
     function focusRow(r) { grid.currentIndex = Math.max(0, Math.min(r, grid.count - 1)); grid.forceActiveFocus() }
     function focusSlug(s) { const r = library.rowOf(s); if (r >= 0) focusRow(r) }
     function isShader(r) { return r >= 0 && r < library.count }
-    function cycle(d) { library.filter = (library.filter + d + 4) % 4; focusRow(0) }
+    function cycle(d) { clearSel(); library.filter = (library.filter + d + 4) % 4; focusRow(0) }
     function confirmDelete(r) {
         const m = library.get(r)
         confirm.title = qsTr("Delete forever?")
@@ -46,6 +95,7 @@ FocusScope {
                              { text: qsTr("Edit"), key: "Ctrl+E", action: "edit" },
                              { text: m.starred ? qsTr("Unstar") : qsTr("Star"), key: "S", action: "star" },
                              { text: m.hidden ? qsTr("Unhide") : qsTr("Hide"), key: "H", action: "hide" },
+                             { text: panel.sel[m.slug] ? qsTr("Deselect") : qsTr("Select"), key: "Space", action: "select" },
                              { divider: true },
                              { text: qsTr("Move to Trash"), key: "Del", action: "trash" }])
     }
@@ -59,6 +109,7 @@ FocusScope {
         else if (action === "trash") focusRow(library.moveToTrash(r))
         else if (action === "restore") focusRow(library.restore(r))
         else if (action === "forever") confirmDelete(r)
+        else if (action === "select") toggle(r)
     }
     function showNote(t) { note = t; noteTimer.restart() }
 
@@ -88,6 +139,7 @@ FocusScope {
                 smallCaps: true; dim: true
                 text: {
                     const n = library.count
+                    if (panel.selCount > 0) return qsTr("%1 of %2 selected").arg(panel.selCount).arg(n)
                     let s = library.filter === 1 ? qsTr("%n starred", "", n)
                           : library.filter === 2 ? qsTr("%n hidden", "", n)
                           : library.filter === 3 ? qsTr("%n in trash", "", n)
@@ -145,7 +197,10 @@ FocusScope {
         delegate: ShaderCard {
             width: grid.cellWidth; height: grid.cellHeight
             current: GridView.isCurrentItem && grid.activeFocus
-            live: current && !theme.software
+            live: current && !theme.software && !library.slowMachine
+            selected: !!panel.sel[slug]
+            selecting: panel.selecting
+            onToggled: panel.toggle(index)
             resume: panel.resume
             onPicked: { grid.currentIndex = index; grid.forceActiveFocus() }
             onActivated: isNew ? panel.edit("") : panel.inTrash ? panel.act("restore", index) : panel.open(index)
@@ -158,8 +213,22 @@ FocusScope {
             const ctrl = e.modifiers & Qt.ControlModifier, shift = e.modifiers & Qt.ShiftModifier
             const isNewCard = r === library.count && library.filter === 0
             if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) {
-                if (isNewCard) panel.edit("")
+                if (panel.selecting && panel.inTrash) panel.restoreSelected()
+                else if (isNewCard) panel.edit("")
                 else panel.act(panel.inTrash ? "restore" : "open", r)
+            }
+            else if (e.key === Qt.Key_Space) panel.toggle(r)
+            else if (shift && (e.key === Qt.Key_Left || e.key === Qt.Key_Right || e.key === Qt.Key_Up || e.key === Qt.Key_Down)) {
+                const step = e.key === Qt.Key_Left ? -1 : e.key === Qt.Key_Right ? 1 : e.key === Qt.Key_Up ? -2 : 2
+                const to = Math.max(0, Math.min(library.count - 1, r + step))
+                if (to !== r || !panel.selecting) panel.extend(to)
+            }
+            else if (e.key === Qt.Key_A && ctrl) panel.selectAll()
+            else if (e.key === Qt.Key_Escape && panel.selecting) panel.clearSel()
+            else if (panel.selecting && e.key === Qt.Key_H && !ctrl && !panel.inTrash) panel.hideSelected()
+            else if (panel.selecting && e.key === Qt.Key_Delete) {
+                if (panel.inTrash || shift) panel.confirmDeleteSelected()
+                else panel.trashSelected()
             }
             else if (e.key === Qt.Key_Z && ctrl) { const s = library.undo(); if (s) panel.focusSlug(s) }
             else if (e.key === Qt.Key_E && ctrl) { if (!panel.inTrash) panel.act("edit", r) }
@@ -206,6 +275,7 @@ FocusScope {
             if (r < 0) return
             const m = library.get(r)
             slug = m.slug
+            makerView.channels = m.channels
             makerView.source = m.shaderUrl
             makerWait.restart()
         }
@@ -232,6 +302,22 @@ FocusScope {
             dim: true; font.pixelSize: 11
             text: library.status || panel.note || panel.swNote
         }
+        // Selection bar
+        Rectangle {
+            visible: panel.selecting
+            width: parent.width; height: visible ? 50 : 0
+            color: ui.bg2
+            Label { x: 16; anchors.verticalCenter: parent.verticalCenter; font.bold: true; font.pixelSize: 12
+                    text: qsTr("%1 selected").arg(panel.selCount) }
+            Row {
+                anchors { right: parent.right; rightMargin: 16; verticalCenter: parent.verticalCenter }
+                spacing: 8
+                Button { visible: !panel.inTrash; text: library.filter === 2 ? qsTr("Unhide") : qsTr("Hide"); onClicked: panel.hideSelected() }
+                Button { visible: !panel.inTrash; text: qsTr("Trash"); onClicked: panel.trashSelected() }
+                Button { visible: panel.inTrash; text: qsTr("Restore"); onClicked: panel.restoreSelected() }
+                Button { visible: panel.inTrash; text: qsTr("Delete forever"); onClicked: panel.confirmDeleteSelected() }
+            }
+        }
         Rectangle { width: parent.width; height: 1; color: ui.bg2; visible: panel.inTrash }
         Item {
             visible: panel.inTrash
@@ -253,12 +339,15 @@ FocusScope {
             Column {
                 id: hints
                 x: 16; y: 12; width: parent.width - 32; spacing: 6
-                Hint { keys: panel.inTrash ? [["Enter", qsTr("restore")], ["Del", qsTr("delete forever")]]
+                Hint { keys: panel.selecting ? (panel.inTrash ? [["Enter", qsTr("restore")], ["Del", qsTr("delete forever")]]
+                                                                : [["H", library.filter === 2 ? qsTr("unhide") : qsTr("hide")], ["Del", qsTr("trash")], ["Ctrl+Z", qsTr("undo")]])
+                           : panel.inTrash ? [["Enter", qsTr("restore")], ["Del", qsTr("delete forever")]]
                            : library.filter === 2 ? [["H", qsTr("unhide")], ["Enter", qsTr("open")], ["Esc", qsTr("close")]]
                            : [["Enter", qsTr("open")], ["S", qsTr("star")], ["H", qsTr("hide")], ["Del", qsTr("trash")]] }
-                Hint { keys: panel.inTrash ? [["Tab", qsTr("footer")], ["Esc", qsTr("close")]]
+                Hint { keys: panel.selecting ? [["Space", qsTr("toggle")], ["Shift+←→↑↓", qsTr("extend")], ["Esc", qsTr("clear")]]
+                           : panel.inTrash ? [["Tab", qsTr("footer")], ["Esc", qsTr("close")]]
                            : library.filter === 2 ? [["Tab", qsTr("next view")], ["?", qsTr("all keys")]]
-                           : [["N", qsTr("new")], ["Ctrl+Z", qsTr("undo")], ["?", qsTr("all keys")]] }
+                           : [["Space", qsTr("select")], ["N", qsTr("new")], ["?", qsTr("all keys")]] }
             }
         }
     }

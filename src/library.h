@@ -6,6 +6,7 @@
 // row is the "+ New shader" card.
 #include <QAbstractListModel>
 #include <QDateTime>
+#include <QDir>
 #include <QTimer>
 #include <QVariantMap>
 #include <QVector>
@@ -35,12 +36,17 @@ class Library : public QAbstractListModel
     Q_PROPERTY(QString status READ status NOTIFY statusChanged)
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY undoChanged)
     Q_PROPERTY(QString screensaverOn READ screensaverOn WRITE setScreensaverOn NOTIFY settingsChanged)
+    Q_PROPERTY(bool autoAdapt READ autoAdapt WRITE setAutoAdapt NOTIFY settingsChanged)
+    Q_PROPERTY(bool benchmarked READ benchmarked NOTIFY settingsChanged)
+    Q_PROPERTY(int defaultQuality READ defaultQuality NOTIFY settingsChanged)
+    Q_PROPERTY(int defaultFps READ defaultFps NOTIFY settingsChanged)
+    Q_PROPERTY(bool slowMachine READ slowMachine WRITE setSlowMachine NOTIFY slowMachineChanged)
 public:
     enum Filter { All, Starred, Hidden, Trash };
     Q_ENUM(Filter)
     enum Role { SlugRole = Qt::UserRole + 1, NameRole, AuthorRole, LicenseRole, DescriptionRole,
                 QualityRole, FpsRole, StarredRole, HiddenRole, StateRole, ErrorLineRole,
-                ErrorTextRole, ShaderUrlRole, StillUrlRole, IsNewRole, TrashedRole, RemovedRole };
+                ErrorTextRole, ShaderUrlRole, StillUrlRole, IsNewRole, TrashedRole, RemovedRole, ChannelsRole };
 
     Library(const QString &dataDir, const QString &cacheDir, int maxFps, QObject *parent = nullptr,
             const QString &configDir = {});
@@ -82,7 +88,30 @@ public:
     Q_INVOKABLE void flush();
     Q_INVOKABLE QString createShader(const QString &name, const QString &author, const QString &code);
     // Editor: compile a draft without saving (emits draftCompiled), and save.
-    Q_INVOKABLE void compileDraft(const QString &code);
+    Q_INVOKABLE void compileDraft(const QString &code, const QVariantList &channels = {});
+    // Multi-select: act on several shaders at once (one undo step).
+    Q_INVOKABLE int trashMany(const QStringList &slugs);
+    Q_INVOKABLE int restoreMany(const QStringList &slugs);
+    Q_INVOKABLE int deleteMany(const QStringList &slugs);
+    Q_INVOKABLE int hideMany(const QStringList &slugs, bool hide);
+    Q_INVOKABLE QStringList allSlugs() const;
+    // iChannels
+    Q_INVOKABLE QVariantList builtinChannels() const;
+    Q_INVOKABLE QString homePath() const { return QDir::homePath(); }
+    Q_INVOKABLE QVariantMap channelInfo(const QString &source, const QString &slug = {}) const;
+    Q_INVOKABLE QVariantList channelsOf(const QString &slug) const;
+    // Potato support
+    Q_INVOKABLE void setBenchmark(double msPerFrame, bool software);
+    Q_INVOKABLE void viewerOpened(const QString &slug);
+    Q_INVOKABLE void viewerClosed();
+    Q_INVOKABLE bool crashedLastTime(const QString &slug);
+    bool autoAdapt() const { return m_autoAdapt; }
+    void setAutoAdapt(bool on) { if (on != m_autoAdapt) { m_autoAdapt = on; saveSettings(); emit settingsChanged(); } }
+    bool benchmarked() const { return m_benchMs > 0; }
+    int defaultQuality() const { return m_defQuality; }
+    int defaultFps() const { return m_defFps; }
+    bool slowMachine() const { return m_slow; }
+    void setSlowMachine(bool s) { if (s != m_slow) { m_slow = s; emit slowMachineChanged(); } }
     Q_INVOKABLE QString codeOf(const QString &slug) const;
     Q_INVOKABLE QString saveShader(const QString &slug, const QVariantMap &fields, const QString &code);
     // Settings
@@ -103,11 +132,12 @@ signals:
     void statusChanged();
     void undoChanged();
     void settingsChanged();
+    void slowMachineChanged();
     void noted(const QString &text); // status note: "Moved to Trash · Ctrl+Z undo"
-    void draftCompiled(bool ok, const QUrl &url, int errorLine, const QString &errorText, const QString &code);
+    void draftCompiled(bool ok, const QUrl &url, int errorLine, const QString &errorText, const QString &code, const QString &types);
 
 private:
-    struct Undo { enum Kind { Trashed, Restored, Hid, Unhid } kind; QString slug; };
+    struct Undo { enum Kind { Trashed, Restored, Hid, Unhid } kind; QStringList slugs; };
     void rebuild();
     void reset();
     bool save(ShaderEntry &e);
@@ -117,7 +147,9 @@ private:
     QString stillFile(const ShaderEntry &e) const;
     QString freeSlug(const QString &dir, const QString &base) const;
     bool moveEntry(ShaderEntry &e, bool toTrash);
-    void pushUndo(Undo::Kind k, const QString &slug);
+    void pushUndo(Undo::Kind k, const QStringList &slugs);
+    QString types(const ShaderEntry &e) const;
+    void saveSettings();
     void removeFiles(ShaderEntry &e);
     QString nameOf(const ShaderEntry &e) const { return e.meta.value("name", e.slug).toString(); }
 
@@ -130,5 +162,9 @@ private:
     Compiler m_compiler;
     QTimer m_saveTimer;
     QDateTime m_lastTrashed;
+    bool m_autoAdapt = true, m_slow = false;
+    double m_benchMs = 0;
+    int m_defQuality = 50, m_defFps = 30;
+    QString m_crashed; // shader that was open when the app last died
     QString m_draftId = QStringLiteral(" draft");
 };

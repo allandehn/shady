@@ -14,6 +14,7 @@ struct CompileResult {
     int errorLine = 0;   // in the user's own code, 1-based; 0 if unknown
     QString errorText;
     QString user;        // the source this result is for
+    QString types;
 };
 
 class Compiler : public QObject
@@ -23,22 +24,23 @@ public:
     explicit Compiler(const QString &cacheDir, QObject *parent = nullptr);
     ~Compiler() override;
 
-    static QString wrap(const QString &user, int *prefixLines = nullptr);
-    static QString hashOf(const QString &user);
+    // `types` has one char per iChannel: '2' (2D) or '3' (3D, sampled from an atlas).
+    static QString wrap(const QString &user, int *prefixLines = nullptr, const QString &types = QStringLiteral("2222"));
+    static QString hashOf(const QString &user, const QString &types = QStringLiteral("2222"));
     static QString qsbTool();
     static CompileResult parseErrors(const QString &log, int prefixLines);
 
-    QString cachedPath(const QString &user) const; // empty if not cached
-    QString pathFor(const QString &user) const;
-    void enqueue(const QString &id, const QString &user);
-    CompileResult compileSync(const QString &user); // for tests
+    QString cachedPath(const QString &user, const QString &types = QStringLiteral("2222")) const; // empty if not cached
+    QString pathFor(const QString &user, const QString &types = QStringLiteral("2222")) const;
+    void enqueue(const QString &id, const QString &user, const QString &types = QStringLiteral("2222"));
+    CompileResult compileSync(const QString &user, const QString &types = QStringLiteral("2222")); // for tests
 
 signals:
     void finished(const QString &id, const CompileResult &result);
 
 private:
     void next();
-    struct Job { QString id, user; };
+    struct Job { QString id, user, types; };
     QString m_dir;
     QQueue<Job> m_queue;
     QProcess *m_proc = nullptr;

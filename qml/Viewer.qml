@@ -9,6 +9,14 @@ FocusScope {
     property int quality: 50
     property int fps: 30
     property real startTime: 0
+    property var meter: null
+    // Potato support: session-only adaptation, the too-heavy pause, and
+    // "opened at minimum" after a crash. Saved settings change only by keys.
+    property int adapted: 0            // 0 = not adapted, else the session quality
+    property bool paused: false
+    property bool openedAtMinimum: false
+    readonly property int renderQuality: adapted > 0 ? adapted : quality
+    readonly property int tryQuality: Math.max(10, Math.floor(renderQuality / 20) * 10)
     signal close()
     signal toggleFullscreen()
 
@@ -16,9 +24,29 @@ FocusScope {
         row = r
         item = library.get(r)
         // No real GPU: start at minimum for this session (not saved).
-        quality = theme.software ? 10 : item.quality
-        fps = theme.software ? 10 : item.fps
+        openedAtMinimum = library.crashedLastTime(item.slug)
+        quality = theme.software || openedAtMinimum ? 10 : item.quality
+        fps = theme.software || openedAtMinimum ? 10 : item.fps
+        adapted = 0
+        paused = false
         view.time = resumeAt || 0
+        library.viewerOpened(item.slug)
+        watch.restartGrace()
+        wake()
+    }
+    function leave() {
+        library.flush()
+        library.viewerClosed()
+        paused = false
+        viewer.close()
+    }
+    function tryLower() {
+        quality = tryQuality
+        library.setQuality(row, quality)
+        library.flush()
+        adapted = 0
+        paused = false
+        watch.restartGrace()
         wake()
     }
     function wake() { overlay.shown = true; idle.restart() }
@@ -29,9 +57,11 @@ FocusScope {
         id: view
         anchors.fill: parent
         source: viewer.item.shaderUrl || ""
-        quality: viewer.quality / 100
+        channels: viewer.item.channels || []
+        quality: viewer.renderQuality / 100
         fps: viewer.fps
-        running: viewer.visible
+        running: viewer.visible && !viewer.paused
+        opacity: viewer.paused ? 0.35 : 1
     }
 
     Item {
@@ -69,13 +99,19 @@ FocusScope {
                 Hint {
                     id: barHints
                     width: parent.width - saved.width - 24
-                    keys: [["↑↓", qsTr("quality %1%").arg(viewer.quality)], ["←→", qsTr("fps %1").arg(viewer.fps)],
+                    keys: viewer.adapted > 0
+                        ? [["↑↓", qsTr("quality %1%").arg(viewer.quality)], ["←→", qsTr("fps %1").arg(viewer.fps)],
+                           ["A", qsTr("auto off")], ["Esc", qsTr("close")]]
+                        : [["↑↓", qsTr("quality %1%").arg(viewer.quality)], ["←→", qsTr("fps %1").arg(viewer.fps)],
                            ["F", qsTr("fullscreen")], ["Esc", qsTr("close")]]
                 }
                 Label {
                     id: saved
                     anchors { right: parent.right; bottom: parent.bottom }
-                    text: viewer.item.shaderState === "ready" ? qsTr("Saved for this shader")
+                    font.bold: viewer.adapted > 0
+                    text: viewer.adapted > 0 ? qsTr("adapted to %1%").arg(viewer.adapted)
+                        : viewer.openedAtMinimum ? qsTr("opened at minimum")
+                        : viewer.item.shaderState === "ready" ? qsTr("Saved for this shader")
                         : viewer.item.shaderState === "error" ? qsTr("Line %1 · %2").arg(viewer.item.errorLine).arg(viewer.item.errorText)
                         : qsTr("Preparing…")
                     font.pixelSize: 11
@@ -102,6 +138,80 @@ FocusScope {
             Label { anchors.horizontalCenter: parent.horizontalCenter; text: qsTr("saved for this shader"); dim: true; font.pixelSize: 10 }
         }
     }
+    // Frame watch: pause when a frame takes far too long (> 500 ms), and
+    // lower the session resolution when the fps setting can't be held.
+    Timer {
+        id: watch
+        interval: 100
+        repeat: true
+        running: viewer.visible && !viewer.paused && viewer.meter !== null
+        property double graceUntil: 0
+        property double winStart: 0
+        property int winFrames: 0
+        property int slowWindows: 0
+        function restartGrace() {
+            graceUntil = viewer.meter ? viewer.meter.nowMs() + 1500 : 0
+            winStart = 0; slowWindows = 0
+        }
+        onTriggered: {
+            const m = viewer.meter, now = m.nowMs()
+            if (now < graceUntil) return
+            if (m.inFlightMs() > 500 || m.lastFrameMs() > 500) {
+                viewer.paused = true
+                library.slowMachine = true
+                pauseBox.forceActiveFocus()
+                return
+            }
+            if (winStart === 0) { winStart = now; winFrames = m.frames(); return }
+            if (now - winStart < 1000) return
+            const achieved = (m.frames() - winFrames) * 1000 / (now - winStart)
+            winStart = now; winFrames = m.frames()
+            if (!library.autoAdapt || viewer.renderQuality <= 10) { slowWindows = 0; return }
+            if (achieved < viewer.fps * 0.8) {
+                if (++slowWindows >= 2) {
+                    // Pixels cost ~quality^2: scale to the rate we actually reached.
+                    const q = viewer.renderQuality * Math.sqrt(Math.max(0.05, achieved / viewer.fps))
+                    viewer.adapted = Math.max(10, Math.min(viewer.renderQuality - 10, Math.floor(q / 10) * 10))
+                    library.slowMachine = true
+                    viewer.wake()
+                    restartGrace()
+                }
+            } else {
+                slowWindows = 0
+            }
+        }
+    }
+
+    // Too-heavy pause: one primary action that names the value.
+    FocusScope {
+        id: pauseBox
+        visible: viewer.paused
+        anchors.centerIn: parent
+        width: Math.min(viewer.width - 40, 320); height: pcol.implicitHeight + 32
+        Rectangle { anchors.fill: parent; color: ui.bg2; radius: theme.rounding
+                    border.width: 1; border.color: Qt.rgba(ui.muted.r, ui.muted.g, ui.muted.b, 0.3) }
+        Column {
+            id: pcol
+            x: 16; y: 16; width: parent.width - 32; spacing: 8
+            Label { text: qsTr("Paused"); font.bold: true }
+            Label { width: parent.width; wrapMode: Text.WordWrap; text: qsTr("This shader is too heavy here. Try lower quality?") }
+            Item { width: 1; height: 6 }
+            Item {
+                width: parent.width; height: 30
+                Row { anchors.verticalCenter: parent.verticalCenter; spacing: 6
+                    Label { text: "Esc"; font.bold: true; font.pixelSize: 11 }
+                    Label { text: qsTr("close"); dim: true; font.pixelSize: 11 } }
+                Button { id: tryBtn; anchors.right: parent.right; primary: true; focus: true
+                         text: qsTr("Try %1%").arg(viewer.tryQuality); onClicked: viewer.tryLower() }
+            }
+        }
+        Keys.onPressed: (e) => {
+            if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) viewer.tryLower()
+            else if (e.key === Qt.Key_Escape || e.key === Qt.Key_Q) viewer.leave()
+            e.accepted = true
+        }
+    }
+
     Timer { id: flashTimer; interval: 1500; onTriggered: flashChip.shown = false }
     Timer { id: idle; interval: 3000; onTriggered: overlay.shown = false }
 
@@ -117,16 +227,21 @@ FocusScope {
         if (e.key === Qt.Key_Up || e.key === Qt.Key_Down) {
             const q = Math.max(10, Math.min(100, Math.round(viewer.quality / 10) * 10 + (e.key === Qt.Key_Up ? 10 : -10)))
             if (q !== viewer.quality) { viewer.quality = q; library.setQuality(viewer.row, q) }
+            viewer.adapted = 0
+            watch.restartGrace()
             if (wasHidden) { viewer.flash(qsTr("quality %1%").arg(q)); e.accepted = true; return }
         } else if (e.key === Qt.Key_Left || e.key === Qt.Key_Right) {
             const f = library.stepFps(viewer.fps, e.key === Qt.Key_Right ? 1 : -1)
-            if (f !== viewer.fps) { viewer.fps = f; library.setFps(viewer.row, f) }
+            if (f !== viewer.fps) { viewer.fps = f; library.setFps(viewer.row, f); watch.restartGrace() }
             if (wasHidden) { viewer.flash(qsTr("fps %1").arg(f)); e.accepted = true; return }
+        } else if (e.key === Qt.Key_A) {
+            library.autoAdapt = !library.autoAdapt
+            if (!library.autoAdapt) viewer.adapted = 0
+            viewer.flash(library.autoAdapt ? qsTr("auto-adapt on") : qsTr("auto-adapt off"))
         } else if (e.key === Qt.Key_F) {
             viewer.toggleFullscreen()
         } else if (e.key === Qt.Key_Escape || e.key === Qt.Key_Q) {
-            library.flush()
-            viewer.close()
+            viewer.leave()
             e.accepted = true
             return
         } else {

@@ -26,6 +26,7 @@ Window {
 
     readonly property bool hiddenOrOff: win.visibility === Window.Hidden || win.visibility === Window.Minimized
     property string mode: "list"
+    property QtObject meter: null   // FrameMeter, set from C++
 
     ShaderList {
         id: list
@@ -62,6 +63,7 @@ Window {
         id: viewer
         objectName: "viewer"
         anchors.fill: parent
+        meter: win.meter
         visible: win.mode === "viewer" && !win.hiddenOrOff
         onClose: {
             if (win.visibility === Window.FullScreen) win.visibility = Window.Windowed
@@ -71,6 +73,8 @@ Window {
         }
         onToggleFullscreen: win.visibility = win.visibility === Window.FullScreen ? Window.Windowed : Window.FullScreen
     }
+
+    Benchmark { objectName: "benchmark" }
 
     Component.onCompleted: list.forceActiveFocus()
 }

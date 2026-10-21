@@ -8,7 +8,7 @@
 #include <QSaveFile>
 #include <QStandardPaths>
 
-static const char kWrapperVersion[] = "shady-wrap-1";
+static const char kWrapperVersion[] = "shady-wrap-2";
 
 // Uniform layout must match ShaderView.qml's ShaderEffect properties.
 static const char kPrefix[] =
@@ -24,7 +24,30 @@ static const char kPrefix[] =
     "    vec3 iResolution;\n"
     "    vec4 iMouse;\n"
     "    vec4 iDate;\n"
+    "    vec3 shady_chres0;\n"
+    "    vec3 shady_chres1;\n"
+    "    vec3 shady_chres2;\n"
+    "    vec3 shady_chres3;\n"
     "};\n"
+    "layout(binding = 1) uniform sampler2D iChannel0;\n"
+    "layout(binding = 2) uniform sampler2D iChannel1;\n"
+    "layout(binding = 3) uniform sampler2D iChannel2;\n"
+    "layout(binding = 4) uniform sampler2D iChannel3;\n"
+    "#define iChannelResolution vec3[4](shady_chres0, shady_chres1, shady_chres2, shady_chres3)\n"
+    // 3D channels: a 32^3 volume stored as an 8x4 atlas of 32x32 slices.
+    "vec4 shadySlice(sampler2D s, vec2 xy, float z) {\n"
+    "    z = mod(z, 32.0);\n"
+    "    vec2 cell = vec2(mod(z, 8.0), floor(z / 8.0));\n"
+    "    vec2 t = clamp(xy * 32.0, 0.5, 31.5);\n"
+    "    return textureLod(s, (cell * 32.0 + t) / vec2(256.0, 128.0), 0.0);\n"
+    "}\n"
+    "vec4 shadyTex3D(sampler2D s, vec3 p) {\n"
+    "    vec3 q = p * 32.0 - 0.5;\n"
+    "    float z0 = floor(q.z);\n"
+    "    vec2 xy = fract(p.xy);\n"
+    "    return mix(shadySlice(s, xy, z0), shadySlice(s, xy, z0 + 1.0), q.z - z0);\n"
+    "}\n"
+    "vec4 shadyTex3DLod(sampler2D s, vec3 p, float l) { return shadyTex3D(s, p); }\n"
     "#define texture2D texture\n"
     "#define textureCube texture\n"
     "#define texture2DLod textureLod\n";
@@ -52,9 +75,17 @@ Compiler::~Compiler()
     }
 }
 
-QString Compiler::wrap(const QString &user, int *prefixLines)
+QString Compiler::wrap(const QString &user, int *prefixLines, const QString &types)
 {
     QString code = user;
+    for (int c = 0; c < 4 && c < types.size(); ++c) {
+        if (types[c] != u'3') continue;
+        // Mechanical: texture(iChannelN, vec3) -> shadyTex3D(iChannelN, vec3)
+        code.replace(QRegularExpression(QStringLiteral("\\btextureLod\\s*\\(\\s*iChannel%1\\b").arg(c)),
+                     QStringLiteral("shadyTex3DLod(iChannel%1").arg(c));
+        code.replace(QRegularExpression(QStringLiteral("\\btexture\\s*\\(\\s*iChannel%1\\b").arg(c)),
+                     QStringLiteral("shadyTex3D(iChannel%1").arg(c));
+    }
     // WebGL-isms that desktop GLSL 440 rejects: precision qualifiers.
     static const QRegularExpression precision(QStringLiteral("^\\s*precision\\s+\\w+\\s+\\w+\\s*;"),
                                               QRegularExpression::MultilineOption);
@@ -69,10 +100,11 @@ QString Compiler::wrap(const QString &user, int *prefixLines)
     return prefix + QStringLiteral("#line 1\n") + code + QString::fromLatin1(kSuffix);
 }
 
-QString Compiler::hashOf(const QString &user)
+QString Compiler::hashOf(const QString &user, const QString &types)
 {
     QCryptographicHash h(QCryptographicHash::Sha1);
     h.addData(kWrapperVersion);
+    h.addData(types.toLatin1());
     h.addData(user.toUtf8());
     return QString::fromLatin1(h.result().toHex().left(20));
 }
@@ -89,14 +121,14 @@ QString Compiler::qsbTool()
     return p.isEmpty() ? QStandardPaths::findExecutable(QStringLiteral("qsb")) : p;
 }
 
-QString Compiler::pathFor(const QString &user) const
+QString Compiler::pathFor(const QString &user, const QString &types) const
 {
-    return m_dir + u'/' + hashOf(user) + QStringLiteral(".qsb");
+    return m_dir + u'/' + hashOf(user, types) + QStringLiteral(".qsb");
 }
 
-QString Compiler::cachedPath(const QString &user) const
+QString Compiler::cachedPath(const QString &user, const QString &types) const
 {
-    const QString p = pathFor(user);
+    const QString p = pathFor(user, types);
     return QFileInfo::exists(p) ? p : QString();
 }
 
@@ -130,11 +162,11 @@ static QStringList qsbArgs(const QString &in, const QString &out)
     return {QStringLiteral("--glsl"), QStringLiteral("100 es,120,150"), QStringLiteral("-o"), out, in};
 }
 
-CompileResult Compiler::compileSync(const QString &user)
+CompileResult Compiler::compileSync(const QString &user, const QString &types)
 {
     int prefix = 0;
-    const QString src = wrap(user, &prefix);
-    const QString out = pathFor(user);
+    const QString src = wrap(user, &prefix, types);
+    const QString out = pathFor(user, types);
     const QString in = out + QStringLiteral(".frag");
     { QSaveFile f(in); f.open(QIODevice::WriteOnly); f.write(src.toUtf8()); f.commit(); }
     QProcess p;
@@ -154,11 +186,11 @@ CompileResult Compiler::compileSync(const QString &user)
     return r;
 }
 
-void Compiler::enqueue(const QString &id, const QString &user)
+void Compiler::enqueue(const QString &id, const QString &user, const QString &types)
 {
     for (Job &j : m_queue)
-        if (j.id == id) { j.user = user; return; }
-    m_queue.enqueue({id, user});
+        if (j.id == id) { j.user = user; j.types = types; return; }
+    m_queue.enqueue({id, user, types});
     if (!m_proc) next();
 }
 
@@ -167,8 +199,8 @@ void Compiler::next()
     if (m_queue.isEmpty()) return;
     m_current = m_queue.dequeue();
     int prefix = 0;
-    const QString src = wrap(m_current.user, &prefix);
-    const QString out = pathFor(m_current.user);
+    const QString src = wrap(m_current.user, &prefix, m_current.types);
+    const QString out = pathFor(m_current.user, m_current.types);
     const QString in = out + QStringLiteral(".frag");
     { QSaveFile f(in); f.open(QIODevice::WriteOnly); f.write(src.toUtf8()); f.commit(); }
     m_proc = new QProcess(this);
@@ -188,6 +220,7 @@ void Compiler::next()
         m_proc->deleteLater();
         m_proc = nullptr;
         r.user = m_current.user;
+        r.types = m_current.types;
         const QString id = m_current.id;
         emit finished(id, r);
         if (!m_proc) next(); // a slot may already have started the next job

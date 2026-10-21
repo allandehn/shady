@@ -21,6 +21,10 @@ Item {
     required property int errorLine
     required property url shaderUrl
     required property url stillUrl
+    required property var channels
+    property bool selected: false
+    property bool selecting: false
+    signal toggled()
     property bool current: false
     property bool live: false
     property var resume  // session map slug -> playback time
@@ -38,8 +42,9 @@ Item {
         anchors.margins: 4
         color: card.isNew ? "transparent" : ui.bg2
         radius: theme.rounding
-        border.width: card.hot ? 1 : card.isNew ? 1 : 0
-        border.color: card.hot ? ui.accent : Qt.rgba(ui.muted.r, ui.muted.g, ui.muted.b, 0.35)
+        border.width: card.hot || card.isNew || card.selected ? 1 : 0
+        // Focus keeps the accent outline; selection is a muted one, so the two never look the same.
+        border.color: card.hot ? ui.accent : card.selected ? ui.muted : Qt.rgba(ui.muted.r, ui.muted.g, ui.muted.b, 0.35)
         clip: true
 
         // "+ New shader" card
@@ -81,6 +86,7 @@ Item {
                 visible: card.live && card.shaderState === "ready" && !card.trashed
                 running: visible
                 source: visible ? card.shaderUrl : ""
+                channels: card.channels
                 quality: 0.35
                 fps: Math.min(30, card.fps)
                 // Resume where this card left off during this session.
@@ -100,6 +106,19 @@ Item {
                 anchors.fill: parent
                 visible: card.shaderState === "error" || card.shaderState === "unreadable"
                 label: card.shaderState === "error" ? qsTr("Not compiling") : qsTr("Can't read this shader")
+            }
+            // Checkbox: accent check when selected; an empty box on every card in
+            // selection mode, otherwise only on the hovered or focused card.
+            Rectangle {
+                visible: !card.isNew && (card.selected || card.selecting || card.hot)
+                anchors { top: parent.top; left: parent.left; margins: 6 }
+                width: 18; height: 18
+                radius: Math.min(theme.rounding, 4)
+                color: card.selected ? ui.accent : ui.bg
+                border.width: card.selected ? 0 : 1
+                border.color: ui.muted
+                Label { anchors.centerIn: parent; visible: card.selected; text: "✓"; color: ui.bg; font.pixelSize: 12; font.bold: true }
+                MouseArea { anchors.fill: parent; onClicked: card.toggled() }
             }
             // Star and × sit on small background chips, in the foreground color.
             Row {

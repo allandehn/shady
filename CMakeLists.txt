@@ -9,7 +9,7 @@ endif()
 
 # User shaders are compiled at runtime by Qt's `qsb` tool (qt6-shadertools),
 # run as a separate process, so the app never links glslang.
-find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Quick)
+find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Quick LinguistTools)
 # rhi/qshader.h and rhi/qrhi.h are semi-public API; Debian ships them in
 # qt6-base-private-dev. Qt >= 6.9 also needs GuiPrivate in find_package.
 qt_standard_project_setup(REQUIRES 6.6)
@@ -22,6 +22,8 @@ qt_add_executable(shady
   src/library.h src/library.cpp
   src/theme.h src/theme.cpp
   src/selftest.h src/selftest.cpp
+  src/textures.h src/textures.cpp
+  src/framemeter.h
 )
 target_compile_definitions(shady PRIVATE SHADY_VERSION="${PROJECT_VERSION}")
 
@@ -32,7 +34,7 @@ qt_add_qml_module(shady
     qml/Main.qml qml/ShaderList.qml qml/ShaderCard.qml qml/Viewer.qml
     qml/ShaderView.qml qml/Label.qml qml/Hint.qml qml/Hatch.qml
     qml/Button.qml qml/Confirm.qml qml/Menu.qml qml/KeySheet.qml qml/SettingsSheet.qml
-    qml/Editor.qml qml/Field.qml
+    qml/Editor.qml qml/Field.qml qml/Channel.qml qml/ChannelPicker.qml qml/Benchmark.qml
   NO_RESOURCE_TARGET_PATH
 )
 
@@ -42,6 +44,10 @@ qt_add_resources(shady "examples"
     examples/northern-veil.glsl examples/plasma-drift.glsl
     examples/cell-garden.glsl examples/warp-tunnel.glsl
 )
+
+# English is in the source; Danish ships from the start (i18n/update.sh).
+qt_add_lrelease(shady TS_FILES i18n/shady_da.ts QM_FILES_OUTPUT_VARIABLE shady_qm)
+qt_add_resources(shady "translations" PREFIX "/i18n" BASE "${CMAKE_CURRENT_BINARY_DIR}" FILES ${shady_qm})
 
 target_link_libraries(shady PRIVATE Qt6::Core Qt6::Gui Qt6::GuiPrivate Qt6::Quick)
 install(TARGETS shady RUNTIME DESTINATION bin)

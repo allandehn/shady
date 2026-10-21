@@ -26,12 +26,25 @@ UI=(--ui-test); [[ -n $SHOT ]] && UI+=(--screenshot "$SHOT")
 echo "== self-test"
 iso QT_QPA_PLATFORM=offscreen timeout 120 dbus-run-session -- "$BIN" --self-test
 
-echo "== UI test (offscreen)"
-if iso QT_QPA_PLATFORM=offscreen timeout 120 dbus-run-session -- "$BIN" "${UI[@]}"; then
-  echo "ALL PASS"; exit 0
-fi
-command -v xvfb-run >/dev/null || { echo "FAIL offscreen has no GL and xvfb-run is missing"; exit 1; }
-echo "== UI test (xcb on private Xvfb)"
-iso QT_QPA_PLATFORM=xcb timeout 120 xvfb-run -a -s "-screen 0 1280x900x24 -nolisten tcp" \
-  dbus-run-session -- "$BIN" "${UI[@]}"
+# gui <timeout> <args...>: offscreen if it has GL, else xcb on a private Xvfb.
+PLAT=offscreen
+gui() {
+  local t=$1; shift
+  if [[ $PLAT == offscreen ]]; then
+    iso QT_QPA_PLATFORM=offscreen timeout "$t" dbus-run-session -- "$BIN" "$@" && return 0
+    command -v xvfb-run >/dev/null || { echo "FAIL offscreen has no GL and xvfb-run is missing"; exit 1; }
+    PLAT=xcb; echo "== retrying with xcb on a private Xvfb"
+  fi
+  iso QT_QPA_PLATFORM=xcb timeout "$t" xvfb-run -a -s "-screen 0 1280x900x24 -nolisten tcp" \
+    dbus-run-session -- "$BIN" "$@"
+}
+
+echo "== UI test"
+gui 120 "${UI[@]}"
+# Potato: the benchmark, iChannels on screen, auto-adapt and the too-heavy pause.
+# SHADY_SOFTWARE=0 so a software rasterizer is treated as a (very slow) GPU.
+echo "== potato test"
+SHADY_SOFTWARE=0 gui 240 --potato-test
+echo "== Danish"
+SHADY_LANG=da gui 120 --danish-shot ${SHOT:+--screenshot "${SHOT%.png}-da.png"}
 echo "ALL PASS"

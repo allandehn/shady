@@ -14,6 +14,7 @@ Item {
     property int frame: 0
     property real delta: 0
     property point mouse: Qt.point(0, 0)
+    property var channels: []   // 4 x {url, filter, wrap, resolution} from library.channelsOf()
     readonly property bool ready: fxLoader.item !== null && fxLoader.item.status === ShaderEffect.Compiled
     readonly property real dpr: Screen.devicePixelRatio > 0 ? Screen.devicePixelRatio : 1
     readonly property real timeWrap: 3600 // keep float precision over long runs
@@ -41,8 +42,24 @@ Item {
                 property vector4d iMouse: Qt.vector4d(root.mouse.x * root.quality * root.dpr,
                                                       (root.height - root.mouse.y) * root.quality * root.dpr, 0, 0)
                 property vector4d iDate: Qt.vector4d(0, 0, 0, 0)
+                property var iChannel0: ch0.texture
+                property var iChannel1: ch1.texture
+                property var iChannel2: ch2.texture
+                property var iChannel3: ch3.texture
+                property vector3d shady_chres0: ch0.resolution
+                property vector3d shady_chres1: ch1.resolution
+                property vector3d shady_chres2: ch2.resolution
+                property vector3d shady_chres3: ch3.resolution
             }
         }
+    }
+
+    Item {
+        visible: fxLoader.active
+        Channel { id: ch0; info: root.channels[0] || ({}) }
+        Channel { id: ch1; info: root.channels[1] || ({}) }
+        Channel { id: ch2; info: root.channels[2] || ({}) }
+        Channel { id: ch3; info: root.channels[3] || ({}) }
     }
 
     Timer {

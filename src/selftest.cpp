@@ -3,6 +3,9 @@
 #include "library.h"
 #include "toml.h"
 #include "theme.h"
+#include "textures.h"
+#include <QTranslator>
+#include <QLocale>
 #include <QCoreApplication>
 #include <QDir>
 #include <QElapsedTimer>
@@ -205,6 +208,116 @@ int runSelfTest()
         L.setScreensaverOn("primary");
         Library L3(t2.path() + "/data", t2.path() + "/cache", 60);
         check(L3.screensaverOn() == "primary", "Screensaver on setting saved");
+    }
+
+    // Built-in textures
+    {
+        const QImage n = Textures::make("rgba256");
+        bool shift = n.size() == QSize(256, 256);
+        for (int y = 0; y < 256 && shift; y += 7)
+            for (int x = 0; x < 256 && shift; x += 5) {
+                const QRgb p = n.pixel(x, y), q = n.pixel((x - 37 + 256) % 256, (y - 239 + 256) % 256);
+                shift = qGreen(p) == qRed(q) && qAlpha(p) == qBlue(q);
+            }
+        check(shift, "RGBA noise 256: G is R and A is B, shifted by (37, 239)");
+        check(Textures::make("rgba64").size() == QSize(64, 64), "RGBA noise 64");
+        check(Textures::make("grey3d").size() == QSize(256, 128) && Textures::is3d("grey3d"), "3D noise is a 32^3 atlas");
+        check(Textures::make("rgba256") == n, "textures are the same every run");
+        check(Textures::make("organic").pixel(10, 10) != Textures::make("organic").pixel(200, 120), "organic texture varies");
+    }
+    // Channels in the wrapper
+    {
+        const QString uses = "void mainImage(out vec4 o, in vec2 p)\n{\n"
+            "  vec2 uv = p / iResolution.xy;\n"
+            "  vec4 a = texture(iChannel0, uv) + textureLod(iChannel1, uv, 0.0);\n"
+            "  float v = texture(iChannel2, vec3(uv, iTime)).x + textureLod(iChannel2, vec3(uv, 0.5), 0.0).x;\n"
+            "  o = vec4(a.rgb * v, 1.0) + vec4(iChannelResolution[0].xy, 0, 0) * 0.0;\n}\n";
+        CompileResult cr = c.compileSync(uses, "2232");
+        check(cr.ok, "3D channel and iChannelResolution compile (" + cr.errorText + ")");
+        check(Compiler::hashOf(uses, "2232") != Compiler::hashOf(uses, "2222"), "cache key includes channel types");
+        check(!c.compileSync(uses, "2222").ok, "the same code fails when iChannel2 is 2D (types matter)");
+    }
+    // Channels in storage, multi-select, benchmark defaults, crash marker
+    {
+        QTemporaryDir t3;
+        Library L(t3.path() + "/data", t3.path() + "/cache", 60);
+        const QString s1 = L.createShader("Ch", "a", goodNoTex);
+        QImage img(4, 2, QImage::Format_RGBA8888); img.fill(Qt::red);
+        const QString pic = t3.path() + "/pic.png"; img.save(pic);
+        L.saveShader(s1, {{"channels", QVariantList{
+            QVariantMap{{"source", "rgba256"}, {"filter", "nearest"}, {"wrap", "clamp"}},
+            QVariantMap{{"source", pic}}, QVariantMap{{"source", "grey3d"}}, QVariantMap{}}}}, goodNoTex);
+        const QString d = L.shadersDir() + "/" + s1;
+        const QVariantMap t = readToml(d + "/shader.toml");
+        check(t.value("channel0.source") == "rgba256" && t.value("channel0.filter") == "nearest" && t.value("channel0.wrap") == "clamp",
+              "channel setup saved with the shader");
+        check(t.value("channel1.source") == "channel1.png" && QFile::exists(d + "/channel1.png"), "picked image copied into the folder");
+        QFile::remove(pic);
+        const QVariantList ch = L.channelsOf(s1);
+        check(ch.size() == 4 && ch[1].toMap().value("resolution").toList().value(0).toInt() == 4
+              && !ch[1].toMap().value("missing").toBool(), "copied image still works after the original moves");
+        check(ch[2].toMap().value("is3d").toBool() && ch[2].toMap().value("url") == "image://shady/grey3d", "3D channel info");
+        check(L.builtinChannels().size() == 5, "five built-in textures");
+
+        const QString m1 = L.createShader("M1", "a", goodNoTex), m2 = L.createShader("M2", "a", goodNoTex),
+                      m3 = L.createShader("M3", "a", goodNoTex);
+        check(L.hideMany({m1, m2}, true) == 2 && L.rowOf(m1) < 0 && L.rowOf(m2) < 0, "hide a selection");
+        check(L.undo() == m1 && L.rowOf(m1) >= 0 && L.rowOf(m2) >= 0, "one Ctrl+Z unhides the whole selection");
+        check(L.trashMany({m1, m2, m3}) == 3 && L.trashCount() == 3, "trash a selection");
+        L.undo();
+        check(L.trashCount() == 0, "one Ctrl+Z restores the whole selection");
+        L.trashMany({m1, m2});
+        QString note;
+        QObject::connect(&L, &Library::noted, [&](const QString &n) { note = n; });
+        L.restoreMany({m1, m2});
+        check(note == "Restored 2 shaders · Ctrl+Z undo", "restore note with the count: " + note);
+        L.trashMany({m1, m2});
+        check(L.deleteMany({m1, m2}) == 2 && L.trashCount() == 0, "delete a selection forever");
+
+        // Benchmark defaults
+        L.setBenchmark(2.0, false);
+        check(L.defaultQuality() == 50 && L.defaultFps() == 30, "fast machine: modest defaults (50%, 30 fps)");
+        L.setBenchmark(80.0, false);
+        check(L.defaultQuality() == 10 && L.defaultFps() == 10, "slow machine: minimum defaults");
+        const QString after = L.createShader("After", "a", goodNoTex);
+        check(L.get(L.rowOf(after)).value("quality").toInt() == 10, "new shaders use the benchmark defaults");
+        L.setBenchmark(20.0, true);
+        check(L.defaultQuality() == 10, "software renderer: minimum");
+        Library L2(t3.path() + "/data", t3.path() + "/cache", 60);
+        check(L2.benchmarked() && L2.defaultQuality() == 10, "benchmark runs once (saved)");
+
+        // Crash marker
+        L.viewerOpened(s1);
+        Library L3(t3.path() + "/data", t3.path() + "/cache", 60);
+        check(L3.crashedLastTime(s1) && !L3.crashedLastTime(s1), "shader open during a crash opens at minimum, once");
+        L.viewerClosed();
+        Library L4(t3.path() + "/data", t3.path() + "/cache", 60);
+        check(!L4.crashedLastTime(s1), "a normal close isn't a crash");
+        check(!L4.autoAdapt() == false, "auto-adapt is on by default");
+        L4.setAutoAdapt(false);
+        check(!Library(t3.path() + "/data", t3.path() + "/cache", 60).autoAdapt(), "auto-adapt off is saved");
+    }
+    // Seeded examples follow the benchmark
+    {
+        QTemporaryDir t4;
+        Library L(t4.path() + "/data", t4.path() + "/cache", 60);
+        L.seedIfEmpty();
+        L.setQuality(L.rowOf("plasma-drift"), 70);
+        L.flush();
+        L.setBenchmark(80.0, false);
+        check(L.get(L.rowOf("cell-garden")).value("quality").toInt() == 10, "untouched examples follow the benchmark");
+        check(L.get(L.rowOf("plasma-drift")).value("quality").toInt() == 70, "examples you changed keep your setting");
+    }
+    // Danish
+    {
+        QTranslator da;
+        check(da.load(QLocale(QLocale::Danish), "shady", "_", ":/i18n"), "Danish translation is bundled");
+        check(da.translate("Library", "Moved to Trash · Ctrl+Z undo") == "Flyttet til papirkurven · Ctrl+Z fortryd", "Danish: status note");
+        check(da.translate("ShaderList", "Empty Trash") == "Tøm papirkurv", "Danish: Tøm papirkurv");
+        check(da.translate("Viewer", "This shader is too heavy here. Try lower quality?")
+              == "Denne shader er for tung her. Prøv lavere kvalitet?", "Danish: too heavy");
+        check(da.translate("ShaderList", "%n shaders", nullptr, 1) == "%n shader"
+              && da.translate("ShaderList", "%n shaders", nullptr, 3) == "%n shaders", "Danish plurals");
     }
 
     // License hint
@@ -420,10 +533,196 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
     waitFor([&] { return !editor->isVisible(); }, 20000);
     waitFor([&] { return lib->get(lib->rowOf("glass-rain")).value("shaderState") == "ready"; }, 20000);
     check(lib->get(lib->rowOf("glass-rain")).value("shaderState") == "ready", "fixed shader compiles after save");
+
+    // Multi-select
+    {
+        waitFor([&] { return lib->preparing() == 0; }, 20000);
+        lib->setFilter(Library::All);
+        QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+        const int total = lib->count();
+        key(win, Qt::Key_Space, " ");
+        key(win, Qt::Key_Right, "", Qt::ShiftModifier);
+        check(list->property("selCount").toInt() == 2, "Space selects, Shift+→ extends from the anchor");
+        key(win, Qt::Key_Down, "", Qt::ShiftModifier);
+        check(list->property("selCount").toInt() == std::min(total, 4), "Shift+↓ extends by a row in reading order");
+        key(win, Qt::Key_Up, "", Qt::ShiftModifier);
+        check(list->property("selCount").toInt() == 2, "Shift+↑ shrinks back to the anchor range");
+        shotAs("select");
+        key(win, Qt::Key_H, "h");
+        check(lib->count() == total - 2 && list->property("selCount").toInt() == 0, "H hides the whole selection");
+        key(win, Qt::Key_Z, "", Qt::ControlModifier);
+        check(lib->count() == total, "Ctrl+Z unhides them all");
+        key(win, Qt::Key_A, "", Qt::ControlModifier);
+        check(list->property("selCount").toInt() == total, "Ctrl+A selects all");
+        key(win, Qt::Key_Escape);
+        check(list->property("selCount").toInt() == 0 && list->isVisible(), "Esc clears the selection (and doesn't close)");
+        QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+        key(win, Qt::Key_Space, " ");
+        key(win, Qt::Key_Right);
+        key(win, Qt::Key_Space, " ");
+        key(win, Qt::Key_Delete);
+        check(lib->trashCount() == 2 && lib->count() == total - 2, "Del trashes the selection, no confirmation");
+        key(win, Qt::Key_Backtab);
+        key(win, Qt::Key_A, "", Qt::ControlModifier);
+        key(win, Qt::Key_Delete);
+        check(confirm->isVisible(), "Del on a Trash selection asks once");
+        key(win, Qt::Key_Escape);
+        key(win, Qt::Key_Return);
+        check(lib->trashCount() == 0 && list->property("note").toString() == "Restored 2 shaders · Ctrl+Z undo",
+              "Enter restores the whole selection");
+    }
+
+    // Channel picker in the editor
+    {
+        lib->setFilter(Library::All);
+        QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+        key(win, Qt::Key_E, "", Qt::ControlModifier);
+        auto *picker = editor->findChild<QQuickItem *>("picker");
+        check(editor->isVisible() && picker, "editor with channel picker");
+        if (picker) {
+            QMetaObject::invokeMethod(editor, "pickerFor", Q_ARG(QVariant, 0));
+            check(picker->isVisible(), "Enter on iChannel0 opens the picker");
+            key(win, Qt::Key_Down);                      // RGBA noise 256
+            shotAs("channels");
+            key(win, Qt::Key_Return);
+            const QVariantList ch = editor->property("channels").toList();
+            check(!picker->isVisible() && ch.value(0).toMap().value("source") == "rgba256", "picked RGBA noise 256 for iChannel0");
+            key(win, Qt::Key_S, "", Qt::ControlModifier);
+            waitFor([&] { return !editor->isVisible(); }, 20000);
+            check(lib->channelsOf(lib->get(list->property("currentRow").toInt()).value("slug").toString())
+                      .value(0).toMap().value("source") == "rgba256", "channel saved with the shader");
+        }
+    }
     waitFor([&] { return lib->preparing() == 0; }, 20000);
     QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
     shotAs("final");
 
     std::printf(g_fails ? "UI TEST FAILED (%d)\n" : "ALL PASS\n", g_fails);
+    QCoreApplication::exit(g_fails ? 1 : 0);
+}
+
+// ---- Potato test: benchmark, iChannels on screen, auto-adapt, too-heavy pause.
+// Run with SHADY_SOFTWARE=0 so the viewer uses saved settings even on llvmpipe.
+static QString heavy(int iters)
+{
+    return QString("void mainImage(out vec4 o, in vec2 p)\n{\n"
+                   "    float c = 0.0;\n"
+                   "    for (int i = 0; i < %1; i++) c += sin(c * 1.1 + p.x * 0.013 + p.y * 0.007 + float(i) * 0.1 + iTime);\n"
+                   "    o = vec4(0.5 + 0.5 * sin(c), 0.5 + 0.5 * cos(c * 0.7), 0.6, 1.0);\n}\n").arg(iters);
+}
+
+void runPotatoTest(QQuickWindow *win, Library *lib, const QString &shot)
+{
+    auto *list = win->findChild<QQuickItem *>("list");
+    auto *viewer = win->findChild<QQuickItem *>("viewer");
+    auto shotAs = [&](const QString &suffix) {
+        if (shot.isEmpty()) return;
+        QString p = shot; p.replace(".png", "-" + suffix + ".png");
+        check(saveVaried(win->grabWindow(), p), "screenshot " + p);
+    };
+    auto open = [&](const QString &slug) {
+        waitFor([&] { return lib->get(lib->rowOf(slug)).value("shaderState") != "compiling"; }, 30000);
+        QMetaObject::invokeMethod(list, "focusSlug", Q_ARG(QVariant, slug));
+        key(win, Qt::Key_Return);
+    };
+    auto pixel = [&](const QImage &img, double fx, double fy) { return img.pixelColor(int(img.width() * fx), int(img.height() * fy)); };
+
+    waitFor([&] { return lib->benchmarked(); }, 30000);
+    QFile sf(lib->configFile()); sf.open(QIODevice::ReadOnly);
+    const QVariantMap st = Toml::parse(QString::fromUtf8(sf.readAll()));
+    check(lib->benchmarked() && st.contains("benchmark_ms"),
+          QString("first-run benchmark ran silently: %1 ms/frame -> new shaders %2% · %3 fps")
+              .arg(st.value("benchmark_ms").toDouble()).arg(lib->defaultQuality()).arg(lib->defaultFps()));
+    waitFor([&] { return lib->preparing() == 0; }, 30000);
+    check(lib->get(lib->rowOf("cell-garden")).value("quality").toInt() == lib->defaultQuality(), "examples follow the benchmark defaults");
+
+    // iChannels on screen: the (37, 239) noise relation and image orientation.
+    QImage img(2, 2, QImage::Format_RGBA8888);
+    img.setPixelColor(0, 0, Qt::red); img.setPixelColor(1, 0, Qt::red);
+    img.setPixelColor(0, 1, Qt::blue); img.setPixelColor(1, 1, Qt::blue);
+    QTemporaryDir tmp;
+    img.save(tmp.path() + "/updown.png");
+    const QString chk = lib->saveShader("", {{"name", "Channel check"}, {"channels", QVariantList{
+        QVariantMap{{"source", "rgba256"}, {"filter", "nearest"}}, QVariantMap{{"source", tmp.path() + "/updown.png"}, {"filter", "nearest"}, {"wrap", "clamp"}},
+        QVariantMap{{"source", "grey3d"}}, QVariantMap{}}}},
+        "void mainImage(out vec4 o, in vec2 p)\n{\n"
+        "    if (p.x < iResolution.x * 0.5) {\n"
+        "        vec2 uv = (floor(p / 3.0) + 0.5) / 256.0;\n"
+        "        vec2 s = vec2(37.0, 17.0) / 256.0;\n"
+        "        float d = abs(texture(iChannel0, uv + s).y - texture(iChannel0, uv).x)\n"
+        "                + abs(texture(iChannel0, uv + s).w - texture(iChannel0, uv).z);\n"
+        "        o = vec4(vec3(d * 4.0), 1.0);\n"
+        "        if (p.y < iResolution.y * 0.25) o = vec4(texture(iChannel2, vec3(p / iResolution.y, 0.3)).xxx, 1.0);\n"
+        "    } else {\n"
+        "        o = texture(iChannel1, vec2(0.5, 0.75));\n"
+        "    }\n}\n");
+    open(chk);
+    for (int i = 0; i < 10; ++i) key(win, Qt::Key_Up);
+    waitFor([] { return false; }, 2500);
+    const QImage frame = win->grabWindow();
+    const QColor noise = pixel(frame, 0.25, 0.55), up = pixel(frame, 0.75, 0.55);
+    check(noise.red() < 16 && noise.green() < 16, QString("RGBA noise 256: G/A match R/B at uv +(37, 17) on screen, as Shadertoy noise tricks expect (got %1)").arg(noise.name()));
+    check(up.red() > 200 && up.blue() < 60, QString("images read with uv (0,0) at the bottom left, as on Shadertoy (got %1)").arg(up.name()));
+    const QColor v1 = pixel(frame, 0.1, 0.85), v2 = pixel(frame, 0.3, 0.9);
+    check(v1 != v2, "3D noise renders");
+    shotAs("channel-check");
+    key(win, Qt::Key_Escape);
+
+    // Auto-adapt: a shader that can't hold its fps gets a lower session resolution.
+    const QString med = lib->saveShader("", {{"name", "Medium load"}}, heavy(qEnvironmentVariableIntValue("SHADY_ADAPT_ITERS") ?: 300));
+    lib->setQuality(lib->rowOf(med), 100);
+    lib->setFps(lib->rowOf(med), lib->stepFps(1000, 1));
+    lib->flush();
+    open(med);
+    waitFor([&] { return viewer->property("adapted").toInt() > 0 || viewer->property("paused").toBool(); }, 20000);
+    const int adapted = viewer->property("adapted").toInt();
+    const QString tomlPath = lib->shadersDir() + "/" + med + "/shader.toml";
+    check(adapted > 0 && adapted < 100, QString("auto-adapt lowered the session quality to %1%").arg(adapted));
+    check(readToml(tomlPath).value("quality").toInt() == 100, "the saved setting is unchanged");
+    check(lib->slowMachine(), "slow machine noticed: list previews fall back to stills");
+    waitFor([] { return false; }, 300);
+    shotAs("adapted");
+    key(win, Qt::Key_Escape);
+
+    // Too heavy: a frame far over 500 ms pauses and offers a named lower value.
+    const QString hv = lib->saveShader("", {{"name", "Too heavy"}}, heavy(qEnvironmentVariableIntValue("SHADY_HEAVY_ITERS") ?: 30000));
+    lib->setQuality(lib->rowOf(hv), 100);
+    lib->flush();
+    open(hv);
+    waitFor([&] { return viewer->property("paused").toBool(); }, 30000);
+    check(viewer->property("paused").toBool(), "too-heavy shader pauses");
+    const int tryQ = viewer->property("tryQuality").toInt();
+    waitFor([] { return false; }, 400);
+    shotAs("too-heavy");
+    key(win, Qt::Key_Return);
+    waitFor([] { return false; }, 900); // settings are batched ~0.5 s
+    check(readToml(lib->shadersDir() + "/" + hv + "/shader.toml").value("quality").toInt() == tryQ,
+          QString("\"Try %1%\" lowers and saves it (saved %2, viewer %3, paused %4)").arg(tryQ)
+              .arg(readToml(lib->shadersDir() + "/" + hv + "/shader.toml").value("quality").toInt())
+              .arg(viewer->property("quality").toInt()).arg(viewer->property("paused").toBool()));
+    key(win, Qt::Key_Escape);
+    if (viewer->isVisible()) key(win, Qt::Key_Escape);
+
+    std::printf(g_fails ? "POTATO TEST FAILED (%d)\n" : "ALL PASS\n", g_fails);
+    QCoreApplication::exit(g_fails ? 1 : 0);
+}
+
+// ---- Danish screenshot: list with a selection, then the key sheet.
+void runDanishShot(QQuickWindow *win, Library *lib, const QString &shot)
+{
+    auto *list = win->findChild<QQuickItem *>("list");
+    waitFor([&] { return lib->preparing() == 0; }, 60000);
+    waitFor([] { return false; }, 400);
+    QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+    key(win, Qt::Key_Space, " ");
+    key(win, Qt::Key_Right, "", Qt::ShiftModifier);
+    waitFor([] { return false; }, 300);
+    check(saveVaried(win->grabWindow(), shot), "Danish screenshot " + shot);
+    key(win, Qt::Key_Escape);
+    key(win, Qt::Key_Comma, ",");
+    waitFor([] { return false; }, 300);
+    QString p = shot; p.replace(".png", "-settings.png");
+    check(saveVaried(win->grabWindow(), p), "Danish screenshot " + p);
+    std::printf(g_fails ? "DANISH SHOT FAILED (%d)\n" : "ALL PASS\n", g_fails);
     QCoreApplication::exit(g_fails ? 1 : 0);
 }

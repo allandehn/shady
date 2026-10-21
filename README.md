@@ -68,3 +68,11 @@ works, otherwise OpenGL.
 ## License
 
 MIT, see [LICENSE](LICENSE).
+
+## More keys and features
+
+- **Multi-select:** Space toggles a card, Shift+arrows extend, Ctrl+A selects all, Esc clears. H / Del / Enter act on the whole selection (Ctrl+Z undoes).
+- **iChannels:** the editor has four channel slots: built-in textures (RGBA noise 64/256, grey noise 2D/3D, organic) or your own image, copied into the shader folder. Textures are read as on Shadertoy, with uv (0,0) at the bottom left.
+- **Auto-adapt:** a shader that can't hold its fps gets a lower resolution for this session only (A toggles it). A frame that takes over 500 ms pauses the shader and offers "Try N%".
+- **First-run benchmark:** a short, silent check picks starting quality and fps for new shaders. Software rendering starts at the lowest settings.
+- **Translations:** Danish (`SHADY_LANG=da` forces it). Run `i18n/update.sh` after you change UI strings.

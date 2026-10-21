@@ -14,6 +14,10 @@
 #include "library.h"
 #include "selftest.h"
 #include "theme.h"
+#include "textures.h"
+#include "framemeter.h"
+#include <QLocale>
+#include <QTranslator>
 
 // Vulkan by default where it works, OpenGL otherwise. QSG_RHI_BACKEND wins.
 static void pickGraphicsApi()
@@ -41,8 +45,10 @@ int main(int argc, char *argv[])
     QCommandLineOption version(QStringLiteral("version"), QStringLiteral("Print version."));
     QCommandLineOption self(QStringLiteral("self-test"), QStringLiteral("Run core tests and exit."));
     QCommandLineOption ui(QStringLiteral("ui-test"), QStringLiteral("Drive the app's own window through the main flows and exit."));
+    QCommandLineOption potato(QStringLiteral("potato-test"), QStringLiteral("Benchmark, iChannels, auto-adapt and too-heavy checks, then exit."));
+    QCommandLineOption danish(QStringLiteral("danish-shot"), QStringLiteral("Save Danish screenshots to --screenshot and exit."));
     QCommandLineOption shot(QStringLiteral("screenshot"), QStringLiteral("With --ui-test: save the list to <png> (and <png>-viewer.png)."), QStringLiteral("png"));
-    p.addOptions({version, self, ui, shot});
+    p.addOptions({version, self, ui, potato, danish, shot});
     p.process(app);
 
     if (p.isSet(version)) { std::printf("shady %s\n", SHADY_VERSION); return 0; }
@@ -50,15 +56,27 @@ int main(int argc, char *argv[])
 
     pickGraphicsApi();
 
+    // English is built in; Danish (and later others) from :/i18n.
+    // SHADY_LANG=da|en overrides the system language (used by the tests).
+    QTranslator translator;
+    const QString lang = qEnvironmentVariable("SHADY_LANG");
+    const QLocale loc = lang.isEmpty() ? QLocale() : QLocale(lang);
+    if (translator.load(loc, QStringLiteral("shady"), QStringLiteral("_"), QStringLiteral(":/i18n")))
+        QCoreApplication::installTranslator(&translator);
+
     Theme theme;
     const QString data = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + QStringLiteral("/shady");
     const QString cache = QStandardPaths::writableLocation(QStandardPaths::GenericCacheLocation) + QStringLiteral("/shady");
     Library library(data, cache, theme.maxFps());
     library.seedIfEmpty();
     library.load();
-    QObject::connect(&app, &QCoreApplication::aboutToQuit, &library, &Library::flush);
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, &library, [&library] {
+        library.flush();
+        library.viewerClosed(); // a normal quit isn't a crash
+    });
 
     QQmlApplicationEngine engine;
+    engine.addImageProvider(QStringLiteral("shady"), new TextureProvider);
     engine.rootContext()->setContextProperty(QStringLiteral("library"), &library);
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app,
@@ -67,6 +85,8 @@ int main(int argc, char *argv[])
     if (engine.rootObjects().isEmpty()) return 2;
 
     auto *win = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    auto *meter = new FrameMeter(win, win);
+    win->setProperty("meter", QVariant::fromValue<QObject *>(meter));
     QObject::connect(win, &QQuickWindow::sceneGraphError, &app, [](auto, const QString &msg) {
         std::fprintf(stderr, "scene graph error: %s\n", qPrintable(msg));
         QCoreApplication::exit(3);
@@ -85,15 +105,18 @@ int main(int argc, char *argv[])
         QMetaObject::invokeMethod(&theme, [&theme, sw] { theme.setSoftware(sw); });
     }, Qt::DirectConnection);
 
-    if (p.isSet(ui)) {
+    if (p.isSet(ui) || p.isSet(potato) || p.isSet(danish)) {
         const QString out = p.value(shot);
-        QTimer::singleShot(300, win, [win, &library, out] {
+        const int mode = p.isSet(potato) ? 1 : p.isSet(danish) ? 2 : 0;
+        QTimer::singleShot(300, win, [win, &library, out, mode] {
             if (win->rendererInterface()->graphicsApi() == QSGRendererInterface::Software) {
                 std::printf("FAIL no GPU scene graph (software backend can't run shaders)\n");
                 QCoreApplication::exit(5);
                 return;
             }
-            runUiTest(win, &library, out);
+            if (mode == 1) runPotatoTest(win, &library, out);
+            else if (mode == 2) runDanishShot(win, &library, out);
+            else runUiTest(win, &library, out);
         });
     }
     return app.exec();

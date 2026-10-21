@@ -43,3 +43,6 @@
   the signed pacman repo on the `repo` GitHub release, publishes "Shady X.Y.Z"
   as Latest and checks it publicly. It stops at the first failure.
 - If gpg needs a passphrase it can't get, stop and ask Allan to unlock the key.
+
+## Tests (added)
+`tests/headless.sh` runs these: self-test, UI test, `--potato-test` (with SHADY_SOFTWARE=0, it covers the benchmark, iChannels on screen, auto-adapt and the too-heavy pause) and `--danish-shot` (SHADY_LANG=da). Run `i18n/update.sh` after you change qsTr strings. Danish strings live in i18n/da.py.
