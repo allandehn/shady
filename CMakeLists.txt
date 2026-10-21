@@ -12,6 +12,9 @@ endif()
 find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Quick LinguistTools)
 # rhi/qshader.h and rhi/qrhi.h are semi-public API; Debian ships them in
 # qt6-base-private-dev. Qt >= 6.9 also needs GuiPrivate in find_package.
+if(Qt6_VERSION VERSION_GREATER_EQUAL 6.9)
+    find_package(Qt6 REQUIRED COMPONENTS GuiPrivate)
+endif()
 qt_standard_project_setup(REQUIRES 6.6)
 qt_policy(SET QTP0004 NEW)
 
