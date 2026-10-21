@@ -46,3 +46,6 @@
 
 ## Tests (added)
 `tests/headless.sh` runs these: self-test, UI test, `--potato-test` (with SHADY_SOFTWARE=0, it covers the benchmark, iChannels on screen, auto-adapt and the too-heavy pause) and `--danish-shot` (SHADY_LANG=da). Run `i18n/update.sh` after you change qsTr strings. Danish strings live in i18n/da.py.
+
+## Text fit
+Every screenshot step in the UI, potato and language tests runs `fits()`. It fails if any visible Text spills past the nearest background, clip or window, or overlaps another Text in the same box. The language test (`--danish-shot`, run with SHADY_LANG=da and en) also checks a narrow 440 px window. Give a Label a width and let it elide, or let the layout reflow. Install iA Writer Mono (github.com/iaolo/iA-Fonts) system-wide so headless screenshots match Omarchy.

@@ -45,6 +45,9 @@ gui 120 "${UI[@]}"
 # SHADY_SOFTWARE=0 so a software rasterizer is treated as a (very slow) GPU.
 echo "== potato test"
 SHADY_SOFTWARE=0 gui 240 --potato-test
+# Text-fit sweep over every screen, normal and narrow, in Danish and English.
 echo "== Danish"
 SHADY_LANG=da gui 120 --danish-shot ${SHOT:+--screenshot "${SHOT%.png}-da.png"}
+echo "== English sweep"
+SHADY_LANG=en gui 120 --danish-shot ${SHOT:+--screenshot "${SHOT%.png}-en.png"}
 echo "ALL PASS"

@@ -364,6 +364,58 @@ static void key(QQuickWindow *w, int k, const QString &text = {}, Qt::KeyboardMo
     QCoreApplication::processEvents();
 }
 
+
+// Text overflow check: every visible Text must fit inside the nearest ancestor that draws
+// a background (Rectangle with colour or border), clips, or the window itself.
+static void fits(QQuickWindow *w, const QString &where)
+{
+    // Every visible Text must (1) fit inside the nearest ancestor that draws a background
+    // (Rectangle with colour or border), clips, or the window, and (2) not overlap another
+    // Text inside that same box. Scrolled Flickable content is skipped (it scrolls).
+    struct T { QQuickItem *item; QRectF r; QQuickItem *box; QString txt; };
+    QList<T> texts;
+    QStringList bad;
+    const QRectF winRect(0, 0, w->width(), w->height());
+    std::function<void(QQuickItem *)> walk = [&](QQuickItem *it) {
+        if (!it->isVisible() || it->opacity() <= 0.01) return;
+        if (it->inherits("QQuickText")) {
+            const QString txt = it->property("text").toString();
+            const qreal cw = it->property("contentWidth").toReal(), ch = it->property("contentHeight").toReal();
+            if (!txt.trimmed().isEmpty() && cw > 0) {
+                const int ha = it->property("horizontalAlignment").toInt();
+                qreal x0 = 0;
+                if (ha & Qt::AlignRight) x0 = it->width() - cw;
+                else if (ha & Qt::AlignHCenter) x0 = (it->width() - cw) / 2;
+                const QRectF r = it->mapRectToScene(QRectF(x0, 0, cw, std::max<qreal>(1, std::min(ch, it->height() > 0 ? it->height() : ch))));
+                QRectF box = winRect; QString boxName = "window"; QQuickItem *boxItem = nullptr; bool scrolled = false;
+                for (QQuickItem *a = it->parentItem(); a && a != w->contentItem(); a = a->parentItem()) {
+                    if (a->inherits("QQuickFlickable")) { scrolled = true; boxItem = a; break; }
+                    const QColor c = a->property("color").value<QColor>();
+                    const bool bg = a->inherits("QQuickRectangle")
+                        && (c.alpha() > 0 || [a] { auto *b = qvariant_cast<QObject *>(a->property("border"));
+                                                   return b && b->property("width").toReal() > 0; }());
+                    if (bg || a->clip()) { box = a->mapRectToScene(QRectF(0, 0, a->width(), a->height())); boxItem = a;
+                                           boxName = a->objectName().isEmpty() ? a->metaObject()->className() : a->objectName(); break; }
+                }
+                if (!scrolled && (r.left() < box.left() - 1 || r.right() > box.right() + 1))
+                    bad << QString("\"%1\" (%2..%3 px, %4 is %5..%6)").arg(txt.left(40)).arg(int(r.left())).arg(int(r.right()))
+                               .arg(boxName).arg(int(box.left())).arg(int(box.right()));
+                texts << T{it, r, boxItem, txt};
+            }
+        }
+        for (QQuickItem *c : it->childItems()) walk(c);
+    };
+    walk(w->contentItem());
+    for (int i = 0; i < texts.size(); ++i)
+        for (int j = i + 1; j < texts.size(); ++j) {
+            if (texts[i].box != texts[j].box) continue;
+            const QRectF x = texts[i].r.intersected(texts[j].r);
+            if (x.width() > 1.5 && x.height() > 1.5)
+                bad << QString("\"%1\" overlaps \"%2\"").arg(texts[i].txt.left(30), texts[j].txt.left(30));
+        }
+    check(bad.isEmpty(), QString("no text overflow: %1%2").arg(where, bad.isEmpty() ? "" : "\n     " + bad.join("\n     ")));
+}
+
 static bool saveVaried(const QImage &img, const QString &path)
 {
     if (img.isNull() || !img.save(path)) return false;
@@ -388,6 +440,7 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
     key(win, Qt::Key_Right);
     check(list->property("currentRow").toInt() == 1, "arrow moves to the next card");
     waitFor([] { return false; }, 600);
+    fits(win, "list");
     if (!shot.isEmpty()) check(saveVaried(win->grabWindow(), shot), "list screenshot " + shot);
 
     const QString slug = lib->get(1).value("slug").toString();
@@ -405,6 +458,7 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
     check(q1 == std::min(100, q0 + 10), QString("Up raises quality %1 -> %2").arg(q0).arg(q1));
     check(f1 == lib->stepFps(f0, 1), QString("Right steps fps %1 -> %2").arg(f0).arg(f1));
     waitFor([] { return false; }, 1200);
+    fits(win, "viewer");
     if (!shot.isEmpty()) {
         QString vshot = shot; vshot.replace(".png", "-viewer.png");
         check(saveVaried(win->grabWindow(), vshot), "viewer screenshot " + vshot);
@@ -433,9 +487,11 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
 
     // Trash, undo, Trash view, delete forever
     auto shotAs = [&](const QString &suffix) {
+        waitFor([] { return false; }, 300);
+        waitFor([] { return false; }, 100);
+        fits(win, suffix);
         if (shot.isEmpty()) return;
         QString p = shot; p.replace(".png", "-" + suffix + ".png");
-        waitFor([] { return false; }, 300);
         check(saveVaried(win->grabWindow(), p), "screenshot " + p);
     };
     auto *confirm = win->findChild<QQuickItem *>("confirm");
@@ -616,6 +672,8 @@ void runPotatoTest(QQuickWindow *win, Library *lib, const QString &shot)
     auto *list = win->findChild<QQuickItem *>("list");
     auto *viewer = win->findChild<QQuickItem *>("viewer");
     auto shotAs = [&](const QString &suffix) {
+        waitFor([] { return false; }, 100);
+        fits(win, suffix);
         if (shot.isEmpty()) return;
         QString p = shot; p.replace(".png", "-" + suffix + ".png");
         check(saveVaried(win->grabWindow(), p), "screenshot " + p);
@@ -717,12 +775,41 @@ void runDanishShot(QQuickWindow *win, Library *lib, const QString &shot)
     key(win, Qt::Key_Space, " ");
     key(win, Qt::Key_Right, "", Qt::ShiftModifier);
     waitFor([] { return false; }, 300);
-    check(saveVaried(win->grabWindow(), shot), "Danish screenshot " + shot);
+    fits(win, "Danish list");
+    if (!shot.isEmpty()) check(saveVaried(win->grabWindow(), shot), "Danish screenshot " + shot);
     key(win, Qt::Key_Escape);
-    key(win, Qt::Key_Comma, ",");
-    waitFor([] { return false; }, 300);
-    QString p = shot; p.replace(".png", "-settings.png");
-    check(saveVaried(win->grabWindow(), p), "Danish screenshot " + p);
+    auto step = [&](const QString &name) {
+        waitFor([] { return false; }, 350);
+        if (!win->isVisible()) { check(false, "window still open for " + name); return; }
+        fits(win, "Danish " + name);
+        if (!shot.isEmpty()) { QString p = shot; p.replace(".png", "-" + name + ".png");
+                               check(saveVaried(win->grabWindow(), p), "Danish screenshot " + p); }
+    };
+    auto *editor = win->findChild<QQuickItem *>("editor");
+    key(win, Qt::Key_Comma, ","); step("settings"); key(win, Qt::Key_Escape);
+    key(win, Qt::Key_Question, "?"); step("keys"); key(win, Qt::Key_Escape);
+    QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+    key(win, Qt::Key_Menu); step("menu"); key(win, Qt::Key_Escape);
+    key(win, Qt::Key_Delete);
+    lib->setFilter(Library::Trash);
+    QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+    step("trash");
+    key(win, Qt::Key_Delete); step("confirm"); key(win, Qt::Key_Escape);
+    lib->setFilter(Library::All);
+    QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+    key(win, Qt::Key_N, "n"); step("editor");
+    if (editor) { if (editor->findChild<QQuickItem *>("picker")) {
+        QMetaObject::invokeMethod(editor, "pickerFor", Q_ARG(QVariant, 0)); step("channels"); key(win, Qt::Key_Escape); } }
+    key(win, Qt::Key_Escape); // close the editor (no changes)
+    QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+    key(win, Qt::Key_Return); waitFor([] { return false; }, 800); step("viewer");
+    // Narrow tiled window: text must still fit (elide or wrap), nothing spills.
+    key(win, Qt::Key_Escape);
+    win->resize(440, 700);
+    step("narrow");
+    key(win, Qt::Key_N, "n"); step("narrow-editor"); key(win, Qt::Key_Escape);
+    key(win, Qt::Key_Comma, ","); step("narrow-settings"); key(win, Qt::Key_Escape);
+    key(win, Qt::Key_Question, "?"); step("narrow-keys"); key(win, Qt::Key_Escape);
     std::printf(g_fails ? "DANISH SHOT FAILED (%d)\n" : "ALL PASS\n", g_fails);
     QCoreApplication::exit(g_fails ? 1 : 0);
 }

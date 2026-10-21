@@ -215,7 +215,7 @@ FocusScope {
         }
     }
 
-    // CHANNELS: four slots in a 2x2 grid under the preview.
+    // CHANNELS: four slots stacked under the preview (one per row, so labels fit).
     Item {
         id: chBlock
         parent: body
@@ -225,14 +225,14 @@ FocusScope {
         Label { id: chLabel; text: qsTr("Channels"); smallCaps: true; dim: true }
         Grid {
             y: chLabel.height + 6
-            columns: 2; spacing: 6
+            columns: 1; spacing: 6
             Repeater {
                 id: slots
                 model: 4
                 Rectangle {
                     required property int index
                     readonly property var info: ed.previewChannels[index]
-                    width: (chBlock.width - 6) / 2; height: 52
+                    width: chBlock.width; height: 40
                     color: ui.bg2; radius: theme.rounding
                     border.width: activeFocus || (picker.visible && picker.slot === index) ? 1 : 0; border.color: ui.accent
                     activeFocusOnTab: false
@@ -244,7 +244,7 @@ FocusScope {
                     Rectangle {
                         id: thumb
                         x: 6; anchors.verticalCenter: parent.verticalCenter
-                        width: 40; height: 40; color: ui.bg; radius: Math.min(theme.rounding, 4); clip: true
+                        width: 30; height: 30; color: ui.bg; radius: Math.min(theme.rounding, 4); clip: true
                         border.width: info.source ? 0 : 1; border.color: Qt.rgba(ui.muted.r, ui.muted.g, ui.muted.b, 0.4)
                         Image { anchors.fill: parent; visible: !!info.source; source: info.source ? info.url : ""
                                 fillMode: Image.PreserveAspectCrop; sourceSize: Qt.size(80, 80); smooth: info.filter !== "nearest" }
@@ -253,7 +253,7 @@ FocusScope {
                     Column {
                         anchors { left: thumb.right; leftMargin: 8; right: parent.right; rightMargin: 6; verticalCenter: parent.verticalCenter }
                         spacing: 2
-                        Label { text: "iChannel" + index; smallCaps: true; dim: true; font.pixelSize: 9 }
+                        Label { width: parent.width; text: "iChannel" + index; smallCaps: true; dim: true; font.pixelSize: 9 }
                         Label { width: parent.width; text: info.label || ""; font.pixelSize: 11; dim: !info.source }
                     }
                     MouseArea { anchors.fill: parent; onClicked: { parent.forceActiveFocus(); ed.openPicker(index, parent) } }

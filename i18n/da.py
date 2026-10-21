@@ -70,7 +70,7 @@ DA = {
 'Permanently delete %1?': 'Slet %1 permanent?',
 'Permanently delete %n shaders?': ('Slet %n shader permanent?', 'Slet %n shaders permanent?'),
 'Preparing…': 'Forbereder…',
-'Preview · last good compile': 'Forhåndsvisning · sidste gode',
+'Preview · last good compile': 'Forhåndsvisning · seneste ok',
 'Primary only': 'Kun primær',
 'RGBA noise 256': 'RGBA-støj 256',
 'RGBA noise 64': 'RGBA-støj 64',

@@ -33,32 +33,45 @@ FocusScope {
         Label { x: 20; y: 16; text: qsTr("All keys"); font.bold: true; font.pixelSize: 15 }
         Label { anchors { right: parent.right; rightMargin: 20; top: parent.top; topMargin: 18 }
                 text: "Esc " + qsTr("close"); dim: true; font.pixelSize: 11 }
+        Flickable {
+            id: scroller
+            x: 20; y: 48; width: parent.width - 40; height: parent.height - 56
+            contentHeight: flow.implicitHeight + 8; clip: true
+            boundsBehavior: Flickable.StopAtBounds
         Flow {
             id: flow
-            x: 20; y: 48; width: parent.width - 40
+            width: scroller.width
             spacing: 22
             Repeater {
                 model: sheet.groups
                 Column {
                     required property var modelData
-                    width: (flow.width - 22) / 2
+                    // Two columns when there's room, one when the window is narrow.
+                    width: flow.width >= 460 ? (flow.width - 22) / 2 : flow.width
                     spacing: 5
                     Label { text: modelData.title; smallCaps: true; dim: true }
                     Repeater {
                         model: modelData.keys
                         Row {
+                            id: keyRow
                             required property var modelData
+                            width: parent.width
                             spacing: 8
-                            Label { width: 84; text: modelData[0]; font.pixelSize: 11; font.bold: true }
-                            Label { text: modelData[1]; font.pixelSize: 11; dim: true }
+                            Label { id: keyCap; width: 84; text: keyRow.modelData[0]; font.pixelSize: 11; font.bold: true }
+                            Label { width: keyRow.width - keyCap.width - keyRow.spacing; text: keyRow.modelData[1]; font.pixelSize: 11; dim: true }
                         }
                     }
                 }
             }
         }
+        }
     }
     Keys.onPressed: (e) => {
         if (e.key === Qt.Key_Escape || e.key === Qt.Key_Question) close()
+        else if (e.key === Qt.Key_Down || e.key === Qt.Key_Up) {
+            const max = Math.max(0, scroller.contentHeight - scroller.height)
+            scroller.contentY = Math.max(0, Math.min(max, scroller.contentY + (e.key === Qt.Key_Down ? 40 : -40)))
+        }
         e.accepted = true
     }
 }
