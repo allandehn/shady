@@ -68,6 +68,8 @@ step "Preflight"
 [[ $(git branch --show-current) == main ]] || die "not on main"
 for t in cmake ninja makepkg repo-add dbus-run-session gpg curl; do command -v $t >/dev/null || die "missing tool: $t"; done
 t 30 gpg --batch --list-secret-keys "$KEY" >/dev/null 2>&1 || die "signing key $KEY not in gpg"
+bash -n install.sh || die "install.sh has a syntax error"
+if command -v shellcheck >/dev/null; then shellcheck install.sh || die "shellcheck failed on install.sh"; fi
 git rev-parse -q --verify "refs/tags/v$VER" >/dev/null && die "tag v$VER exists locally"
 echo "Test signature with $KEY (gpg's passphrase dialog may pop up on the desktop)..."
 TIMEOUT_HINT="a gpg passphrase dialog may be waiting on the desktop; enter the passphrase there and rerun"
@@ -160,4 +162,8 @@ TAG=$(curl -fsSL --max-time 60 "https://api.github.com/repos/$REPO/releases/late
 [[ $TAG == "v$VER" ]] || die "latest release is '$TAG', expected v$VER"
 curl -fsSL --max-time 120 "https://github.com/$REPO/releases/download/repo/shady.db" | tar tz | grep -q "^shady-$VER-1/" \
   || die "public repo db does not list shady-$VER-1"
+for u in "https://raw.githubusercontent.com/$REPO/main/install.sh" "https://github.com/$REPO/releases/download/repo/shady.db.sig" \
+         "https://github.com/allandehn/omaear/releases/download/repo/omaear.asc"; do
+  curl -fsIL --max-time 60 -o /dev/null "$u" || die "installer URL not reachable: $u"
+done
 step "Released Shady $VER: https://github.com/$REPO/releases/tag/v$VER"

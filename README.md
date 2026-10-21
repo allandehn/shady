@@ -20,9 +20,20 @@ Press `?` in the app for every key.
 
 ## Install
 
-For now, build from source (below). A pacman repo, so you can run `omarchy pkg add shady`, is coming.
+On Omarchy, run:
+
+```
+curl -fsSL https://raw.githubusercontent.com/allandehn/shady/main/install.sh | bash
+```
+
+It adds the Shady package repository, with packages signed by Allan Kristensen (key `AC6F F13C 76D8 916C CCF2  DA05 C322 5162 B525 7DB4`, the same key as OmaEar), and installs the app. Updates then arrive with `omarchy update`. Open **Shady** from the app launcher, or run `shady`.
+
+Prefer to do it by hand? Read [install.sh](install.sh). It's a handful of lines.
 
 ## Build from source
+
+An alternative to the package above.
+
 
 Needs Qt 6.6+ (`qt6-base`, `qt6-declarative`, `qt6-shadertools`, plus `qt6-tools` and `vulkan-headers` to build), `glslang`, CMake and Ninja:
 
@@ -33,6 +44,12 @@ Needs Qt 6.6+ (`qt6-base`, `qt6-declarative`, `qt6-shadertools`, plus `qt6-tools
 
 ## Uninstall
 
+If you installed the package:
+
+    sudo pacman -Rns shady
+
+If you built from source:
+
     sudo rm /usr/local/bin/shady
 
 Your shaders and settings stay until you remove them too:
@@ -40,6 +57,8 @@ Your shaders and settings stay until you remove them too:
 - `~/.local/share/shady`: your shaders (plain `shader.glsl` + `shader.toml` folders) and the Trash
 - `~/.cache/shady`: compiled shaders and preview stills (safe to delete any time)
 - `~/.config/shady`: settings
+
+To also remove the Shady package source, delete the `[shady]` section from `/etc/pacman.conf`. Only if OmaEar isn't installed either (it uses the same key), run `sudo pacman-key --delete AC6FF13C76D8916CCCF2DA05C3225162B5257DB4`.
 
 ## License
 
