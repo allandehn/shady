@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
     const QString data = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + QStringLiteral("/shady");
     const QString cache = QStandardPaths::writableLocation(QStandardPaths::GenericCacheLocation) + QStringLiteral("/shady");
     Library library(data, cache, theme.maxFps());
-    library.seedIfEmpty();
+    library.syncExamples();
     library.load();
     QObject::connect(&app, &QCoreApplication::aboutToQuit, &library, [&library] {
         library.flush();

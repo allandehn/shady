@@ -61,6 +61,7 @@ public:
 
     void load();
     void seedIfEmpty();
+    void syncExamples();
     int rowCount(const QModelIndex & = {}) const override;
     QVariant data(const QModelIndex &idx, int role) const override;
     QHash<int, QByteArray> roleNames() const override;

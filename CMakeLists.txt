@@ -47,6 +47,11 @@ qt_add_resources(shady "examples"
     examples/cell-garden.glsl examples/warp-tunnel.glsl
     examples/crouwel-new-alphabet.glsl
 )
+# The 0.2.0 Crouwel source, for the example-update self-test.
+qt_add_resources(shady "selftest_fixtures"
+  PREFIX "/selftest" BASE "tests/fixtures"
+  FILES tests/fixtures/crouwel-0.2.0.glsl
+)
 
 # English is in the source; Danish ships from the start (i18n/update.sh).
 qt_add_lrelease(shady TS_FILES i18n/shady_da.ts QM_FILES_OUTPUT_VARIABLE shady_qm)

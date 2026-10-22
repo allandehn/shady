@@ -1,3 +1,5 @@
+#include <QCryptographicHash>
+#include <QSet>
 #include "library.h"
 #include "toml.h"
 #include "textures.h"
@@ -442,29 +444,164 @@ QString Library::createShader(const QString &name, const QString &author, const 
     return slug;
 }
 
-void Library::seedIfEmpty()
+// Every example Shady has shipped, by source SHA-1, so libraries seeded
+// before the hash was stored (0.1.x, 0.2.0) can tell an untouched copy from
+// an edited one. withCrouwel: that build also seeded Crouwel.
+namespace {
+struct ShippedExample { const char *id, *sha1; bool withCrouwel; };
+const ShippedExample kShipped[] = {
+    // 0.1.0, 0.1.1
+    {"cell-garden", "d994110e52e49f2da07e6f50f1bed936e0c8fdd6", false},
+    {"northern-veil", "91600c4af7792d2af1925b0a0e60a4aaea6af4cc", false},
+    {"plasma-drift", "84d2611195c9faf40fb8fbc99c064c058efb8f71", false},
+    {"warp-tunnel", "3eca58a49fa931c36b1e6778696e670d901bc2d7", false},
+    // 0.2.0
+    {"cell-garden", "802d175dc6b696b0fdc34a08bdf1df700765ca15", true},
+    {"northern-veil", "88c72c1fbdcd50f5748aeaa6aba4818ac399c000", true},
+    {"plasma-drift", "9e8b4c51723f7b74afc3282f821f220a0e9d266f", true},
+    {"warp-tunnel", "8de50e947fd6cf2318d2b7d78ca4a2ebe5adee4b", true},
+    {"crouwel-new-alphabet", "2547359042e1e681b2f8a0d25a8912bfdb668e40", true},
+};
+const char *const kExamples[] = {"northern-veil", "plasma-drift", "cell-garden", "warp-tunnel", "crouwel-new-alphabet"};
+const char *const kOriginalExamples[] = {"northern-veil", "plasma-drift", "cell-garden", "warp-tunnel"};
+
+QString sha1(const QString &code)
 {
-    // First run only: a few small shaders written for Shady (MIT, same as the
-    // app), so the list isn't empty. Never other people's shaders. A marker
-    // keeps them from coming back after the user deletes them.
+    return QString::fromLatin1(QCryptographicHash::hash(code.toUtf8(), QCryptographicHash::Sha1).toHex());
+}
+const ShippedExample *shipped(const QString &hash)
+{
+    for (const ShippedExample &s : kShipped)
+        if (hash == QLatin1String(s.sha1)) return &s;
+    return nullptr;
+}
+} // namespace
+
+void Library::seedIfEmpty() { syncExamples(); }
+
+void Library::syncExamples()
+{
+    // Small shaders written for Shady (MIT, same as the app), never other
+    // people's. Seeded on first run; on later runs untouched copies follow
+    // the bundled version, edited ones are left alone, and examples the user
+    // deleted stay deleted (examples.list remembers every one ever seeded).
     const QString marker = m_dataDir + QStringLiteral("/.seeded");
-    if (QFileInfo::exists(marker) || !QDir(shadersDir()).isEmpty()) return;
-    // Each example's name, author, description and license come from its header.
-    for (const char *file : {"northern-veil", "plasma-drift", "cell-garden", "warp-tunnel", "crouwel-new-alphabet"}) {
-        QFile f(QStringLiteral(":/examples/%1.glsl").arg(QLatin1String(file)));
-        if (!f.open(QIODevice::ReadOnly)) continue;
-        const QString code = QString::fromUtf8(f.readAll());
-        const QVariantMap h = parseHeader(code);
-        const QString slug = createShader(h.value("name").toString(), h.value("author", "Shady").toString(), code);
-        if (ShaderEntry *e = entry(slug)) {
-            e->meta.insert(QStringLiteral("description"), h.value("description"));
-            e->meta.insert(QStringLiteral("license"), h.value("license", "MIT"));
-            e->meta.insert(QStringLiteral("seeded"), true); // defaults follow the first-run benchmark
-            save(*e);
+    const QString listFile = m_dataDir + QStringLiteral("/examples.list");
+    const bool fresh = !QFileInfo::exists(marker) && QDir(shadersDir()).isEmpty();
+
+    QSet<QString> known;
+    bool haveList = false;
+    {
+        QFile f(listFile);
+        if (f.open(QIODevice::ReadOnly)) {
+            haveList = true;
+            for (const QByteArray &l : f.readAll().split('\n'))
+                if (!l.trimmed().isEmpty()) known.insert(QString::fromUtf8(l.trimmed()));
         }
     }
-    QSaveFile m(marker);
-    if (m.open(QIODevice::WriteOnly)) m.commit();
+
+    struct Found { QString dir; QVariantMap meta; QString code; bool trashed; };
+    QHash<QString, Found> found;     // example id -> copy in the library or Trash
+    bool legacyHasCrouwel = false;
+    if (!fresh) {
+        QHash<QString, QString> nameToId;
+        for (const char *id : kExamples) {
+            QFile f(QStringLiteral(":/examples/%1.glsl").arg(QLatin1String(id)));
+            if (f.open(QIODevice::ReadOnly))
+                nameToId.insert(parseHeader(QString::fromUtf8(f.readAll())).value("name").toString(), QLatin1String(id));
+        }
+        for (bool trashed : {false, true}) {
+            const QDir dir(trashed ? trashDir() : shadersDir());
+            for (const QString &slug : dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+                bool okT = false, okG = false;
+                QString err;
+                const QString d = dir.filePath(slug);
+                const QString toml = readText(d + QStringLiteral("/shader.toml"), &okT);
+                if (!okT) continue;
+                const QVariantMap meta = Toml::parse(toml, &err);
+                if (!err.isEmpty()) continue;
+                QString id = meta.value("example").toString();
+                if (id.isEmpty() && meta.value("seeded").toBool()) {
+                    // Seeded before ids were stored: recognise it by its source, else its name.
+                    const QString code = readText(d + QStringLiteral("/shader.glsl"), &okG);
+                    if (const ShippedExample *s = okG ? shipped(sha1(code)) : nullptr) {
+                        id = QLatin1String(s->id);
+                        legacyHasCrouwel |= s->withCrouwel;
+                    } else {
+                        id = nameToId.value(meta.value("name").toString());
+                    }
+                }
+                if (id.isEmpty() || found.contains(id)) continue;
+                found.insert(id, {d, meta, readText(d + QStringLiteral("/shader.glsl"), &okG), trashed});
+            }
+        }
+        if (!haveList) {
+            // Library from before examples.list: assume it got what its version seeded.
+            for (const char *id : kOriginalExamples) known.insert(QLatin1String(id));
+            if (legacyHasCrouwel) known.insert(QStringLiteral("crouwel-new-alphabet"));
+        }
+        for (auto it = found.cbegin(); it != found.cend(); ++it) known.insert(it.key());
+    }
+
+    for (const char *idc : kExamples) {
+        const QString id = QLatin1String(idc);
+        QFile f(QStringLiteral(":/examples/%1.glsl").arg(id));
+        if (!f.open(QIODevice::ReadOnly)) continue;
+        const QString code = QString::fromUtf8(f.readAll());
+        const QString hash = sha1(code);
+        const QVariantMap h = parseHeader(code);
+        auto it = found.find(id);
+        if (it == found.end()) {
+            if (known.contains(id)) continue; // the user deleted it
+            const QString slug = createShader(h.value("name").toString(), h.value("author", "Shady").toString(), code);
+            if (ShaderEntry *e = entry(slug)) {
+                e->meta.insert(QStringLiteral("description"), h.value("description"));
+                e->meta.insert(QStringLiteral("license"), h.value("license", "MIT"));
+                e->meta.insert(QStringLiteral("seeded"), true); // defaults follow the first-run benchmark
+                e->meta.insert(QStringLiteral("example"), id);
+                e->meta.insert(QStringLiteral("example_sha1"), hash);
+                save(*e);
+                known.insert(id);
+            }
+            continue;
+        }
+        Found &c = *it;
+        if (c.trashed) continue; // in the Trash: the user's to restore or empty
+        const QString have = sha1(c.code);
+        const QString stored = c.meta.value("example_sha1").toString();
+        const ShippedExample *old = shipped(have);
+        const bool unedited = stored.isEmpty() ? (have == hash || (old && id == QLatin1String(old->id))) : have == stored;
+        QVariantMap meta = c.meta;
+        meta.insert(QStringLiteral("example"), id);
+        if (!unedited) {
+            meta.remove(QStringLiteral("example_sha1")); // edited: never touched again
+        } else {
+            if (have != hash) {
+                QSaveFile g(c.dir + QStringLiteral("/shader.glsl"));
+                if (!g.open(QIODevice::WriteOnly) || g.write(code.toUtf8()) < 0 || !g.commit()) continue;
+                // Header fields follow too, unless the user changed them.
+                const QVariantMap oldH = parseHeader(c.code);
+                for (const char *k : {"name", "author", "description", "license"})
+                    if (h.contains(k) && meta.value(k).toString() == oldH.value(k).toString())
+                        meta.insert(QLatin1String(k), h.value(k));
+                meta.insert(QStringLiteral("modified"), QDateTime::currentDateTime().toString(Qt::ISODate));
+            }
+            meta.insert(QStringLiteral("example_sha1"), hash);
+        }
+        if (meta != c.meta) {
+            QSaveFile t(c.dir + QStringLiteral("/shader.toml"));
+            if (t.open(QIODevice::WriteOnly) && t.write(Toml::serialize(meta).toUtf8()) >= 0) t.commit();
+        }
+    }
+
+    QStringList ids(known.cbegin(), known.cend());
+    ids.sort();
+    QSaveFile l(listFile);
+    if (l.open(QIODevice::WriteOnly) && l.write((ids.join(u'\n') + u'\n').toUtf8()) >= 0) l.commit();
+    if (!QFileInfo::exists(marker)) {
+        QSaveFile m(marker);
+        if (m.open(QIODevice::WriteOnly)) m.commit();
+    }
 }
 
 QString Library::freeSlug(const QString &dir, const QString &base) const

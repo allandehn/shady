@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Examples stay current: on startup, examples you haven't edited are updated to the version Shady ships (including libraries from 0.1.x and 0.2.0, so the new Crouwel colours arrive), and examples added in a release appear for existing users. Edited examples and fields you changed are left alone; examples you deleted or put in the Trash stay there.
+
 ## 0.2.0
 
 - Shader metadata header: `// @name`, `@author`, `@description`, `@license` (also `Name:` etc.) fill in the editor's fields when you paste or edit.

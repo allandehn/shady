@@ -1,4 +1,6 @@
 #include <QCursor>
+#include <QCryptographicHash>
+#include <QRegularExpression>
 #include "selftest.h"
 #include "compiler.h"
 #include "library.h"
@@ -323,6 +325,72 @@ int runSelfTest()
         check(L.rowOf("crouwels-new-alphabet") >= 0 && L.get(L.rowOf("crouwels-new-alphabet")).value("name") == "Crouwel's New Alphabet",
               "Crouwel's New Alphabet example is seeded");
         check(L.get(L.rowOf("plasma-drift")).value("quality").toInt() == 70, "examples you changed keep your setting");
+    }
+    // Example updates for existing libraries
+    {
+        auto readF = [](const QString &p) { QFile f(p); f.open(QIODevice::ReadOnly); return QString::fromUtf8(f.readAll()); };
+        auto writeF = [](const QString &p, const QString &s) { QFile f(p); f.open(QIODevice::WriteOnly | QIODevice::Truncate); f.write(s.toUtf8()); };
+        const QString bundled = readF(":/examples/crouwel-new-alphabet.glsl");
+        const QString oldCrouwel = readF(":/selftest/crouwel-0.2.0.glsl");
+        check(!oldCrouwel.isEmpty() && oldCrouwel != bundled, "0.2.0 Crouwel source is bundled for the test");
+        QTemporaryDir t5;
+        const QString data = t5.path() + "/data", sh = data + "/shaders/";
+        { Library L(data, t5.path() + "/cache", 60); L.syncExamples(); }
+        // Pretend the library was seeded with older sources: one untouched, one edited, one deleted.
+        const QString ver1 = "// @name Cell Garden\n// old shipped\nvoid main(){}\n";
+        auto setSeed = [&](const QString &slug, const QString &code) {
+            writeF(sh + slug + "/shader.glsl", code);
+            QString toml = readF(sh + slug + "/shader.toml");
+            const QString h = QCryptographicHash::hash(code.toUtf8(), QCryptographicHash::Sha1).toHex();
+            toml.replace(QRegularExpression("example_sha1 = \"[0-9a-f]+\""), "example_sha1 = \"" + h + "\"");
+            writeF(sh + slug + "/shader.toml", toml);
+        };
+        setSeed("cell-garden", ver1);                                  // unedited old version
+        setSeed("plasma-drift", "// mine\nvoid main(){}\n");
+        writeF(sh + "plasma-drift/shader.glsl", "// mine, edited\nvoid main(){}\n"); // edited after seeding
+        QDir(sh + "warp-tunnel").removeRecursively();                 // deleted for good
+        {
+            Library L(data, t5.path() + "/cache", 60);
+            L.load();
+            L.trashMany({"northern-veil"});                            // in the Trash
+            L.flush();
+        }
+        Library L2(data, t5.path() + "/cache", 60);
+        L2.syncExamples();
+        L2.load();
+        check(readF(sh + "cell-garden/shader.glsl") == readF(":/examples/cell-garden.glsl"), "unedited example is updated");
+        check(readF(sh + "plasma-drift/shader.glsl").startsWith("// mine, edited"), "edited example is kept");
+        check(L2.rowOf("warp-tunnel") < 0 && !QFileInfo::exists(sh + "warp-tunnel"), "deleted example isn't resurrected");
+        check(!QFileInfo::exists(sh + "northern-veil"), "trashed example stays in the Trash");
+        // A new example shipped later reaches existing users.
+        QDir(sh + "crouwels-new-alphabet").removeRecursively();
+        QString list = readF(data + "/examples.list");
+        writeF(data + "/examples.list", list.replace("crouwel-new-alphabet\n", ""));
+        { Library L3(data, t5.path() + "/cache", 60); L3.syncExamples(); }
+        check(readF(sh + "crouwels-new-alphabet/shader.glsl") == bundled, "new example is added for existing users");
+    }
+    // Legacy 0.2.0 library (no ids or hashes stored) gets the new Crouwel
+    {
+        auto readF = [](const QString &p) { QFile f(p); f.open(QIODevice::ReadOnly); return QString::fromUtf8(f.readAll()); };
+        auto writeF = [](const QString &p, const QString &s) { QFile f(p); f.open(QIODevice::WriteOnly | QIODevice::Truncate); f.write(s.toUtf8()); };
+        QTemporaryDir t6;
+        const QString data = t6.path() + "/data", sh = data + "/shaders/";
+        { Library L(data, t6.path() + "/cache", 60); L.syncExamples(); }
+        QFile::remove(data + "/examples.list");
+        for (const QString &slug : QDir(sh).entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+            QString toml = readF(sh + slug + "/shader.toml");
+            toml.remove(QRegularExpression("example(_sha1)? = \"[^\"]*\"\n"));
+            writeF(sh + slug + "/shader.toml", toml);
+        }
+        writeF(sh + "crouwels-new-alphabet/shader.glsl", readF(":/selftest/crouwel-0.2.0.glsl"));
+        QDir(sh + "warp-tunnel").removeRecursively(); // deleted under 0.2.0
+        Library L(data, t6.path() + "/cache", 60);
+        L.syncExamples();
+        L.load();
+        check(readF(sh + "crouwels-new-alphabet/shader.glsl") == readF(":/examples/crouwel-new-alphabet.glsl"),
+              "legacy library: 0.2.0 Crouwel is upgraded");
+        check(readF(sh + "crouwels-new-alphabet/shader.toml").contains("example_sha1"), "legacy library: hash is stored");
+        check(L.rowOf("warp-tunnel") < 0, "legacy library: deleted example isn't resurrected");
     }
     // Danish
     {
