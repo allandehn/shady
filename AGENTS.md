@@ -61,6 +61,9 @@
 ## Text fit
 Every screenshot step in the UI, potato and language tests runs `fits()`. It fails if any visible Text spills past the nearest background, clip or window, or overlaps another Text in the same box. The language test (`--danish-shot`, run with SHADY_LANG=da and en) also checks a narrow 440 px window. Give a Label a width and let it elide, or let the layout reflow. Install iA Writer Mono (github.com/iaolo/iA-Fonts) system-wide so headless screenshots match Omarchy.
 
+## Dev install
+`scripts/dev-install.sh` (run by Allan, also via `curl ... | bash`) builds `main` from `~/.cache/shady-dev` as pacman package `<last tag>.r<N>.g<hash>` (sorts above the tag, below the next release), runs `tests/headless.sh`, then `sudo pacman -U`. It reuses `packaging/PKGBUILD` via sed, so keep its `pkgver=`, `source=` and `"shady $pkgver"` check lines in that form. It must never read stdin (curl | bash) or touch ~/.local/bin. Test it with `SHADY_DEV_REPO=$PWD scripts/dev-install.sh --no-install` (add `--nodeps` off Arch).
+
 ## Approval rule
 
 Never create issues, PRs, comments, releases, tags or pushes, or post anything in Allan's name, without his explicit approval for that specific action.

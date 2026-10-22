@@ -34,6 +34,16 @@ It adds the Shady package repository, with packages signed by Allan Kristensen (
 
 Prefer to do it by hand? Read [install.sh](install.sh). It's a handful of lines.
 
+## Try the development version
+
+To try the latest work on `main` before it's released:
+
+```
+curl -fsSL https://raw.githubusercontent.com/allandehn/shady/main/scripts/dev-install.sh | bash
+```
+
+It builds a pacman package (version like `0.2.0.r3.g1a2b3c4`) in `~/.cache/shady-dev`, runs the headless tests, and installs it with `sudo pacman -U`. The next release replaces it on `omarchy update`. Add `bash -s -- --no-install` to build and test only.
+
 ## Build from source
 
 An alternative to the package above.
