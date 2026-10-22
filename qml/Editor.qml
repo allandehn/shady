@@ -45,6 +45,24 @@ FocusScope {
     }
     property bool pendingSave: false
     property bool licenseTouched: false
+    // Header metadata ("// @name ..."): a field follows the source while it is
+    // empty or still equals what the header last said; once you type your own
+    // value it stays yours. Editing a field never rewrites the source.
+    property var parsedHeader: ({})
+    property bool loading: false
+    function applyHeader() {
+        if (loading) return
+        const h = library.parseHeader(code.text)
+        const f = { name: name, author: author, description: description, license: license }
+        for (const k in f) {
+            const v = h[k] || ""
+            if (v !== "" && (f[k].text === "" || f[k].text === (parsedHeader[k] || "")
+                              || (k === "license" && !licenseTouched))) {
+                f[k].text = v
+            }
+        }
+        parsedHeader = h
+    }
     property var channels: [{}, {}, {}, {}]   // {source, filter, wrap}
     property string savedChannels: ""
     function chJson(c) { return JSON.stringify(c.map(x => [x.source || "", x.filter || "linear", x.wrap || "repeat"])) }
@@ -76,6 +94,7 @@ FocusScope {
         saved = { name: m.name || "", author: m.author || "", license: m.license || "",
                   description: m.description || "", code: s ? library.codeOf(s) : template }
         licenseTouched = true // no pre-fill while loading
+        loading = true
         const ch = s ? library.channelsOf(s) : []
         channels = [0, 1, 2, 3].map(i => ch[i] ? { source: ch[i].source, filter: ch[i].filter, wrap: ch[i].wrap }
                                                 : { source: "", filter: "linear", wrap: "repeat" })
@@ -83,6 +102,8 @@ FocusScope {
         name.text = saved.name; author.text = saved.author; license.text = saved.license
         description.text = saved.description; code.text = saved.code
         licenseTouched = saved.license !== ""
+        parsedHeader = library.parseHeader(saved.code)
+        loading = false
         previewUrl = ""; compiledCode = ""; errorLine = 0; errorText = ""; errors = []; lastOk = false; pendingSave = false
         compile()
         name.forceActiveFocus()
@@ -136,11 +157,11 @@ FocusScope {
             width: parent.width; spacing: 10
             readonly property real w: (width - 20) / 3
             Field { id: name; objectName: "nameField"; width: parent.w; label: qsTr("Name"); KeyNavigation.tab: author }
-            Field { id: author; width: parent.w; label: qsTr("Author"); KeyNavigation.tab: license; KeyNavigation.backtab: name }
-            Field { id: license; width: parent.w; label: qsTr("License (optional)"); KeyNavigation.tab: description; KeyNavigation.backtab: author
+            Field { id: author; objectName: "authorField"; width: parent.w; label: qsTr("Author"); KeyNavigation.tab: license; KeyNavigation.backtab: name }
+            Field { id: license; objectName: "licenseField"; width: parent.w; label: qsTr("License (optional)"); KeyNavigation.tab: description; KeyNavigation.backtab: author
                     input.onTextEdited: ed.licenseTouched = true }
         }
-        Field { id: description; width: parent.width; label: qsTr("Description"); KeyNavigation.tab: code; KeyNavigation.backtab: license }
+        Field { id: description; objectName: "descriptionField"; width: parent.width; label: qsTr("Description"); KeyNavigation.tab: code; KeyNavigation.backtab: license }
     }
 
     Item {
@@ -209,7 +230,7 @@ FocusScope {
                             ed.compile(); e.accepted = true
                         }
                     }
-                    onTextChanged: if (!ed.licenseTouched) { const h = library.licenseHint(text); if (h) license.text = h }
+                    onTextChanged: { ed.applyHeader(); if (!ed.licenseTouched && !ed.parsedHeader.license) { const h = library.licenseHint(text); if (h) license.text = h } }
                 }
             }
         // Floats over the code, bottom-right. Secondary (Save is the only accent
@@ -242,7 +263,7 @@ FocusScope {
                     font.pixelSize: 12; color: ui.fg
                     text: ed.compiling ? qsTr("Compiling…") : qsTr("Compile") }
             Label { id: cbHint; anchors { left: cbLabel.right; leftMargin: 8; verticalCenter: parent.verticalCenter }
-                    text: "Ctrl+↵"; font.pixelSize: 11; dim: true }
+                    text: "ctrl+↵"; font.pixelSize: 11; dim: true }
             MouseArea { id: cbMouse; anchors.fill: parent; hoverEnabled: true; onClicked: if (compileBtn.enabled_) ed.compile() }
         }
         }
@@ -468,8 +489,8 @@ FocusScope {
             width: footRight.x - 20 - 16
             singleLine: true
             keys: ed.broken && ed.errorsOpen
-                  ? [["↵", qsTr("jump to line")], ["↑↓", qsTr("next error")], ["Tab", qsTr("leave")], ["?", qsTr("keys")]]
-                  : [["Esc", qsTr("cancel")]]
+                  ? [["↵", qsTr("jump to line")], ["↑↓", qsTr("next error")], ["tab", qsTr("leave")], ["?", qsTr("keys")]]
+                  : [["esc", qsTr("cancel")]]
         }
         Row {
             id: footRight

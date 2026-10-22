@@ -1,6 +1,6 @@
 import QtQuick
 
-// One hint row: bold keys, muted actions. Wraps instead of cutting off,
+// One hint row: bold key, muted ":action". Wraps instead of cutting off,
 // or with `singleLine` keeps one line and drops the trailing keys that don't fit.
 Flow {
     id: hint
@@ -27,9 +27,9 @@ Flow {
             required property var modelData
             required property int index
             visible: index < hint.fitCount
-            spacing: 5
+            // key:action, no gap; the colon is muted like the action
             Label { text: modelData[0]; font.pixelSize: 11; font.bold: true }
-            Label { text: modelData[1]; font.pixelSize: 11; dim: true }
+            Label { text: ":" + modelData[1]; font.pixelSize: 11; dim: true }
         }
     }
 }

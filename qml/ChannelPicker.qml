@@ -93,7 +93,7 @@ FocusScope {
                     }
                 }
             }
-            Hint { x: 14; width: col.width - 28; topPadding: 6; keys: [["←→", qsTr("switch")], ["Enter", qsTr("pick")]] }
+            Hint { x: 14; width: col.width - 28; topPadding: 6; keys: [["←→", qsTr("switch")], ["enter", qsTr("pick")]] }
         }
     }
     function setOpt(k, v) { const n = Object.assign({}, value); n[k] = v; value = n; picked(slot, value) }

@@ -53,6 +53,13 @@ FocusScope {
         base = Object.assign({}, m)
         setSel(m)
     }
+    function starSelected() {
+        // Star them all; if they're all starred already, unstar them all.
+        const list = selected()
+        const all = list.every(x => library.get(library.rowOf(x)).starred)
+        for (const x of list) { const row = library.rowOf(x); if (row >= 0 && library.get(row).starred === all) library.toggleStar(row) }
+        focusRow(grid.currentIndex)
+    }
     function trashSelected() { const n = library.trashMany(selected()); clearSel(); focusRow(grid.currentIndex) }
     function hideSelected() { library.hideMany(selected(), library.filter !== 2); clearSel(); focusRow(grid.currentIndex) }
     function restoreSelected() { library.restoreMany(selected()); clearSel(); focusRow(0) }
@@ -65,6 +72,16 @@ FocusScope {
     }
     Connections { target: library; function onFilterChanged() { panel.clearSel() } }
 
+    // Up/Down: the card straight above/below; if the row below is shorter,
+    // its last card. Stays put on the first/last row.
+    function vertical(r, dir) {
+        const n = grid.count, c = grid.columns
+        if (n <= 0) return r
+        const row = Math.floor(r / c), last = Math.floor((n - 1) / c)
+        const to = row + dir
+        if (to < 0 || to > last) return r
+        return Math.min(n - 1, to * c + r % c)
+    }
     function focusRow(r) { grid.currentIndex = Math.max(0, Math.min(r, grid.count - 1)); grid.forceActiveFocus() }
     function focusSlug(s) { const r = library.rowOf(s); if (r >= 0) focusRow(r) }
     function isShader(r) { return r >= 0 && r < library.count }
@@ -89,16 +106,16 @@ FocusScope {
         grid.currentIndex = r
         menu.row = r
         if (m.trashed)
-            menu.open(x, y, [{ text: qsTr("Restore"), key: "Enter", action: "restore" }, { divider: true },
-                             { text: qsTr("Delete forever"), key: "Del", action: "forever" }])
+            menu.open(x, y, [{ text: qsTr("Restore"), key: "enter", action: "restore" }, { divider: true },
+                             { text: qsTr("Delete forever"), key: "del", action: "forever" }])
         else
-            menu.open(x, y, [{ text: qsTr("Open"), key: "Enter", action: "open" },
-                             { text: qsTr("Edit"), key: "Ctrl+E", action: "edit" },
-                             { text: m.starred ? qsTr("Unstar") : qsTr("Star"), key: "S", action: "star" },
-                             { text: m.hidden ? qsTr("Unhide") : qsTr("Hide"), key: "H", action: "hide" },
-                             { text: panel.sel[m.slug] ? qsTr("Deselect") : qsTr("Select"), key: "Space", action: "select" },
+            menu.open(x, y, [{ text: qsTr("Open"), key: "enter", action: "open" },
+                             { text: qsTr("Edit"), key: "ctrl+e", action: "edit" },
+                             { text: m.starred ? qsTr("Unstar") : qsTr("Star"), key: "s", action: "star" },
+                             { text: m.hidden ? qsTr("Unhide") : qsTr("Hide"), key: "h", action: "hide" },
+                             { text: panel.sel[m.slug] ? qsTr("Deselect") : qsTr("Select"), key: "space", action: "select" },
                              { divider: true },
-                             { text: qsTr("Move to Trash"), key: "Del", action: "trash" }])
+                             { text: qsTr("Move to Trash"), key: "del", action: "trash" }])
     }
     function act(action, r) {
         if (!isShader(r)) return
@@ -111,6 +128,14 @@ FocusScope {
         else if (action === "restore") focusRow(library.restore(r))
         else if (action === "forever") confirmDelete(r)
         else if (action === "select") toggle(r)
+    }
+    // Mouse back button: like Esc, but never quits the app from the list.
+    function back() {
+        if (confirm.visible) confirm.done(false)
+        else if (menu.visible) menu.close()
+        else if (keys.visible) keys.close()
+        else if (settings.visible) settings.close()
+        else if (selecting) clearSel()
     }
     function showNote(t) { note = t; noteTimer.restart() }
 
@@ -133,7 +158,7 @@ FocusScope {
             }
             Label {
                 anchors { left: icon.right; leftMargin: 10; verticalCenter: parent.verticalCenter }
-                text: qsTr("Shaders"); font.pixelSize: 17; font.bold: true
+                text: "Shady"; font.pixelSize: 17; font.bold: true
             }
             Label {
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
@@ -156,21 +181,29 @@ FocusScope {
                 spacing: 16
                 Repeater {
                     model: [qsTr("All"), qsTr("Starred"), qsTr("Hidden"), qsTr("Trash")]
-                    Column {
-                        spacing: 3
+                    Item {
+                        id: tab
                         required property int index
                         required property string modelData
-                        Label {
-                            text: modelData; font.pixelSize: 11
-                            dim: library.filter !== index
-                            font.bold: library.filter === index
+                        objectName: "tab" + index
+                        width: tabCol.width; height: 20
+                        readonly property bool on: library.filter === index
+                        Column {
+                            id: tabCol
+                            spacing: 3
+                            Label {
+                                text: tab.modelData; font.pixelSize: 11
+                                dim: !tab.on && !tabMouse.containsMouse
+                                font.bold: tab.on
+                            }
+                            Rectangle { width: parent.width; height: 2; visible: tab.on || tabMouse.containsMouse
+                                        color: tab.on ? ui.accent : Qt.rgba(ui.muted.r, ui.muted.g, ui.muted.b, 0.6) }
                         }
-                        Rectangle { width: parent.width; height: 2; color: ui.accent; visible: library.filter === index }
-                        MouseArea { width: parent.width; height: 20; onClicked: { library.filter = index; panel.focusRow(0) } }
+                        MouseArea { id: tabMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                    onClicked: { panel.clearSel(); library.filter = tab.index; panel.focusRow(0) } }
                     }
                 }
             }
-            Label { anchors.right: parent.right; text: "Tab"; dim: true; font.pixelSize: 10 }
         }
     }
 
@@ -208,7 +241,8 @@ FocusScope {
             onPicked: { grid.currentIndex = index; grid.forceActiveFocus() }
             onActivated: isNew ? panel.edit("") : panel.inTrash ? panel.act("restore", index) : panel.open(index)
             onMenuRequested: (mx, my) => { const p = mapToItem(panel, mx, my); panel.openMenu(index, p.x, p.y) }
-            onTrashRequested: panel.act("trash", index)
+            onTrashRequested: panel.act(panel.inTrash ? "forever" : "trash", index)
+            onStarRequested: panel.act("star", index)
         }
 
         Keys.onPressed: (e) => {
@@ -221,6 +255,10 @@ FocusScope {
                 else panel.act(panel.inTrash ? "restore" : "open", r)
             }
             else if (e.key === Qt.Key_Space) panel.toggle(r)
+            else if (!shift && !ctrl && (e.key === Qt.Key_Up || e.key === Qt.Key_Down)) {
+                const t = panel.vertical(r, e.key === Qt.Key_Down ? 1 : -1)
+                if (t !== r) grid.currentIndex = t
+            }
             else if (shift && (e.key === Qt.Key_Left || e.key === Qt.Key_Right || e.key === Qt.Key_Up || e.key === Qt.Key_Down)) {
                 const step = e.key === Qt.Key_Left ? -1 : e.key === Qt.Key_Right ? 1 : e.key === Qt.Key_Up ? -grid.columns : grid.columns
                 let to = Math.max(0, Math.min(library.count - 1, r + step))
@@ -230,6 +268,7 @@ FocusScope {
             else if (e.key === Qt.Key_A && ctrl) panel.selectAll()
             else if (e.key === Qt.Key_Escape && panel.selecting) panel.clearSel()
             else if (panel.selecting && e.key === Qt.Key_H && !ctrl && !panel.inTrash) panel.hideSelected()
+            else if (panel.selecting && e.key === Qt.Key_S && !ctrl && !panel.inTrash) panel.starSelected()
             else if (panel.selecting && e.key === Qt.Key_Delete) {
                 if (panel.inTrash || shift) panel.confirmDeleteSelected()
                 else panel.trashSelected()
@@ -340,18 +379,28 @@ FocusScope {
         Rectangle { width: parent.width; height: 1; color: ui.bg2 }
         Item {
             width: parent.width; height: hints.height + 24
-            Column {
+            Item {
                 id: hints
-                x: 16; y: 12; width: parent.width - 32; spacing: 6
-                Hint { keys: panel.selecting ? (panel.inTrash ? [["Enter", qsTr("restore")], ["Del", qsTr("delete forever")]]
-                                                                : [["H", library.filter === 2 ? qsTr("unhide") : qsTr("hide")], ["Del", qsTr("trash")], ["Ctrl+Z", qsTr("undo")]])
-                           : panel.inTrash ? [["Enter", qsTr("restore")], ["Del", qsTr("delete forever")]]
-                           : library.filter === 2 ? [["H", qsTr("unhide")], ["Enter", qsTr("open")], ["Esc", qsTr("close")]]
-                           : [["Enter", qsTr("open")], ["S", qsTr("star")], ["H", qsTr("hide")], ["Del", qsTr("trash")]] }
-                Hint { keys: panel.selecting ? [["Space", qsTr("toggle")], ["Shift+←→↑↓", qsTr("extend")], ["Esc", qsTr("clear")]]
-                           : panel.inTrash ? [["Tab", qsTr("empty trash")], ["Esc", qsTr("close")]]
-                           : library.filter === 2 ? [["Tab", qsTr("next view")], ["?", qsTr("all keys")]]
-                           : [["Space", qsTr("select")], ["N", qsTr("new")], ["?", qsTr("all keys")]] }
+                objectName: "hints"
+                x: 16; y: 12; width: parent.width - 32; height: hintRow.implicitHeight
+                // One row, by context: selection keys while selecting, else the grid's.
+                readonly property var keys: panel.selecting
+                    ? (panel.inTrash ? [["enter", qsTr("restore")], ["del", qsTr("delete forever")], ["shift+←→↑↓", qsTr("extend")], ["esc", qsTr("clear")]]
+                                     : [["shift+←→↑↓", qsTr("extend")], ["space", qsTr("toggle")], ["s", qsTr("star")],
+                                        ["h", library.filter === 2 ? qsTr("unhide") : qsTr("hide")], ["del", qsTr("trash")], ["esc", qsTr("clear")]])
+                    : panel.inTrash ? [["enter", qsTr("restore")], ["←→↑↓", qsTr("navigate")], ["del", qsTr("delete forever")], ["tab", qsTr("switch tabs")]]
+                    : [["enter", qsTr("run")], ["←→↑↓", qsTr("navigate")], ["tab", qsTr("switch tabs")]]
+                Hint { id: hintRow; width: parent.width - allKeys.width - 16; singleLine: true; keys: hints.keys }
+                MouseArea {
+                    id: allKeys
+                    anchors.right: parent.right
+                    width: qRow.implicitWidth; height: qRow.implicitHeight
+                    hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                    onClicked: keys.open()
+                    Row { id: qRow; spacing: 5
+                          Label { text: "?"; font.pixelSize: 11; font.bold: true; color: allKeys.containsMouse ? ui.accent : ui.fg }
+                          Label { text: qsTr("all keys"); font.pixelSize: 11; dim: true } }
+                }
             }
         }
     }

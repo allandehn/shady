@@ -22,6 +22,8 @@ FocusScope {
             font.family: theme.mono; font.pixelSize: 12
             clip: true
             selectByMouse: true
+            // I-beam over every text field (all single-line inputs use Field).
+            HoverHandler { cursorShape: Qt.IBeamCursor }
         }
     }
 }

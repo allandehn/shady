@@ -47,7 +47,7 @@ FocusScope {
         }
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: hint.height; color: Qt.darker(ui.bg2, 1.08)
             Hint { id: hint; x: 20; width: parent.width - 40; topPadding: 9; bottomPadding: 9
-                   keys: [["Enter", dlg.hintAction], ["Tab", qsTr("switch")], ["Esc", qsTr("cancel")]] } }
+                   keys: [["enter", dlg.hintAction], ["tab", qsTr("switch")], ["esc", qsTr("cancel")]] } }
     }
     Keys.onEscapePressed: dlg.done(false)
     Keys.onPressed: (e) => { e.accepted = true } // modal: nothing leaks to the list

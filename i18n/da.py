@@ -4,6 +4,11 @@
 # Stjernemarkerede, Fjern stjerne, Ingen stjernemarkerede shaders.
 # Run i18n/update.sh after changing strings.
 DA = {
+'Mouse': 'Mus',
+'click': 'klik',
+'right-click': 'højreklik',
+'back button': 'tilbage-knap',
+'same as esc': 'samme som esc',
 '%1 MB · compiled + previews': '%1 MB · kompileret + forhåndsvisninger',
 '%1 of %2 selected': '%1 af %2 valgt',
 '%1 selected': '%1 valgt',
@@ -55,7 +60,7 @@ DA = {
 'Line %1 · %2': 'Linje %1 · %2',
 'List': 'Liste',
 'Move to Trash': 'Flyt til papirkurv',
-'Moved to Trash · Ctrl+Z undo': 'Flyttet til papirkurven · Ctrl+Z fortryd',
+'Moved to Trash · ctrl+z undo': 'Flyttet til papirkurven · ctrl+z fortryd',
 'Name': 'Navn',
 'New shader': 'Ny shader',
 'No hidden shaders': 'Ingen skjulte shaders',
@@ -87,8 +92,8 @@ DA = {
 'Rebuilt when needed.': 'Genopbygges efter behov.',
 'Removed today': 'Fjernet i dag',
 'Restore': 'Gendan',
-'Restored %1 · Ctrl+Z undo': 'Gendannede %1 · Ctrl+Z fortryd',
-'Restored %n shaders · Ctrl+Z undo': ('Gendannede %n shader · Ctrl+Z fortryd', 'Gendannede %n shaders · Ctrl+Z fortryd'),
+'Restored %1 · ctrl+z undo': 'Gendannede %1 · ctrl+z fortryd',
+'Restored %n shaders · ctrl+z undo': ('Gendannede %n shader · ctrl+z fortryd', 'Gendannede %n shaders · ctrl+z fortryd'),
 'Save': 'Gem',
 'Saved for this shader': 'Gemt for denne shader',
 'Saves as draft': 'Gemmes som kladde',

@@ -9,16 +9,19 @@ FocusScope {
     function close() { visible = false }
     readonly property var groups: [
         { title: qsTr("List"), keys: [
-            ["Enter", qsTr("open")], ["N", qsTr("new")], ["S", qsTr("star / unstar")], ["H", qsTr("hide / unhide")],
-            ["Ctrl+E", qsTr("edit")], ["Shift+F10", qsTr("menu (or Menu key)")], ["Del", qsTr("move to Trash")],
-            ["Shift+Del", qsTr("delete permanently")], ["Ctrl+Z", qsTr("undo")], ["Tab", qsTr("next view")],
-            [",", qsTr("settings")], ["?", qsTr("this page")], ["Esc", qsTr("close")]] },
+            ["enter", qsTr("run")], ["←→↑↓", qsTr("navigate")], ["n", qsTr("new")], ["s", qsTr("star / unstar")], ["h", qsTr("hide / unhide")],
+            ["ctrl+e", qsTr("edit")], ["shift+f10", qsTr("menu (or Menu key)")], ["del", qsTr("move to Trash")],
+            ["shift+del", qsTr("delete permanently")], ["ctrl+z", qsTr("undo")], ["tab", qsTr("next view")],
+            ["space", qsTr("select")], ["shift+←→↑↓", qsTr("extend selection")], ["ctrl+a", qsTr("select all")],
+            [",", qsTr("settings")], ["?", qsTr("this page")], ["esc", qsTr("close")]] },
         { title: qsTr("Trash"), keys: [
-            ["Enter", qsTr("restore")], ["Del", qsTr("delete forever")], ["Tab", qsTr("empty trash")]] },
+            ["enter", qsTr("restore")], ["del", qsTr("delete forever")], ["tab", qsTr("empty trash")]] },
         { title: qsTr("Viewer"), keys: [
-            ["↑↓", qsTr("quality")], ["←→", qsTr("fps")], ["F", qsTr("fullscreen")], ["Esc", qsTr("close")]] },
+            ["↑↓", qsTr("quality")], ["←→", qsTr("fps")], ["a", qsTr("auto-adapt")], ["f", qsTr("fullscreen")], ["esc", qsTr("close")]] },
+        { title: qsTr("Mouse"), keys: [
+            [qsTr("click"), qsTr("run")], [qsTr("right-click"), qsTr("menu")], [qsTr("back button"), qsTr("same as esc")]] },
         { title: qsTr("Editor"), keys: [
-            ["Ctrl+↵", qsTr("compile")], ["Ctrl+S", qsTr("save")], ["Tab", qsTr("next field")], ["Esc", qsTr("cancel")]] }
+            ["ctrl+↵", qsTr("compile")], ["ctrl+s", qsTr("save")], ["tab", qsTr("next field")], ["esc", qsTr("cancel")]] }
     ]
 
     Rectangle { anchors.fill: parent; color: Qt.rgba(0, 0, 0, 0.55) }
@@ -32,7 +35,7 @@ FocusScope {
         clip: true
         Label { x: 20; y: 16; text: qsTr("All keys"); font.bold: true; font.pixelSize: 15 }
         Label { anchors { right: parent.right; rightMargin: 20; top: parent.top; topMargin: 18 }
-                text: "Esc " + qsTr("close"); dim: true; font.pixelSize: 11 }
+                text: "esc " + qsTr("close"); dim: true; font.pixelSize: 11 }
         Flickable {
             id: scroller
             x: 20; y: 48; width: parent.width - 40; height: parent.height - 56

@@ -1,3 +1,4 @@
+#include <QCursor>
 #include "selftest.h"
 #include "compiler.h"
 #include "library.h"
@@ -175,7 +176,7 @@ int runSelfTest()
         check(!QFileInfo::exists(L.shadersDir() + "/" + s2) && QFileInfo::exists(L.trashDir() + "/" + s2 + "/shader.toml"),
               "Del moves the folder to trash/");
         check(focus == std::max(0, r2 - 1), "focus moves to the previous card");
-        check(note == "Moved to Trash · Ctrl+Z undo", "status note: " + note);
+        check(note == "Moved to Trash · ctrl+z undo", "status note: " + note);
         check(!readToml(L.trashDir() + "/" + s2 + "/shader.toml").value("trashed").toString().isEmpty(), "removal time recorded in shader.toml");
         check(L.count() == 2 && L.trashCount() == 1, "trashed shader leaves the list");
         check(L.undo() == s2 && QFileInfo::exists(L.shadersDir() + "/" + s2) && L.trashCount() == 0, "Ctrl+Z brings it back");
@@ -185,7 +186,7 @@ int runSelfTest()
         check(L.rowCount() == 2 && L.rowOf(s3) == 0, QString("Trash view, newest removal first, no New card (%1 rows, s3 at %2)").arg(L.rowCount()).arg(L.rowOf(s3)));
         check(L.get(0).value("removed") == "Removed today", "Removed today");
         L.restore(L.rowOf(s1));
-        check(note == "Restored One · Ctrl+Z undo", "restore note: " + note);
+        check(note == "Restored One · ctrl+z undo", "restore note: " + note);
         check(L.undo() == s1 && L.trashCount() == 2, "Ctrl+Z undoes a restore");
         // A slug taken while in the Trash gets a suffix on restore.
         L.setFilter(Library::All);
@@ -283,7 +284,7 @@ int runSelfTest()
         QString note;
         QObject::connect(&L, &Library::noted, [&](const QString &n) { note = n; });
         L.restoreMany({m1, m2});
-        check(note == "Restored 2 shaders · Ctrl+Z undo", "restore note with the count: " + note);
+        check(note == "Restored 2 shaders · ctrl+z undo", "restore note with the count: " + note);
         L.trashMany({m1, m2});
         check(L.deleteMany({m1, m2}) == 2 && L.trashCount() == 0, "delete a selection forever");
 
@@ -319,13 +320,15 @@ int runSelfTest()
         L.flush();
         L.setBenchmark(80.0, false);
         check(L.get(L.rowOf("cell-garden")).value("quality").toInt() == 10, "untouched examples follow the benchmark");
+        check(L.rowOf("crouwels-new-alphabet") >= 0 && L.get(L.rowOf("crouwels-new-alphabet")).value("name") == "Crouwel's New Alphabet",
+              "Crouwel's New Alphabet example is seeded");
         check(L.get(L.rowOf("plasma-drift")).value("quality").toInt() == 70, "examples you changed keep your setting");
     }
     // Danish
     {
         QTranslator da;
         check(da.load(QLocale(QLocale::Danish), "shady", "_", ":/i18n"), "Danish translation is bundled");
-        check(da.translate("Library", "Moved to Trash · Ctrl+Z undo") == "Flyttet til papirkurven · Ctrl+Z fortryd", "Danish: status note");
+        check(da.translate("Library", "Moved to Trash · ctrl+z undo") == "Flyttet til papirkurven · ctrl+z fortryd", "Danish: status note");
         check(da.translate("ShaderList", "Empty Trash") == "Tøm papirkurv", "Danish: Tøm papirkurv");
         check(da.translate("Viewer", "This shader is too heavy here. Try lower quality?")
               == "Denne shader er for tung her. Prøv lavere kvalitet?", "Danish: too heavy");
@@ -338,6 +341,15 @@ int runSelfTest()
           == "© Inigo Quilez 2013 · see source", "license hint: " + Library::licenseHint("// Copyright Inigo Quilez, 2013\n"));
     check(Library::licenseHint("/* License: CC BY-NC-SA 3.0 */") == "CC BY-NC-SA 3.0 · see source", "license hint from a license line");
     check(Library::licenseHint("void mainImage(){} // Copyright x").isEmpty(), "no hint without a leading comment");
+    {
+        const QVariantMap h = Library::parseHeader("// @name New Grid\n//   @AUTHOR  Shady \n// @description Glyphs on a grid\n// @license MIT\nvoid m(){}\n// @name Late");
+        check(h.value("name") == "New Grid" && h.value("author") == "Shady" && h.value("description") == "Glyphs on a grid"
+              && h.value("license") == "MIT", "header: @key lines");
+        const QVariantMap v = Library::parseHeader("/*\n * Title: Glass Rain\n * By: Ana\n * Licence: CC BY 3.0\n */\nvoid m(){}");
+        check(v.value("name") == "Glass Rain" && v.value("author") == "Ana" && v.value("license") == "CC BY 3.0", "header: Key: variants in a block comment");
+        check(Library::parseHeader("void m(){}\n// @name X").isEmpty(), "header: only the leading comment counts");
+        check(!Library::parseHeader("// named after nothing\n").contains("name"), "header: plain words need a colon or @");
+    }
 
     // Theme: Omarchy 4 palette at ~/.local/state/omarchy/current/theme/colors.toml
     {
@@ -377,6 +389,29 @@ static void key(QQuickWindow *w, int k, const QString &text = {}, Qt::KeyboardMo
     QCoreApplication::processEvents();
 }
 
+
+static void mouse(QQuickWindow *w, QPointF p, QEvent::Type t, Qt::MouseButton b = Qt::NoButton)
+{
+    // Keep the (private, test-only) pointer in step, so the platform doesn't send a
+    // stale position that undoes our hover. Only ever our own Xvfb/offscreen window.
+    if (t == QEvent::MouseMove) QCursor::setPos(w->mapToGlobal(p.toPoint()));
+    const Qt::MouseButtons held = t == QEvent::MouseButtonPress ? Qt::MouseButtons(b) : Qt::MouseButtons();
+    QMouseEvent e(t, p, w->mapToGlobal(p), b, held, Qt::NoModifier);
+    QGuiApplication::sendEvent(w, &e);
+    QCoreApplication::processEvents();
+}
+static QList<QQuickItem *> allItems(QQuickItem *root)
+{
+    QList<QQuickItem *> out{root};
+    for (int i = 0; i < out.size(); ++i) out += out[i]->childItems();
+    return out;
+}
+static void click(QQuickWindow *w, QPointF p, Qt::MouseButton b = Qt::LeftButton)
+{
+    mouse(w, p, QEvent::MouseMove);
+    mouse(w, p, QEvent::MouseButtonPress, b);
+    mouse(w, p, QEvent::MouseButtonRelease, b);
+}
 
 // Text overflow check: every visible Text must fit inside the nearest ancestor that draws
 // a background (Rectangle with colour or border), clips, or the window itself.
@@ -514,13 +549,139 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
     check(confirm && editor && keysSheet && settings, "dialogs and editor exist");
     if (!confirm || !editor || !keysSheet || !settings) { QCoreApplication::exit(1); return; }
 
+    {   // Main page: title, one-row hints, Up/Down, hover tooltips, star chip, click to run, back button.
+        bool title = false;
+        for (QQuickItem *t : allItems(win->contentItem()))
+            if (t->inherits("QQuickText") && t->isVisible() && t->property("text") == "Shady") title = true;
+        check(title, "title reads Shady");
+        auto *hints = list->findChild<QObject *>("hints");
+        auto hintText = [&] { QStringList o; for (const QVariant &k : hints->property("keys").toList()) o << k.toList().value(1).toString(); return o.join(","); };
+        check(hints && hintText() == "run,navigate,switch tabs", "grid hints: run, navigate, switch tabs (" + hintText() + ")");
+        shotAs("grid-hints");
+
+        const int cols = list->property("columns").toInt();
+        const int total = lib->count() + 1; // + New shader card
+        bool navOk = true; QString why;
+        for (int r = 0; r < total; ++r) for (int d : {1, -1}) {
+            QVariant got;
+            QMetaObject::invokeMethod(list, "vertical", Q_RETURN_ARG(QVariant, got), Q_ARG(QVariant, r), Q_ARG(QVariant, d));
+            const int row = r / cols, last = (total - 1) / cols, to = row + d;
+            const int want = (to < 0 || to > last) ? r : std::min(total - 1, to * cols + r % cols);
+            if (got.toInt() != want) { navOk = false; why += QString(" %1%2->%3(want %4)").arg(r).arg(d > 0 ? "v" : "^").arg(got.toInt()).arg(want); }
+        }
+        check(navOk, QString("Up/Down land on the card above/below, or the shorter row's last card (%1 cards, %2 cols)%3").arg(total).arg(cols).arg(why));
+        if (total % cols != 0 && total > cols) {
+            const int lastRowStart = ((total - 1) / cols) * cols, from = lastRowStart - 1; // last card of the row above
+            QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, from));
+            key(win, Qt::Key_Down);
+            check(list->property("currentRow").toInt() == total - 1, QString("Down from %1 goes to the shorter row's last card (%2)").arg(from).arg(list->property("currentRow").toInt()));
+            key(win, Qt::Key_Up);
+            check(list->property("currentRow").toInt() == total - 1 - cols, "Up goes straight back up");
+        }
+        QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+
+        // Hover the first card's star chip: outlined star + "Star" tooltip after ~400 ms.
+        QQuickItem *chip = nullptr, *xchip = nullptr;
+        // An unstarred card, so the hover shows the outlined star.
+        QString target = lib->get(0).value("slug").toString();
+        for (int i = 0; i < lib->count(); ++i) if (!lib->get(i).value("starred").toBool()) { target = lib->get(i).value("slug").toString(); break; }
+        auto firstOf = [&](const char *name) -> QQuickItem * {
+            // The chip on the card for row 0 (by slug, not position: the grid may be scrolled).
+            const QString want = target;
+            for (QQuickItem *c : allItems(win->contentItem())) {
+                if (c->objectName() != QLatin1String(name)) continue;
+                for (QQuickItem *a = c; a; a = a->parentItem())
+                    if (a->property("slug").isValid() && a->property("isNew").isValid()) { if (a->property("slug") == want) return c; break; }
+            }
+            return nullptr;
+        };
+        chip = firstOf("starChip"); xchip = firstOf("trashChip");
+        const QString slug0 = target;
+        const bool was = lib->get(lib->rowOf(target)).value("starred").toBool();
+        if (chip && xchip) {
+            mouse(win, xchip->mapToScene(QPointF(-40, 60)), QEvent::MouseMove); // hover the card first: the star shows
+            waitFor([&] { return chip->isVisible(); }, 500);
+            const QPointF c = chip->mapToScene(QPointF(9, 9));
+            mouse(win, c, QEvent::MouseMove);
+            QQuickItem *tip = nullptr; for (QQuickItem *t : allItems(chip)) if (t->objectName() == "tip") tip = t;
+            check(tip && !tip->isVisible(), "tooltip waits before showing");
+            waitFor([&] { return chip->isVisible() && xchip->opacity() > 0.5; }, 300);
+            check(chip->isVisible() && xchip->opacity() > 0.5, "hovering the star keeps both the star and × chips");
+            waitFor([&] { return tip && tip->isVisible(); }, 1500);
+            check(tip && tip->isVisible() && tip->property("text") == (was ? "Unstar" : "Star"), "star tooltip names the action: " + (tip ? tip->property("text").toString() : QString()));
+            check(xchip->property("tipText") == "Trash", "× tooltip says Trash");
+            fits(win, "tooltip-star");
+            if (!shot.isEmpty()) {
+                QString p = shot; p.replace(".png", "-tooltip-star.png");
+                const QImage img = win->grabWindow();
+                check(tip->isVisible() && saveVaried(img, p), QString("screenshot %1 (tooltip %2)").arg(p).arg(tip->isVisible() ? "shown" : "hidden"));
+            }
+            const QPointF c2 = chip->mapToScene(QPointF(9, 9)); // the chips reflow once × shows
+            click(win, c2);
+            check(lib->rowOf(slug0) >= 0, "the star click doesn't trash the card");
+            check(lib->get(lib->rowOf(slug0)).value("starred").toBool() == !was, "clicking the star chip toggles the star");
+            chip = firstOf("starChip");
+            check(chip && chip->property("tipText") == (was ? "Star" : "Unstar"), "tooltip text follows the star state");
+            const int r0 = lib->rowOf(slug0);
+            lib->toggleStar(r0); // put it back
+            waitFor([] { return false; }, 200);
+            check(lib->get(lib->rowOf(slug0)).value("starred").toBool() == was, QString("star restored (was %1, now %2, row %3)").arg(was).arg(lib->get(lib->rowOf(slug0)).value("starred").toBool()).arg(r0) + QString(" filter %1 count %2").arg(int(lib->filter())).arg(lib->count()));
+            mouse(win, QPointF(2, 2), QEvent::MouseMove);
+        } else check(false, "star and × chips exist");
+
+        // Left-click a card runs it; the mouse back button acts like Esc.
+        QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+        if (auto *c0 = firstOf("starChip")) {
+            const QPointF mid = c0->mapToScene(QPointF(-60, 60));
+            click(win, mid);
+            check(viewer->isVisible() && !list->isVisible(), "a left click on a card runs it");
+            auto *badgeItem = viewer->findChild<QQuickItem *>("badge");
+            auto vis = [&](const char *name) { int n = 0; for (QQuickItem *i : allItems(viewer)) if (i->objectName() == QLatin1String(name) && i->isVisible()) ++n; return n; };
+            waitFor([&] { return badgeItem && badgeItem->opacity() >= 0.999; }, 2000); // fade-in done
+            check(vis("badgeTitle") == 1 && vis("badgeRow") == 0 && vis("badgeLabel") == 0 && vis("badgeKeys") == 1, "start mode: title and credits, no settings rows");
+            if (!shot.isEmpty()) { QString p = shot; p.replace(".png", "-badge-start.png"); check(saveVaried(win->grabWindow(), p), "screenshot " + p); }
+            key(win, Qt::Key_Up);
+            auto *bv = viewer->findChild<QQuickItem *>("badgeValue");
+            check(bv && bv->isVisible() && !bv->property("text").toString().isEmpty(), "changed value shows big in the centred badge");
+            auto *bl = viewer->findChild<QQuickItem *>("badgeLabel");
+            check(vis("badgeTitle") == 0 && vis("badgeRow") == 3 && vis("badgeKeys") == 0, "change mode: no title, three settings rows");
+            check(bl && bl->isVisible() && bl->property("text") == "QUALITY", "badge names the changed setting: " + (bl ? bl->property("text").toString() : QString()));
+            if (auto *b = viewer->findChild<QQuickItem *>("badge")) {
+                const QRectF r = b->childItems().value(0)->mapRectToScene(QRectF(0, 0, b->childItems().value(0)->width(), b->childItems().value(0)->height()));
+                check(std::abs(r.center().x() - win->width() / 2.0) < 2 && std::abs(r.center().y() - win->height() / 2.0) < 2, "badge sits dead centre");
+            }
+            waitFor([&] { return badgeItem->opacity() >= 0.999; }, 2000);
+            waitFor([] { return false; }, 100);
+            shotAs("badge-change");
+            key(win, Qt::Key_Down); // undo the quality change
+            click(win, QPointF(win->width() / 2.0, 30), Qt::BackButton);
+            check(list->isVisible() && !viewer->isVisible(), "mouse back button closes the viewer like Esc");
+            click(win, QPointF(win->width() / 2.0, 30), Qt::BackButton);
+            check(list->isVisible(), "back button on the list doesn't quit");
+        }
+        QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+
+        key(win, Qt::Key_Space, " ");
+        check(hintText().contains("extend") && hintText().contains("star") && !hintText().contains("run"), "selection hints replace the grid's: " + hintText());
+        shotAs("grid-selection-hints");
+        key(win, Qt::Key_Escape);
+        check(hintText() == "run,navigate,switch tabs", "hints return after clearing the selection");
+
+        key(win, Qt::Key_Question, "?");
+        check(keysSheet->isVisible(), "? opens the key list");
+        shotAs("keys-overlay");
+        click(win, QPointF(win->width() / 2.0, 30), Qt::BackButton);
+        check(!keysSheet->isVisible(), "back button closes the key list");
+        QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+    }
+
     list->setProperty("currentRow", 1);
     QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 1));
     const QString victim = lib->get(1).value("slug").toString();
     key(win, Qt::Key_Delete);
     check(lib->trashCount() == 1 && lib->rowOf(victim) == -1, "Del moves to Trash");
     check(list->property("currentRow").toInt() == 0, "focus moves to the previous card");
-    check(list->property("note").toString() == "Moved to Trash · Ctrl+Z undo", "Moved to Trash note");
+    check(list->property("note").toString() == "Moved to Trash · ctrl+z undo", "Moved to Trash note");
     key(win, Qt::Key_Z, "", Qt::ControlModifier);
     check(lib->trashCount() == 0 && lib->rowOf(victim) >= 0, "Ctrl+Z undoes it");
     key(win, Qt::Key_Delete);
@@ -574,6 +735,26 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
     shotAs("editor-ok");
     auto *code = editor->findChild<QObject *>("code");
     auto *nameF = editor->findChild<QObject *>("nameField");
+    {   // Paste a shader with a header: empty fields fill; a field you typed stays yours.
+        auto *authF = editor->findChild<QObject *>("authorField");
+        auto *descF = editor->findChild<QObject *>("descriptionField");
+        auto *licF = editor->findChild<QObject *>("licenseField");
+        for (QObject *f : {nameF, authF, descF, licF}) {   // I-beam over every text field
+            bool ibeam = false;
+            for (QObject *o : f->findChildren<QObject *>())
+                if (QByteArray(o->metaObject()->className()).startsWith("QQuickHoverHandler"))
+                    ibeam |= o->property("cursorShape").toInt() == Qt::IBeamCursor;
+            check(ibeam, "I-beam cursor over " + f->objectName());
+        }
+        code->setProperty("text", "// @name Pasted\n// @author Ana\n// @description Hi\n// @license MIT\nvoid mainImage(out vec4 o, in vec2 p) { o = vec4(1.0); }\n");
+        check(nameF->property("text") == "Pasted" && authF->property("text") == "Ana" && descF->property("text") == "Hi"
+              && licF->property("text") == "MIT", "paste fills metadata from the header");
+        nameF->setProperty("text", "Mine");
+        code->setProperty("text", "// @name Changed\n// @author Bo\nvoid mainImage(out vec4 o, in vec2 p) { o = vec4(1.0); }\n");
+        check(nameF->property("text") == "Mine", "a field you edited isn't overwritten by the header");
+        check(authF->property("text") == "Bo", "an untouched field follows header edits");
+        for (QObject *f : {authF, descF, licF}) f->setProperty("text", "");
+    }
     nameF->setProperty("text", "Glass Rain");
     code->setProperty("text", "// Copyright Ana Example, 2024\nvoid mainImage(out vec4 o, in vec2 p)\n{\n    o = vec4(1.0)\n}\n");
     check(editor->property("dirty").toBool(), "unsaved dot on edits");
@@ -715,7 +896,7 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         check(confirm->isVisible(), "Del on a Trash selection asks once");
         key(win, Qt::Key_Escape);
         key(win, Qt::Key_Return);
-        check(lib->trashCount() == 0 && list->property("note").toString() == "Restored 2 shaders · Ctrl+Z undo",
+        check(lib->trashCount() == 0 && list->property("note").toString() == "Restored 2 shaders · ctrl+z undo",
               "Enter restores the whole selection");
     }
 
@@ -808,6 +989,7 @@ void runPotatoTest(QQuickWindow *win, Library *lib, const QString &shot)
     open(chk);
     for (int i = 0; i < 10; ++i) key(win, Qt::Key_Up);
     waitFor([] { return false; }, 2500);
+    if (auto *b = win->findChild<QQuickItem *>("badge")) waitFor([b] { return !b->isVisible(); }, 6000); // centred badge fades out
     const QImage frame = win->grabWindow();
     const QColor noise = pixel(frame, 0.25, 0.55), up = pixel(frame, 0.75, 0.55);
     check(noise.red() < 16 && noise.green() < 16, QString("RGBA noise 256: G/A match R/B at uv +(37, 17) on screen, as Shadertoy noise tricks expect (got %1)").arg(noise.name()));

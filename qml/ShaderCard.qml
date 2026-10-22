@@ -32,9 +32,12 @@ Item {
     signal picked()
     signal menuRequested(real x, real y)
     signal trashRequested()
+    signal starRequested()
 
-    readonly property bool hot: current || mouse.containsMouse
+    readonly property bool hot: current || hover.hovered
+    HoverHandler { id: hover }
     opacity: (hidden || trashed) && !isNew ? 0.55 : 1
+    layer.enabled: opacity < 1 // fade as one, so the corner masks still cover the preview
 
     Rectangle {
         id: frame
@@ -42,9 +45,6 @@ Item {
         anchors.margins: 4
         color: card.isNew ? "transparent" : ui.bg2
         radius: theme.rounding
-        border.width: card.hot || card.isNew || card.selected ? 1 : 0
-        // Focus keeps the accent outline; selection is a muted one, so the two never look the same.
-        border.color: card.hot ? ui.accent : card.selected ? ui.muted : Qt.rgba(ui.muted.r, ui.muted.g, ui.muted.b, 0.35)
         clip: true
 
         // "+ New shader" card
@@ -60,7 +60,7 @@ Item {
             anchors { top: parent.top; right: parent.right; margins: 8 }
             width: 18; height: 18; color: "transparent"; radius: Math.min(theme.rounding, 4)
             border.width: 1; border.color: Qt.rgba(ui.muted.r, ui.muted.g, ui.muted.b, 0.5)
-            Label { anchors.centerIn: parent; text: "N"; dim: true; font.pixelSize: 10 }
+            Label { anchors.centerIn: parent; text: "n"; dim: true; font.pixelSize: 10 }
         }
 
         Item {
@@ -120,21 +120,36 @@ Item {
                 Label { anchors.centerIn: parent; visible: card.selected; text: "✓"; color: ui.bg; font.pixelSize: 12; font.bold: true }
                 MouseArea { anchors.fill: parent; onClicked: card.toggled() }
             }
-            // Star and × sit on small background chips, in the foreground color.
+            // Star and × sit on small background chips, in the foreground color, with
+            // a hover tooltip naming what a click does.
             Row {
                 anchors { top: parent.top; right: parent.right; margins: 6 }
                 spacing: 4
                 layoutDirection: Qt.RightToLeft
                 Rectangle {
-                    visible: mouse.containsMouse && !card.trashed
+                    id: xChip
+                    objectName: "trashChip"
+                    readonly property string tipText: card.trashed ? qsTr("Remove") : qsTr("Trash")
+                    // Keeps its slot when hidden, so the star doesn't jump on hover.
+                    visible: !card.isNew
+                    opacity: hover.hovered ? 1 : 0
+                    enabled: hover.hovered
                     width: 18; height: 18; color: ui.bg; radius: Math.min(theme.rounding, 4)
                     Label { anchors.centerIn: parent; text: "×"; font.pixelSize: 13 }
-                    MouseArea { anchors.fill: parent; onClicked: card.trashRequested() }
+                    MouseArea { id: xMouse; anchors.fill: parent; hoverEnabled: true; onClicked: card.trashRequested() }
+                    Tip { anchors { top: parent.bottom; right: parent.right; topMargin: 4 } text: xChip.tipText; hovered: xMouse.containsMouse }
                 }
                 Rectangle {
-                    visible: card.starred && !card.trashed
+                    id: starChip
+                    objectName: "starChip"
+                    readonly property string tipText: card.starred ? qsTr("Unstar") : qsTr("Star")
+                    // Starred: filled star, always. Unstarred: an outlined star on hover.
+                    visible: !card.trashed && (card.starred || hover.hovered)
                     width: 18; height: 18; color: ui.bg; radius: Math.min(theme.rounding, 4)
-                    Label { anchors.centerIn: parent; text: "★"; font.pixelSize: 11 }
+                    Label { anchors.centerIn: parent; text: card.starred ? "★" : "☆"; font.pixelSize: 12
+                            color: starMouse.containsMouse ? ui.accent : ui.fg }
+                    MouseArea { id: starMouse; anchors.fill: parent; hoverEnabled: true; onClicked: card.starRequested() }
+                    Tip { anchors { top: parent.bottom; right: parent.right; topMargin: 4 } text: starChip.tipText; hovered: starMouse.containsMouse }
                 }
             }
         }
@@ -158,6 +173,38 @@ Item {
         }
     }
 
+    // Rounded corners: square previews are masked to the outline's radius
+    // (Hyprland's decoration:rounding), so nothing pokes out of the corners.
+    Repeater {
+        model: card.isNew ? 0 : 2
+        Canvas {
+            required property int index
+            readonly property int r: theme.rounding
+            visible: r > 0
+            x: index === 0 ? frame.x : frame.x + frame.width - r; y: frame.y
+            width: r; height: r
+            transform: Scale { origin.x: width / 2; xScale: index === 0 ? 1 : -1 }
+            property color fill: ui.bg
+            onFillChanged: requestPaint()
+            onPaint: {
+                const c = getContext("2d")
+                c.reset()
+                c.fillStyle = fill
+                c.beginPath(); c.moveTo(0, 0); c.lineTo(r, 0)
+                c.arc(r, r, r, 1.5 * Math.PI, Math.PI, true)
+                c.closePath(); c.fill()
+            }
+        }
+    }
+    Rectangle {
+        // Focus keeps the accent outline; selection is a muted one, so the two never look the same.
+        anchors.fill: frame
+        color: "transparent"
+        radius: theme.rounding
+        border.width: card.hot || card.isNew || card.selected ? 1 : 0
+        border.color: card.hot ? ui.accent : card.selected ? ui.muted : Qt.rgba(ui.muted.r, ui.muted.g, ui.muted.b, 0.35)
+    }
+
     MouseArea {
         id: mouse
         z: -1
@@ -167,8 +214,8 @@ Item {
         onClicked: (m) => {
             card.picked()
             if (m.button === Qt.RightButton && !card.isNew) card.menuRequested(m.x, m.y)
-            else if (card.isNew) card.activated()
+            else if (card.selecting && !card.isNew) card.toggled()
+            else if (!card.trashed) card.activated() // one click runs it (Trash: just focus)
         }
-        onDoubleClicked: card.activated()
     }
 }

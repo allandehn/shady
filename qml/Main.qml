@@ -79,5 +79,20 @@ Window {
 
     Benchmark { objectName: "benchmark" }
 
+    // Experimental: the mouse back button acts like Esc everywhere. Only the
+    // back button is accepted, so every other click passes straight through.
+    function back() {
+        if (win.mode === "viewer") viewer.leave()
+        else if (win.mode === "editor") editor.cancel()
+        else list.back()
+    }
+    MouseArea {
+        objectName: "backButton"
+        anchors.fill: parent
+        z: 1000
+        acceptedButtons: Qt.BackButton
+        onClicked: win.back()
+    }
+
     Component.onCompleted: list.forceActiveFocus()
 }

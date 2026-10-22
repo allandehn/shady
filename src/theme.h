@@ -44,7 +44,7 @@ private:
     QString m_path, m_dir, m_namePath, m_name;
     QFileSystemWatcher m_watch;
     QColor m_bg{"#1a1b26"}, m_bg2{"#24283b"}, m_fg{"#c0caf5"}, m_accent{"#7aa2f7"}, m_error{"#f7768e"};
-    int m_rounding = 0;
+    int m_rounding = 10; // fallback when hyprctl is missing or quiet
     bool m_animations = true;
     QString m_mono;
     int m_maxFps = 60;

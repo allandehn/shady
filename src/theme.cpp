@@ -41,7 +41,7 @@ Theme::Theme(QObject *parent) : QObject(parent)
     connect(&m_watch, &QFileSystemWatcher::directoryChanged, this, again);
 
     const auto r = QJsonDocument::fromJson(hyprctl({QStringLiteral("getoption"), QStringLiteral("decoration:rounding")})).object();
-    if (r.contains(QStringLiteral("int"))) m_rounding = r.value(QStringLiteral("int")).toInt();
+    if (r.contains(QStringLiteral("int"))) m_rounding = std::clamp(r.value(QStringLiteral("int")).toInt(), 0, 40);
     const auto a = QJsonDocument::fromJson(hyprctl({QStringLiteral("getoption"), QStringLiteral("animations:enabled")})).object();
     if (a.contains(QStringLiteral("int"))) m_animations = a.value(QStringLiteral("int")).toInt() != 0;
 
