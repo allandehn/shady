@@ -226,23 +226,23 @@
 <context>
     <name>KeySheet</name>
     <message>
-        <location filename="../qml/KeySheet.qml" line="21" />
+        <location filename="../qml/KeySheet.qml" line="23" />
         <source>new</source>
         <translation>ny</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="21" />
+        <location filename="../qml/KeySheet.qml" line="23" />
         <source>star / unstar</source>
         <translation>stjerne / fjern stjerne</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="21" />
+        <location filename="../qml/KeySheet.qml" line="23" />
         <source>hide / unhide</source>
         <translation>skjul / vis igen</translation>
     </message>
     <message>
         <location filename="../qml/KeySheet.qml" line="13" />
-        <location filename="../qml/KeySheet.qml" line="27" />
+        <location filename="../qml/KeySheet.qml" line="19" />
         <source>run</source>
         <translation type="unfinished" />
     </message>
@@ -252,27 +252,27 @@
         <translation type="unfinished" />
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="21" />
+        <location filename="../qml/KeySheet.qml" line="23" />
         <source>edit</source>
         <translation>rediger</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="23" />
+        <location filename="../qml/KeySheet.qml" line="25" />
         <source>menu (or Menu key)</source>
         <translation>menu (eller Menu-tasten)</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="22" />
+        <location filename="../qml/KeySheet.qml" line="24" />
         <source>move to Trash</source>
         <translation>flyt til papirkurv</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="22" />
+        <location filename="../qml/KeySheet.qml" line="24" />
         <source>delete permanently</source>
         <translation>slet permanent</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="22" />
+        <location filename="../qml/KeySheet.qml" line="24" />
         <source>undo</source>
         <translation>fortryd</translation>
     </message>
@@ -282,22 +282,22 @@
         <translation>næste visning</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="20" />
+        <location filename="../qml/KeySheet.qml" line="22" />
         <source>select</source>
         <translation>vælg</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="20" />
+        <location filename="../qml/KeySheet.qml" line="22" />
         <source>extend selection</source>
         <translation type="unfinished" />
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="20" />
+        <location filename="../qml/KeySheet.qml" line="22" />
         <source>select all</source>
         <translation type="unfinished" />
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="23" />
+        <location filename="../qml/KeySheet.qml" line="25" />
         <source>settings</source>
         <translation>indstillinger</translation>
     </message>
@@ -314,22 +314,22 @@
         <translation>denne side</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="24" />
+        <location filename="../qml/KeySheet.qml" line="26" />
         <source>Trash</source>
         <translation>Papirkurv</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="25" />
+        <location filename="../qml/KeySheet.qml" line="27" />
         <source>restore</source>
         <translation>gendan</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="25" />
+        <location filename="../qml/KeySheet.qml" line="27" />
         <source>delete forever</source>
         <translation>slet permanent</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="25" />
+        <location filename="../qml/KeySheet.qml" line="27" />
         <source>empty trash</source>
         <translation>tøm papirkurv</translation>
     </message>
@@ -364,37 +364,37 @@
         <translation type="unfinished" />
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="19" />
+        <location filename="../qml/KeySheet.qml" line="21" />
         <source>Organize</source>
         <translation>Organiser</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="26" />
+        <location filename="../qml/KeySheet.qml" line="18" />
         <source>Mouse</source>
         <translation>Mus</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="27" />
+        <location filename="../qml/KeySheet.qml" line="19" />
         <source>click</source>
         <translation>klik</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="27" />
+        <location filename="../qml/KeySheet.qml" line="19" />
         <source>right-click</source>
         <translation>højreklik</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="27" />
+        <location filename="../qml/KeySheet.qml" line="19" />
         <source>menu</source>
         <translation type="unfinished" />
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="27" />
+        <location filename="../qml/KeySheet.qml" line="19" />
         <source>back button</source>
         <translation>tilbage-knap</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="27" />
+        <location filename="../qml/KeySheet.qml" line="19" />
         <source>same as esc</source>
         <translation>samme som esc</translation>
     </message>
@@ -432,73 +432,73 @@
 <context>
     <name>Library</name>
     <message>
-        <location filename="../src/library.cpp" line="239" />
+        <location filename="../src/library.cpp" line="240" />
         <source>New shader</source>
         <translation>Ny shader</translation>
     </message>
     <message>
-        <location filename="../src/library.cpp" line="267" />
+        <location filename="../src/library.cpp" line="268" />
         <source>Removed today</source>
         <translation>Fjernet i dag</translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/library.cpp" line="267" />
+        <location filename="../src/library.cpp" line="268" />
         <source>%n d ago</source>
         <translation><numerusform>Fjernet for %n dag siden</numerusform><numerusform>Fjernet for %n dage siden</numerusform></translation>
     </message>
     <message>
-        <location filename="../src/library.cpp" line="320" />
-        <location filename="../src/library.cpp" line="748" />
-        <location filename="../src/library.cpp" line="783" />
+        <location filename="../src/library.cpp" line="321" />
+        <location filename="../src/library.cpp" line="749" />
+        <location filename="../src/library.cpp" line="784" />
         <source>Couldn't save · %1</source>
         <translation>Kunne ikke gemme · %1</translation>
     </message>
     <message>
-        <location filename="../src/library.cpp" line="498" />
+        <location filename="../src/library.cpp" line="499" />
         <source>Couldn't move · %1</source>
         <translation>Kunne ikke flytte · %1</translation>
     </message>
     <message>
-        <location filename="../src/library.cpp" line="534" />
-        <location filename="../src/library.cpp" line="614" />
+        <location filename="../src/library.cpp" line="535" />
+        <location filename="../src/library.cpp" line="615" />
         <location filename="../src/selftest.cpp" line="331" />
         <source>Moved to Trash · ctrl+z undo</source>
         <translation>Flyttet til papirkurven · ctrl+z fortryd</translation>
     </message>
     <message>
-        <location filename="../src/library.cpp" line="546" />
-        <location filename="../src/library.cpp" line="626" />
+        <location filename="../src/library.cpp" line="547" />
+        <location filename="../src/library.cpp" line="627" />
         <source>Restored %1 · ctrl+z undo</source>
         <translation>Gendannede %1 · ctrl+z fortryd</translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/library.cpp" line="627" />
+        <location filename="../src/library.cpp" line="628" />
         <source>Restored %n shaders · ctrl+z undo</source>
         <translation><numerusform>Gendannede %n shader · ctrl+z fortryd</numerusform><numerusform>Gendannede %n shaders · ctrl+z fortryd</numerusform></translation>
     </message>
     <message>
-        <location filename="../src/library.cpp" line="745" />
-        <location filename="../src/library.cpp" line="779" />
+        <location filename="../src/library.cpp" line="746" />
+        <location filename="../src/library.cpp" line="780" />
         <source>Untitled</source>
         <translation>Uden navn</translation>
     </message>
     <message>
-        <location filename="../src/library.cpp" line="748" />
+        <location filename="../src/library.cpp" line="749" />
         <source>can't write the shader folder</source>
         <translation>kan ikke skrive shader-mappen</translation>
     </message>
     <message>
-        <location filename="../src/library.cpp" line="766" />
+        <location filename="../src/library.cpp" line="767" />
         <source>Couldn't copy %1</source>
         <translation>Kunne ikke kopiere %1</translation>
     </message>
     <message>
-        <location filename="../src/library.cpp" line="792" />
+        <location filename="../src/library.cpp" line="793" />
         <source>Couldn't save</source>
         <translation>Kunne ikke gemme</translation>
     </message>
     <message>
-        <location filename="../src/library.cpp" line="877" />
+        <location filename="../src/library.cpp" line="878" />
         <source>Empty</source>
         <translation>Tom</translation>
     </message>
@@ -918,123 +918,87 @@
 <context>
     <name>Viewer</name>
     <message>
-        <location filename="../qml/Viewer.qml" line="97" />
+        <location filename="../qml/Viewer.qml" line="103" />
         <source>by %1</source>
         <translation>af %1</translation>
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="171" />
-        <location filename="../qml/Viewer.qml" line="241" />
+        <location filename="../qml/Viewer.qml" line="252" />
         <source>close</source>
         <translation>luk</translation>
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="170" />
-        <source>fullscreen</source>
-        <translation>fuld skærm</translation>
-    </message>
-    <message>
-        <location filename="../qml/Viewer.qml" line="109" />
-        <location filename="../qml/Viewer.qml" line="126" />
+        <location filename="../qml/Viewer.qml" line="175" />
         <source>Quality</source>
         <translation type="unfinished" />
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="109" />
-        <location filename="../qml/Viewer.qml" line="127" />
+        <location filename="../qml/Viewer.qml" line="175" />
         <source>FPS</source>
         <translation type="unfinished" />
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="110" />
-        <location filename="../qml/Viewer.qml" line="128" />
+        <location filename="../qml/Viewer.qml" line="176" />
         <source>Auto-adapt</source>
         <translation type="unfinished" />
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="129" />
-        <location filename="../qml/Viewer.qml" line="268" />
+        <location filename="../qml/Viewer.qml" line="280" />
         <source>%1%</source>
         <translation type="unfinished" />
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="129" />
-        <source>on</source>
-        <translation type="unfinished" />
-    </message>
-    <message>
-        <location filename="../qml/Viewer.qml" line="129" />
-        <source>off</source>
-        <translation type="unfinished" />
-    </message>
-    <message>
-        <location filename="../qml/Viewer.qml" line="153" />
+        <location filename="../qml/Viewer.qml" line="105" />
+        <location filename="../qml/Viewer.qml" line="134" />
         <source>quality</source>
         <translation>kvalitet</translation>
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="153" />
+        <location filename="../qml/Viewer.qml" line="134" />
         <source>fps</source>
         <translation>fps</translation>
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="153" />
-        <source>auto-adapt</source>
-        <translation type="unfinished" />
-    </message>
-    <message>
-        <location filename="../qml/Viewer.qml" line="163" />
-        <source>adapted to %1%</source>
-        <translation>tilpasset til %1%</translation>
-    </message>
-    <message>
-        <location filename="../qml/Viewer.qml" line="164" />
-        <source>opened at minimum</source>
-        <translation>åbnet på laveste</translation>
-    </message>
-    <message>
-        <location filename="../qml/Viewer.qml" line="165" />
-        <source>Saved for this shader</source>
-        <translation>Gemt for denne shader</translation>
-    </message>
-    <message>
-        <location filename="../qml/Viewer.qml" line="166" />
-        <source>Line %1 · %2</source>
-        <translation>Linje %1 · %2</translation>
-    </message>
-    <message>
-        <location filename="../qml/Viewer.qml" line="167" />
-        <source>Preparing…</source>
-        <translation>Forbereder…</translation>
-    </message>
-    <message>
-        <location filename="../qml/Viewer.qml" line="234" />
+        <location filename="../qml/Viewer.qml" line="245" />
         <source>Paused</source>
         <translation>Sat på pause</translation>
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="235" />
+        <location filename="../qml/Viewer.qml" line="246" />
         <location filename="../src/selftest.cpp" line="333" />
         <source>This shader is too heavy here. Try lower quality?</source>
         <translation>Denne shader er for tung her. Prøv lavere kvalitet?</translation>
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="243" />
+        <location filename="../qml/Viewer.qml" line="254" />
         <source>Try %1%</source>
         <translation>Prøv %1%</translation>
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="272" />
+        <location filename="../qml/Viewer.qml" line="106" />
+        <location filename="../qml/Viewer.qml" line="285" />
         <source>%1 fps</source>
         <translation type="unfinished" />
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="276" />
+        <location filename="../qml/Viewer.qml" line="133" />
+        <location filename="../qml/Viewer.qml" line="134" />
+        <source>keys</source>
+        <translation>taster</translation>
+    </message>
+    <message>
+        <location filename="../qml/Viewer.qml" line="133" />
+        <location filename="../qml/Viewer.qml" line="134" />
+        <source>back</source>
+        <translation>tilbage</translation>
+    </message>
+    <message>
+        <location filename="../qml/Viewer.qml" line="289" />
         <source>auto-adapt on</source>
         <translation>auto-tilpasning til</translation>
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="276" />
+        <location filename="../qml/Viewer.qml" line="289" />
         <source>auto-adapt off</source>
         <translation>auto-tilpasning fra</translation>
     </message>

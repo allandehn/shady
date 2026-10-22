@@ -25,6 +25,7 @@ Library::Library(const QString &dataDir, const QString &cacheDir, int maxFps, QO
             const QString v = m.value("screensaver_on").toString();
             if (v == QLatin1String("all") || v == QLatin1String("primary")) m_screensaverOn = v;
             m_autoAdapt = m.value("auto_adapt", true).toBool();
+            m_learned = m.value("learned_viewer_keys", false).toBool();
             m_benchMs = m.value("benchmark_ms", 0).toDouble();
             m_defQuality = std::clamp(m.value("default_quality", 50).toInt(), 10, 100);
             m_defFps = std::clamp(m.value("default_fps", 30).toInt(), 10, std::max(10, maxFps));
@@ -837,7 +838,7 @@ void Library::saveSettings()
 {
     QDir().mkpath(m_configDir);
     QSaveFile f(configFile());
-    QVariantMap m{{"screensaver_on", m_screensaverOn}, {"auto_adapt", m_autoAdapt},
+    QVariantMap m{{"screensaver_on", m_screensaverOn}, {"auto_adapt", m_autoAdapt}, {"learned_viewer_keys", m_learned},
                   {"default_quality", m_defQuality}, {"default_fps", m_defFps}};
     if (m_benchMs > 0) m.insert(QStringLiteral("benchmark_ms"), m_benchMs);
     if (f.open(QIODevice::WriteOnly)) {

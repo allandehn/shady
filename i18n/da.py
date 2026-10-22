@@ -86,6 +86,7 @@ DA = {
 'next error': 'næste fejl',
 'leave': 'forlad',
 'keys': 'taster',
+'back': 'tilbage',
 'next': 'næste',
 'Preview · last good compile': 'Forhåndsvisning · seneste ok',
 'Primary only': 'Kun primær',

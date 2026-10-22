@@ -1,7 +1,8 @@
 import QtQuick
 
-// 3. Viewer: the shader fills the window, with one centred badge that fades
-// out (with the pointer) after 3 s idle.
+// 3. Viewer: the shader fills the window. A bottom caption (name, credits, key
+// hints) fades out with the pointer after 3 s idle; a compact centred badge
+// shows a changed setting for 1.2 s.
 FocusScope {
     id: viewer
     property int row: -1
@@ -30,7 +31,7 @@ FocusScope {
         adapted = 0
         paused = false
         view.time = resumeAt || 0
-        overlay.bigText = ""; overlay.changed = "" // every open starts in start mode
+        badge.shown = false; badge.changed = ""; badge.bigText = ""
         library.viewerOpened(item.slug)
         watch.restartGrace()
         wake()
@@ -51,7 +52,8 @@ FocusScope {
         wake()
     }
     function wake() { overlay.shown = true; idle.restart() }
-    function flash(what, text) { overlay.changed = what; overlay.bigText = text; hl.restart(); bigTimer.restart(); wake() }
+    // A change shows only the centred badge; the caption stays out of the way.
+    function flash(what, text) { badge.changed = what; badge.bigText = text; badge.shown = true; bigTimer.restart(); idle.stop(); overlay.shown = false }
 
     Rectangle { anchors.fill: parent; color: "black" }
     ShaderView {
@@ -65,117 +67,129 @@ FocusScope {
         opacity: viewer.paused ? 0.35 : 1
     }
 
-    // One badge, dead centre: name and credits, then the settings with their
-    // keys. A setting you just changed shows big, with a brief accent flash.
-    // Fades out (with the pointer) after 3 s idle; nothing else on screen.
+    // Info caption: a soft scrim rising from the bottom edge, the meta line and
+    // the name bottom-left, the key hints bottom-right on the name's baseline.
+    // Shows on start and on any mouse move or key press; fades after 3 s idle.
     Item {
         id: overlay
-        objectName: "badge"
+        objectName: "caption"
         anchors.fill: parent
         property bool shown: true
-        property string changed: ""     // "quality" | "fps" | "auto" while freshly changed
-        property string bigText: ""
-        // Start mode: name and credits. Change mode: the changed setting, big, with the settings rows.
-        readonly property bool changeMode: bigText !== ""
-        opacity: shown ? 1 : 0
+        opacity: shown && !badge.visible ? 1 : 0
         visible: opacity > 0
         Behavior on opacity { enabled: theme.animations; NumberAnimation { duration: 840 } }
+        readonly property real u: viewer.height  // mockup sizes are fractions of the height
+        readonly property real margin: Math.round(viewer.width * 0.03)
+        readonly property real base: viewer.height - Math.round(u * 0.055)
 
         Rectangle {
-            id: badge
-            anchors.centerIn: parent
-            width: Math.min(Math.max(info.implicitWidth, 300), viewer.width - 64) + 48
-            height: info.implicitHeight + 40
-            color: Qt.rgba(ui.bg.r, ui.bg.g, ui.bg.b, 0.95)
-            radius: theme.rounding
-            Column {
-                id: info
-                x: 24; y: 20; width: badge.width - 48; spacing: 6
-                Label { width: parent.width; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight
-                        text: viewer.item.name || ""; font.bold: true; font.pixelSize: 22; objectName: "badgeTitle"; visible: !overlay.changeMode }
-                Label { width: parent.width; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight
-                        text: viewer.item.author ? qsTr("by %1").arg(viewer.item.author) : ""; dim: true; visible: text && !overlay.changeMode }
-                Label { width: parent.width; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
-                        text: viewer.item.description || ""; visible: text && !overlay.changeMode }
-                Label { width: parent.width; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight
-                        text: viewer.item.license || ""; dim: true; font.pixelSize: 10; visible: text && !overlay.changeMode }
-                // Label and value read as one unit: accent, letter-spaced, tight on top.
-                Column {
-                    width: parent.width; spacing: 0
-                    visible: overlay.changeMode
-                    Label {
-                        objectName: "badgeLabel"
-                        width: parent.width; horizontalAlignment: Text.AlignHCenter
-                        text: (overlay.changed === "quality" ? qsTr("Quality") : overlay.changed === "fps" ? qsTr("FPS")
-                              : overlay.changed === "auto" ? qsTr("Auto-adapt") : "").toUpperCase()
-                        color: ui.accent; font.pixelSize: 15; font.bold: true; font.letterSpacing: 3
-                    }
-                    Label {
-                        id: big
-                        objectName: "badgeValue"
-                        width: parent.width; horizontalAlignment: Text.AlignHCenter
-                        text: overlay.bigText
-                        font.pixelSize: 40; font.bold: true
-                        color: hl.running ? ui.accent : ui.fg
-                        Behavior on color { enabled: theme.animations; ColorAnimation { duration: 400 } }
-                    }
-                }
-                Item { width: 1; height: 4; visible: overlay.changeMode }
-                Repeater {
-                    model: [
-                        { id: "quality", name: qsTr("Quality"), value: viewer.quality + "%", keys: "↑↓" },
-                        { id: "fps", name: qsTr("FPS"), value: String(viewer.fps), keys: "←→" },
-                        { id: "auto", name: qsTr("Auto-adapt"),
-                          value: viewer.adapted > 0 ? qsTr("%1%").arg(viewer.adapted) : library.autoAdapt ? qsTr("on") : qsTr("off"), keys: "a" }
-                    ]
-                    Item {
-                        required property var modelData
-                        objectName: "badgeRow"
-                        visible: overlay.changeMode
-                        width: info.width; height: 18
-                        readonly property bool hot: overlay.changed === modelData.id && hl.running
-                        Label { text: modelData.name; dim: true; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
-                        Label { anchors.centerIn: parent; text: modelData.value; font.pixelSize: 12; font.bold: true
-                                color: parent.hot ? ui.accent : ui.fg
-                                Behavior on color { enabled: theme.animations; ColorAnimation { duration: 400 } } }
-                        Label { anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
-                                text: modelData.keys; font.pixelSize: 12; font.bold: true }
-                    }
-                }
-                Item { width: 1; height: 4 }
-                // Start mode: the settings keys, no values (those show when you change one).
-                Item {
-                    objectName: "badgeKeys"
-                    visible: !overlay.changeMode
-                    width: info.width; height: 24 // ~8 px extra above, after the license line
-                    Row { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom
-                          height: 16; spacing: 10
-                          Repeater { model: [["↑↓", qsTr("quality")], ["←→", qsTr("fps")], ["a", qsTr("auto-adapt")]]
-                              Row { required property var modelData
-                                    Label { text: modelData[0]; font.bold: true; font.pixelSize: 10 }
-                                    Label { text: ":" + modelData[1]; dim: true; font.pixelSize: 10 } } } }
-                }
-                Item {
-                    width: info.width; height: 16
-                    Label { anchors.verticalCenter: parent.verticalCenter; font.pixelSize: 10; dim: true
-                            visible: overlay.changeMode // start mode: just the F / Esc hints
-                            width: parent.width - escRow.width - 12; elide: Text.ElideRight
-                            text: viewer.adapted > 0 ? qsTr("adapted to %1%").arg(viewer.adapted)
-                                : viewer.openedAtMinimum ? qsTr("opened at minimum")
-                                : viewer.item.shaderState === "ready" ? qsTr("Saved for this shader")
-                                : viewer.item.shaderState === "error" ? qsTr("Line %1 · %2").arg(viewer.item.errorLine).arg(viewer.item.errorText)
-                                : qsTr("Preparing…") }
-                    Row { id: escRow; anchors.verticalCenter: parent.verticalCenter
-                          x: overlay.changeMode ? parent.width - width : (parent.width - width) / 2; spacing: 10
-                          Row { Label { text: "f"; font.bold: true; font.pixelSize: 10 } Label { text: ":" + qsTr("fullscreen"); dim: true; font.pixelSize: 10 } }
-                          Row { Label { text: "esc"; font.bold: true; font.pixelSize: 10 } Label { text: ":" + qsTr("close"); dim: true; font.pixelSize: 10 } } }
+            objectName: "scrim"
+            anchors { left: parent.left; right: parent.right; bottom: parent.bottom }
+            height: Math.round(parent.height * 0.30)
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: Qt.rgba(10/255, 10/255, 18/255, 0) }
+                GradientStop { position: 0.5; color: Qt.rgba(10/255, 10/255, 18/255, 0.23) }
+                GradientStop { position: 1.0; color: Qt.rgba(10/255, 10/255, 18/255, 0.62) }
+            }
+        }
+        Label {
+            id: metaLine
+            objectName: "captionMeta"
+            x: overlay.margin + 4
+            width: viewer.width - x - overlay.margin
+            y: overlay.base - Math.round(overlay.u * 0.057) - baselineOffset
+            text: {
+                const p = []
+                if (viewer.item.author) p.push(qsTr("by %1").arg(viewer.item.author))
+                if (viewer.item.license) p.push(viewer.item.license)
+                p.push(qsTr("quality") + ":" + viewer.renderQuality + "%")
+                p.push(qsTr("%1 fps").arg(viewer.fps))
+                return p.join(" · ").toLowerCase()
+            }
+            color: Qt.rgba(169/255, 177/255, 214/255, 0.88)
+            font.pixelSize: Math.max(10, Math.round(overlay.u * 0.015)); font.weight: Font.Medium
+            font.letterSpacing: Math.max(1, Math.round(overlay.u * 0.003))
+            style: Text.Raised; styleColor: Qt.rgba(0, 0, 0, 0.45)
+        }
+        Label {
+            id: nameLabel
+            objectName: "captionName"
+            x: overlay.margin
+            width: hintRow.x - x - 24
+            y: overlay.base - baselineOffset
+            text: viewer.item.name || ""
+            color: ui.fg
+            font.pixelSize: Math.max(16, Math.round(overlay.u * 0.045)); font.weight: Font.Medium
+            style: Text.Raised; styleColor: Qt.rgba(0, 0, 0, 0.45)
+        }
+        // Adaptive hints: the setting keys until you've used them once.
+        Row {
+            id: hintRow
+            objectName: "captionHints"
+            x: viewer.width - overlay.margin - width
+            anchors.baseline: nameLabel.baseline
+            baselineOffset: hintMetric.baselineOffset
+            Label { id: hintMetric; visible: false; text: "x"; font.bold: true; font.pixelSize: hintRow.fs }
+            spacing: Math.round(overlay.u * 0.016)
+            readonly property int fs: Math.max(10, Math.round(overlay.u * 0.016))
+            Repeater {
+                model: library.learnedViewerKeys ? [["?", qsTr("keys")], ["esc", qsTr("back")]]
+                     : [["↑↓", qsTr("quality")], ["←→", qsTr("fps")], ["?", qsTr("keys")], ["esc", qsTr("back")]]
+                Row {
+                    required property var modelData
+                    objectName: "captionHint"
+                    readonly property real baselineOffset: k.baselineOffset
+                    Label { id: k; text: modelData[0]; font.bold: true; font.pixelSize: hintRow.fs
+                            style: Text.Raised; styleColor: Qt.rgba(0, 0, 0, 0.45) }
+                    Label { text: ":" + modelData[1]; color: "#8c95c0"; font.pixelSize: hintRow.fs
+                            style: Text.Raised; styleColor: Qt.rgba(0, 0, 0, 0.45) }
                 }
             }
         }
-        Timer { id: hl; interval: 1200 }
-        Timer { id: bigTimer; interval: 2500; onTriggered: { overlay.bigText = ""; overlay.changed = "" } }
     }
 
+    // Change badge, dead centre: only for quality, fps and auto-adapt.
+    Item {
+        id: badge
+        objectName: "badge"
+        anchors.fill: parent
+        property string changed: ""     // "quality" | "fps" | "auto"
+        property string bigText: ""
+        property bool shown: false
+        opacity: shown ? 1 : 0
+        visible: opacity > 0
+        Behavior on opacity { enabled: theme.animations; NumberAnimation { duration: 300 } }
+        readonly property real u: viewer.height
+        Rectangle {
+            objectName: "badgeBox"
+            anchors.centerIn: parent
+            width: Math.max(Math.round(viewer.width * 0.14), bcol.implicitWidth + 40)
+            height: bcol.implicitHeight + Math.round(badge.u * 0.05)
+            color: Qt.rgba(26/255, 27/255, 38/255, 0.95)
+            border.width: Math.max(1, Math.floor(viewer.height / 700)); border.color: "#292e42"
+            radius: 0
+            Column {
+                id: bcol
+                anchors.centerIn: parent
+                spacing: Math.round(badge.u * 0.006)
+                Label {
+                    objectName: "badgeLabel"
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: (badge.changed === "quality" ? qsTr("Quality") : badge.changed === "fps" ? qsTr("FPS")
+                          : badge.changed === "auto" ? qsTr("Auto-adapt") : "").toUpperCase()
+                    color: ui.accent; font.pixelSize: Math.max(10, Math.round(badge.u * 0.016)); font.weight: Font.DemiBold
+                    font.letterSpacing: Math.max(2, Math.round(badge.u * 0.006))
+                }
+                Label {
+                    objectName: "badgeValue"
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: badge.bigText
+                    color: ui.accent; font.pixelSize: Math.max(24, Math.round(badge.u * 0.06)); font.weight: Font.DemiBold
+                }
+            }
+        }
+        Timer { id: bigTimer; interval: 1200; onTriggered: badge.shown = false }
+    }
     // Frame watch: pause when a frame takes far too long (> 500 ms), and
     // lower the session resolution when the fps setting can't be held.
     Timer {
@@ -255,7 +269,7 @@ FocusScope {
     MouseArea {
         anchors.fill: parent
         hoverEnabled: true
-        cursorShape: overlay.shown ? Qt.ArrowCursor : Qt.BlankCursor
+        cursorShape: overlay.shown || badge.shown ? Qt.ArrowCursor : Qt.BlankCursor
         onPositionChanged: (m) => { view.mouse = Qt.point(m.x, m.y); viewer.wake() }
     }
 
@@ -265,15 +279,19 @@ FocusScope {
             if (q !== viewer.quality) { viewer.quality = q; library.setQuality(viewer.row, q) }
             viewer.adapted = 0
             watch.restartGrace()
+            library.learnedViewerKeys = true
             viewer.flash("quality", qsTr("%1%").arg(q))
         } else if (e.key === Qt.Key_Left || e.key === Qt.Key_Right) {
             const f = library.stepFps(viewer.fps, e.key === Qt.Key_Right ? 1 : -1)
             if (f !== viewer.fps) { viewer.fps = f; library.setFps(viewer.row, f); watch.restartGrace() }
+            library.learnedViewerKeys = true
             viewer.flash("fps", qsTr("%1 fps").arg(f))
         } else if (e.key === Qt.Key_A) {
             library.autoAdapt = !library.autoAdapt
             if (!library.autoAdapt) viewer.adapted = 0
             viewer.flash("auto", library.autoAdapt ? qsTr("auto-adapt on") : qsTr("auto-adapt off"))
+        } else if (e.key === Qt.Key_Question) {
+            viewerKeys.open()
         } else if (e.key === Qt.Key_F) {
             viewer.toggleFullscreen()
         } else if (e.key === Qt.Key_Escape || e.key === Qt.Key_Q) {
@@ -284,6 +302,8 @@ FocusScope {
             return
         }
         e.accepted = true
-        viewer.wake()
+        if (!badge.shown) viewer.wake()
     }
+
+    KeySheet { id: viewerKeys; objectName: "viewerKeys"; z: 20; onVisibleChanged: if (!visible) viewer.forceActiveFocus() }
 }

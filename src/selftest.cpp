@@ -505,6 +505,7 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
     const int q1 = viewer->property("quality").toInt(), f1 = viewer->property("fps").toInt();
     check(q1 == std::min(100, q0 + 10), QString("Up raises quality %1 -> %2").arg(q0).arg(q1));
     check(f1 == lib->stepFps(f0, 1), QString("Right steps fps %1 -> %2").arg(f0).arg(f1));
+    check(lib->learnedViewerKeys(), "using the viewer keys once sets learnedViewerKeys");
     waitFor([] { return false; }, 1200);
     fits(win, "viewer");
     if (!shot.isEmpty()) {
@@ -635,28 +636,57 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
 
         // Left-click a card runs it; the mouse back button acts like Esc.
         QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+        lib->setLearnedViewerKeys(false); // the caption test starts as a fresh user
         if (auto *c0 = firstOf("starChip")) {
             const QPointF mid = c0->mapToScene(QPointF(-60, 60));
             click(win, mid);
             check(viewer->isVisible() && !list->isVisible(), "a left click on a card runs it");
+            auto *caption = viewer->findChild<QQuickItem *>("caption");
             auto *badgeItem = viewer->findChild<QQuickItem *>("badge");
             auto vis = [&](const char *name) { int n = 0; for (QQuickItem *i : allItems(viewer)) if (i->objectName() == QLatin1String(name) && i->isVisible()) ++n; return n; };
-            waitFor([&] { return badgeItem && badgeItem->opacity() >= 0.999; }, 2000); // fade-in done
-            check(vis("badgeTitle") == 1 && vis("badgeRow") == 0 && vis("badgeLabel") == 0 && vis("badgeKeys") == 1, "start mode: title and credits, no settings rows");
-            if (!shot.isEmpty()) { QString p = shot; p.replace(".png", "-badge-start.png"); check(saveVaried(win->grabWindow(), p), "screenshot " + p); }
-            key(win, Qt::Key_Up);
-            auto *bv = viewer->findChild<QQuickItem *>("badgeValue");
-            check(bv && bv->isVisible() && !bv->property("text").toString().isEmpty(), "changed value shows big in the centred badge");
-            auto *bl = viewer->findChild<QQuickItem *>("badgeLabel");
-            check(vis("badgeTitle") == 0 && vis("badgeRow") == 3 && vis("badgeKeys") == 0, "change mode: no title, three settings rows");
-            check(bl && bl->isVisible() && bl->property("text") == "QUALITY", "badge names the changed setting: " + (bl ? bl->property("text").toString() : QString()));
-            if (auto *b = viewer->findChild<QQuickItem *>("badge")) {
-                const QRectF r = b->childItems().value(0)->mapRectToScene(QRectF(0, 0, b->childItems().value(0)->width(), b->childItems().value(0)->height()));
-                check(std::abs(r.center().x() - win->width() / 2.0) < 2 && std::abs(r.center().y() - win->height() / 2.0) < 2, "badge sits dead centre");
+            check(caption && badgeItem, "caption and badge exist");
+            if (!caption || !badgeItem) { QCoreApplication::exit(1); return; }
+            check(!lib->learnedViewerKeys(), "fresh user hasn't learned the viewer keys");
+            waitFor([&] { return caption->opacity() >= 0.999; }, 2000); // fade-in done
+            check(vis("captionName") == 1 && vis("captionMeta") == 1 && !badgeItem->isVisible(), "start: caption with name and meta, no badge");
+            check(vis("captionHint") == 4, QString("fresh user: four hints (%1)").arg(vis("captionHint")));
+            if (auto *m = viewer->findChild<QQuickItem *>("captionMeta")) {
+                const QString t = m->property("text").toString();
+                check(t == t.toLower() && t.contains("quality:") && t.contains("fps"), "meta line is lower case with quality and fps: " + t);
             }
-            waitFor([&] { return badgeItem->opacity() >= 0.999; }, 2000);
-            waitFor([] { return false; }, 100);
-            shotAs("badge-change");
+            if (auto *n = viewer->findChild<QQuickItem *>("captionName"), *h = viewer->findChild<QQuickItem *>("captionHints"); n && h) {
+                const QRectF nr = n->mapRectToScene(QRectF(0, 0, n->width(), n->height()));
+                const QRectF hr = h->mapRectToScene(QRectF(0, 0, h->width(), h->height()));
+                check(nr.left() < win->width() * 0.1 && nr.bottom() > win->height() * 0.85, "name sits bottom-left");
+                check(std::abs(hr.right() - win->width() * 0.97) < 3 && hr.bottom() > win->height() * 0.85, "hints sit bottom-right");
+            }
+            shotAs("live-fresh");
+            key(win, Qt::Key_Up);
+            check(lib->learnedViewerKeys(), "changing quality sets learnedViewerKeys");
+            auto *bv = viewer->findChild<QQuickItem *>("badgeValue");
+            auto *bl = viewer->findChild<QQuickItem *>("badgeLabel");
+            waitFor([&] { return badgeItem->opacity() >= 0.999 && caption->opacity() <= 0.001; }, 2000);
+            check(bv && bv->isVisible() && !bv->property("text").toString().isEmpty(), "changed value shows big in the centred badge");
+            check(bl && bl->isVisible() && bl->property("text") == "QUALITY", "badge names the changed setting: " + (bl ? bl->property("text").toString() : QString()));
+            check(!caption->isVisible(), "the caption steps aside for the badge");
+            if (auto *b = viewer->findChild<QQuickItem *>("badgeBox")) {
+                const QRectF r = b->mapRectToScene(QRectF(0, 0, b->width(), b->height()));
+                check(std::abs(r.center().x() - win->width() / 2.0) < 2 && std::abs(r.center().y() - win->height() / 2.0) < 2, "badge sits dead centre");
+                check(b->property("radius").toReal() == 0, "badge has square corners");
+            }
+            shotAs("live-badge");
+            waitFor([&] { return !badgeItem->isVisible(); }, 3000);
+            check(!badgeItem->isVisible(), "badge fades after 1.2 s");
+            mouse(win, QPointF(win->width() / 2.0, win->height() / 3.0), QEvent::MouseMove);
+            waitFor([&] { return caption->opacity() >= 0.999; }, 2000);
+            check(caption->isVisible() && vis("captionHint") == 2, QString("learned user: two hints (%1)").arg(vis("captionHint")));
+            shotAs("live-learned");
+            key(win, Qt::Key_Question);
+            auto *vk = viewer->findChild<QQuickItem *>("viewerKeys");
+            check(vk && vk->isVisible(), "? opens the key sheet in the viewer");
+            key(win, Qt::Key_Escape);
+            check(vk && !vk->isVisible() && viewer->isVisible(), "esc closes the key sheet, not the viewer");
+            lib->setLearnedViewerKeys(false);
             key(win, Qt::Key_Down); // undo the quality change
             click(win, QPointF(win->width() / 2.0, 30), Qt::BackButton);
             check(list->isVisible() && !viewer->isVisible(), "mouse back button closes the viewer like Esc");

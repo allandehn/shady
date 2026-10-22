@@ -37,6 +37,7 @@ class Library : public QAbstractListModel
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY undoChanged)
     Q_PROPERTY(QString screensaverOn READ screensaverOn WRITE setScreensaverOn NOTIFY settingsChanged)
     Q_PROPERTY(bool autoAdapt READ autoAdapt WRITE setAutoAdapt NOTIFY settingsChanged)
+    Q_PROPERTY(bool learnedViewerKeys READ learnedViewerKeys WRITE setLearnedViewerKeys NOTIFY settingsChanged)
     Q_PROPERTY(bool benchmarked READ benchmarked NOTIFY settingsChanged)
     Q_PROPERTY(int defaultQuality READ defaultQuality NOTIFY settingsChanged)
     Q_PROPERTY(int defaultFps READ defaultFps NOTIFY settingsChanged)
@@ -109,6 +110,8 @@ public:
     Q_INVOKABLE void viewerClosed();
     Q_INVOKABLE bool crashedLastTime(const QString &slug);
     bool autoAdapt() const { return m_autoAdapt; }
+    bool learnedViewerKeys() const { return m_learned; }
+    void setLearnedViewerKeys(bool on) { if (on != m_learned) { m_learned = on; saveSettings(); emit settingsChanged(); } }
     void setAutoAdapt(bool on) { if (on != m_autoAdapt) { m_autoAdapt = on; saveSettings(); emit settingsChanged(); } }
     bool benchmarked() const { return m_benchMs > 0; }
     int defaultQuality() const { return m_defQuality; }
@@ -165,7 +168,7 @@ private:
     Compiler m_compiler;
     QTimer m_saveTimer;
     QDateTime m_lastTrashed;
-    bool m_autoAdapt = true, m_slow = false;
+    bool m_autoAdapt = true, m_slow = false, m_learned = false;
     double m_benchMs = 0;
     int m_defQuality = 50, m_defFps = 30;
     QString m_crashed; // shader that was open when the app last died
