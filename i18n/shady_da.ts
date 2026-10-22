@@ -226,200 +226,205 @@
 <context>
     <name>KeySheet</name>
     <message>
-        <location filename="../qml/KeySheet.qml" line="11" />
-        <source>List</source>
-        <translation>Liste</translation>
-    </message>
-    <message>
-        <location filename="../qml/KeySheet.qml" line="12" />
+        <location filename="../qml/KeySheet.qml" line="21" />
         <source>new</source>
         <translation>ny</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="12" />
+        <location filename="../qml/KeySheet.qml" line="21" />
         <source>star / unstar</source>
         <translation>stjerne / fjern stjerne</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="12" />
+        <location filename="../qml/KeySheet.qml" line="21" />
         <source>hide / unhide</source>
         <translation>skjul / vis igen</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="12" />
-        <location filename="../qml/KeySheet.qml" line="22" />
+        <location filename="../qml/KeySheet.qml" line="13" />
+        <location filename="../qml/KeySheet.qml" line="27" />
         <source>run</source>
         <translation type="unfinished" />
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="12" />
+        <location filename="../qml/KeySheet.qml" line="13" />
         <source>navigate</source>
         <translation type="unfinished" />
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="13" />
+        <location filename="../qml/KeySheet.qml" line="21" />
         <source>edit</source>
         <translation>rediger</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="13" />
+        <location filename="../qml/KeySheet.qml" line="23" />
         <source>menu (or Menu key)</source>
         <translation>menu (eller Menu-tasten)</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="13" />
+        <location filename="../qml/KeySheet.qml" line="22" />
         <source>move to Trash</source>
         <translation>flyt til papirkurv</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="14" />
+        <location filename="../qml/KeySheet.qml" line="22" />
         <source>delete permanently</source>
         <translation>slet permanent</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="14" />
+        <location filename="../qml/KeySheet.qml" line="22" />
         <source>undo</source>
         <translation>fortryd</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="14" />
+        <location filename="../qml/KeySheet.qml" line="13" />
         <source>next view</source>
         <translation>næste visning</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="15" />
+        <location filename="../qml/KeySheet.qml" line="20" />
         <source>select</source>
         <translation>vælg</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="15" />
+        <location filename="../qml/KeySheet.qml" line="20" />
         <source>extend selection</source>
         <translation type="unfinished" />
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="15" />
+        <location filename="../qml/KeySheet.qml" line="20" />
         <source>select all</source>
         <translation type="unfinished" />
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="16" />
+        <location filename="../qml/KeySheet.qml" line="23" />
         <source>settings</source>
         <translation>indstillinger</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="16" />
-        <location filename="../qml/KeySheet.qml" line="20" />
-        <location filename="../qml/KeySheet.qml" line="38" />
+        <location filename="../qml/KeySheet.qml" line="13" />
+        <location filename="../qml/KeySheet.qml" line="15" />
+        <location filename="../qml/KeySheet.qml" line="42" />
         <source>close</source>
         <translation>luk</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="16" />
+        <location filename="../qml/KeySheet.qml" line="13" />
         <source>this page</source>
         <translation>denne side</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="17" />
+        <location filename="../qml/KeySheet.qml" line="24" />
         <source>Trash</source>
         <translation>Papirkurv</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="18" />
+        <location filename="../qml/KeySheet.qml" line="25" />
         <source>restore</source>
         <translation>gendan</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="18" />
+        <location filename="../qml/KeySheet.qml" line="25" />
         <source>delete forever</source>
         <translation>slet permanent</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="18" />
+        <location filename="../qml/KeySheet.qml" line="25" />
         <source>empty trash</source>
         <translation>tøm papirkurv</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="19" />
+        <location filename="../qml/KeySheet.qml" line="14" />
         <source>Viewer</source>
         <translation>Fremviser</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="20" />
+        <location filename="../qml/KeySheet.qml" line="12" />
+        <source>Browse</source>
+        <translation>Gennemse</translation>
+    </message>
+    <message>
+        <location filename="../qml/KeySheet.qml" line="15" />
         <source>quality</source>
         <translation>kvalitet</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="20" />
+        <location filename="../qml/KeySheet.qml" line="15" />
         <source>fps</source>
         <translation>fps</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="20" />
+        <location filename="../qml/KeySheet.qml" line="15" />
         <source>fullscreen</source>
         <translation>fuld skærm</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="20" />
+        <location filename="../qml/KeySheet.qml" line="15" />
         <source>auto-adapt</source>
         <translation type="unfinished" />
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="21" />
+        <location filename="../qml/KeySheet.qml" line="19" />
+        <source>Organize</source>
+        <translation>Organiser</translation>
+    </message>
+    <message>
+        <location filename="../qml/KeySheet.qml" line="26" />
         <source>Mouse</source>
         <translation>Mus</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="22" />
+        <location filename="../qml/KeySheet.qml" line="27" />
         <source>click</source>
         <translation>klik</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="22" />
+        <location filename="../qml/KeySheet.qml" line="27" />
         <source>right-click</source>
         <translation>højreklik</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="22" />
+        <location filename="../qml/KeySheet.qml" line="27" />
         <source>menu</source>
         <translation type="unfinished" />
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="22" />
+        <location filename="../qml/KeySheet.qml" line="27" />
         <source>back button</source>
         <translation>tilbage-knap</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="22" />
+        <location filename="../qml/KeySheet.qml" line="27" />
         <source>same as esc</source>
         <translation>samme som esc</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="23" />
+        <location filename="../qml/KeySheet.qml" line="16" />
         <source>Editor</source>
         <translation>Editor</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="24" />
+        <location filename="../qml/KeySheet.qml" line="17" />
         <source>compile</source>
         <translation>kompiler</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="24" />
+        <location filename="../qml/KeySheet.qml" line="17" />
         <source>save</source>
         <translation>gem</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="24" />
+        <location filename="../qml/KeySheet.qml" line="17" />
         <source>next field</source>
         <translation>næste felt</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="24" />
+        <location filename="../qml/KeySheet.qml" line="17" />
         <source>cancel</source>
         <translation>annuller</translation>
     </message>
     <message>
-        <location filename="../qml/KeySheet.qml" line="36" />
+        <location filename="../qml/KeySheet.qml" line="40" />
         <source>All keys</source>
         <translation>Alle taster</translation>
     </message>
@@ -456,7 +461,7 @@
     <message>
         <location filename="../src/library.cpp" line="534" />
         <location filename="../src/library.cpp" line="614" />
-        <location filename="../src/selftest.cpp" line="329" />
+        <location filename="../src/selftest.cpp" line="331" />
         <source>Moved to Trash · ctrl+z undo</source>
         <translation>Flyttet til papirkurven · ctrl+z fortryd</translation>
     </message>
@@ -748,8 +753,8 @@
     </message>
     <message numerus="yes">
         <location filename="../qml/ShaderList.qml" line="172" />
-        <location filename="../src/selftest.cpp" line="333" />
-        <location filename="../src/selftest.cpp" line="334" />
+        <location filename="../src/selftest.cpp" line="335" />
+        <location filename="../src/selftest.cpp" line="336" />
         <source>%n shaders</source>
         <translation><numerusform>%n shader</numerusform><numerusform>%n shaders</numerusform></translation>
     </message>
@@ -806,7 +811,7 @@
     </message>
     <message>
         <location filename="../qml/ShaderList.qml" line="371" />
-        <location filename="../src/selftest.cpp" line="330" />
+        <location filename="../src/selftest.cpp" line="332" />
         <source>Empty Trash</source>
         <translation>Tøm papirkurv</translation>
     </message>
@@ -1009,7 +1014,7 @@
     </message>
     <message>
         <location filename="../qml/Viewer.qml" line="235" />
-        <location filename="../src/selftest.cpp" line="331" />
+        <location filename="../src/selftest.cpp" line="333" />
         <source>This shader is too heavy here. Try lower quality?</source>
         <translation>Denne shader er for tung her. Prøv lavere kvalitet?</translation>
     </message>

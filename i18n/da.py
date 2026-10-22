@@ -59,6 +59,8 @@ DA = {
 'Line %1': 'Linje %1',
 'Line %1 · %2': 'Linje %1 · %2',
 'List': 'Liste',
+'Browse': 'Gennemse',
+'Organize': 'Organiser',
 'Move to Trash': 'Flyt til papirkurv',
 'Moved to Trash · ctrl+z undo': 'Flyttet til papirkurven · ctrl+z fortryd',
 'Name': 'Navn',

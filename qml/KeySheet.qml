@@ -7,22 +7,26 @@ FocusScope {
     anchors.fill: parent
     function open() { visible = true; forceActiveFocus() }
     function close() { visible = false }
-    readonly property var groups: [
-        { title: qsTr("List"), keys: [
-            ["enter", qsTr("run")], ["←→↑↓", qsTr("navigate")], ["n", qsTr("new")], ["s", qsTr("star / unstar")], ["h", qsTr("hide / unhide")],
-            ["ctrl+e", qsTr("edit")], ["shift+f10", qsTr("menu (or Menu key)")], ["del", qsTr("move to Trash")],
-            ["shift+del", qsTr("delete permanently")], ["ctrl+z", qsTr("undo")], ["tab", qsTr("next view")],
-            ["space", qsTr("select")], ["shift+←→↑↓", qsTr("extend selection")], ["ctrl+a", qsTr("select all")],
-            [",", qsTr("settings")], ["?", qsTr("this page")], ["esc", qsTr("close")]] },
-        { title: qsTr("Trash"), keys: [
-            ["enter", qsTr("restore")], ["del", qsTr("delete forever")], ["tab", qsTr("empty trash")]] },
+    // Two balanced columns, read top-left first (F-pattern), most-used keys first.
+    readonly property var columns: [[
+        { title: qsTr("Browse"), keys: [
+            ["←→↑↓", qsTr("navigate")], ["enter", qsTr("run")], ["tab", qsTr("next view")], ["esc", qsTr("close")], ["?", qsTr("this page")]] },
         { title: qsTr("Viewer"), keys: [
             ["↑↓", qsTr("quality")], ["←→", qsTr("fps")], ["a", qsTr("auto-adapt")], ["f", qsTr("fullscreen")], ["esc", qsTr("close")]] },
-        { title: qsTr("Mouse"), keys: [
-            [qsTr("click"), qsTr("run")], [qsTr("right-click"), qsTr("menu")], [qsTr("back button"), qsTr("same as esc")]] },
         { title: qsTr("Editor"), keys: [
-            ["ctrl+↵", qsTr("compile")], ["ctrl+s", qsTr("save")], ["tab", qsTr("next field")], ["esc", qsTr("cancel")]] }
-    ]
+            ["ctrl+↵", qsTr("compile")], ["ctrl+s", qsTr("save")], ["tab", qsTr("next field")], ["esc", qsTr("cancel")]] },
+        { title: qsTr("Mouse"), keys: [
+            [qsTr("click"), qsTr("run")], [qsTr("right-click"), qsTr("menu")], [qsTr("back button"), qsTr("same as esc")]] }
+    ], [
+        { title: qsTr("Organize"), keys: [
+            ["space", qsTr("select")], ["shift+←→↑↓", qsTr("extend selection")], ["ctrl+a", qsTr("select all")],
+            ["s", qsTr("star / unstar")], ["h", qsTr("hide / unhide")], ["n", qsTr("new")], ["ctrl+e", qsTr("edit")],
+            ["del", qsTr("move to Trash")], ["shift+del", qsTr("delete permanently")], ["ctrl+z", qsTr("undo")],
+            ["shift+f10", qsTr("menu (or Menu key)")], [",", qsTr("settings")]] },
+        { title: qsTr("Trash"), keys: [
+            ["enter", qsTr("restore")], ["del", qsTr("delete forever")], ["tab", qsTr("empty trash")]] }
+    ]]
+    readonly property var groups: columns[0].concat(columns[1])
 
     Rectangle { anchors.fill: parent; color: Qt.rgba(0, 0, 0, 0.55) }
     MouseArea { anchors.fill: parent; onClicked: sheet.close() }
@@ -41,27 +45,37 @@ FocusScope {
             x: 20; y: 48; width: parent.width - 40; height: parent.height - 56
             contentHeight: flow.implicitHeight + 8; clip: true
             boundsBehavior: Flickable.StopAtBounds
-        Flow {
+        // Two columns side by side; stacked into one when the window is narrow.
+        Grid {
             id: flow
             width: scroller.width
-            spacing: 22
+            readonly property bool two: width >= 460
+            columns: two ? 2 : 1
+            columnSpacing: 22; rowSpacing: 18
             Repeater {
-                model: sheet.groups
+                model: sheet.columns
                 Column {
                     required property var modelData
-                    // Two columns when there's room, one when the window is narrow.
-                    width: flow.width >= 460 ? (flow.width - 22) / 2 : flow.width
-                    spacing: 5
-                    Label { text: modelData.title; smallCaps: true; dim: true }
+                    width: flow.two ? (flow.width - 22) / 2 : flow.width
+                    spacing: 18
                     Repeater {
-                        model: modelData.keys
-                        Row {
-                            id: keyRow
+                        model: modelData
+                        Column {
                             required property var modelData
                             width: parent.width
-                            spacing: 8
-                            Label { id: keyCap; width: 74; text: keyRow.modelData[0]; font.pixelSize: 11; font.bold: true }
-                            Label { width: keyRow.width - keyCap.width - keyRow.spacing; text: keyRow.modelData[1]; font.pixelSize: 11; dim: true }
+                            spacing: 5
+                            Label { text: modelData.title; smallCaps: true; dim: true }
+                            Repeater {
+                                model: modelData.keys
+                                Row {
+                                    id: keyRow
+                                    required property var modelData
+                                    width: parent.width
+                                    spacing: 8
+                                    Label { id: keyCap; width: 88; text: String(keyRow.modelData[0]).replace(/\+(?=.)/g, " "); font.pixelSize: 11; font.bold: true }
+                                    Label { width: keyRow.width - keyCap.width - keyRow.spacing; text: keyRow.modelData[1]; font.pixelSize: 11; dim: true; elide: Text.ElideRight }
+                                }
+                            }
                         }
                     }
                 }
