@@ -361,7 +361,7 @@
     <message>
         <location filename="../qml/KeySheet.qml" line="15" />
         <source>auto-adapt</source>
-        <translation type="unfinished" />
+        <translation>auto-tilpasning</translation>
     </message>
     <message>
         <location filename="../qml/KeySheet.qml" line="21" />
@@ -918,87 +918,87 @@
 <context>
     <name>Viewer</name>
     <message>
-        <location filename="../qml/Viewer.qml" line="103" />
+        <location filename="../qml/Viewer.qml" line="107" />
         <source>by %1</source>
         <translation>af %1</translation>
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="252" />
+        <location filename="../qml/Viewer.qml" line="258" />
         <source>close</source>
         <translation>luk</translation>
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="175" />
+        <location filename="../qml/Viewer.qml" line="181" />
         <source>Quality</source>
-        <translation type="unfinished" />
+        <translation>Kvalitet</translation>
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="175" />
+        <location filename="../qml/Viewer.qml" line="181" />
         <source>FPS</source>
-        <translation type="unfinished" />
+        <translation>FPS</translation>
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="176" />
+        <location filename="../qml/Viewer.qml" line="182" />
         <source>Auto-adapt</source>
-        <translation type="unfinished" />
+        <translation>Auto-tilpasning</translation>
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="280" />
+        <location filename="../qml/Viewer.qml" line="286" />
         <source>%1%</source>
-        <translation type="unfinished" />
+        <translation>%1%</translation>
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="105" />
-        <location filename="../qml/Viewer.qml" line="134" />
+        <location filename="../qml/Viewer.qml" line="109" />
+        <location filename="../qml/Viewer.qml" line="140" />
         <source>quality</source>
         <translation>kvalitet</translation>
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="134" />
+        <location filename="../qml/Viewer.qml" line="140" />
         <source>fps</source>
         <translation>fps</translation>
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="245" />
+        <location filename="../qml/Viewer.qml" line="251" />
         <source>Paused</source>
         <translation>Sat på pause</translation>
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="246" />
+        <location filename="../qml/Viewer.qml" line="252" />
         <location filename="../src/selftest.cpp" line="333" />
         <source>This shader is too heavy here. Try lower quality?</source>
         <translation>Denne shader er for tung her. Prøv lavere kvalitet?</translation>
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="254" />
+        <location filename="../qml/Viewer.qml" line="260" />
         <source>Try %1%</source>
         <translation>Prøv %1%</translation>
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="106" />
-        <location filename="../qml/Viewer.qml" line="285" />
+        <location filename="../qml/Viewer.qml" line="110" />
+        <location filename="../qml/Viewer.qml" line="291" />
         <source>%1 fps</source>
-        <translation type="unfinished" />
+        <translation>%1 fps</translation>
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="133" />
-        <location filename="../qml/Viewer.qml" line="134" />
+        <location filename="../qml/Viewer.qml" line="139" />
+        <location filename="../qml/Viewer.qml" line="140" />
         <source>keys</source>
         <translation>taster</translation>
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="133" />
-        <location filename="../qml/Viewer.qml" line="134" />
+        <location filename="../qml/Viewer.qml" line="139" />
+        <location filename="../qml/Viewer.qml" line="140" />
         <source>back</source>
         <translation>tilbage</translation>
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="289" />
+        <location filename="../qml/Viewer.qml" line="295" />
         <source>auto-adapt on</source>
         <translation>auto-tilpasning til</translation>
     </message>
     <message>
-        <location filename="../qml/Viewer.qml" line="289" />
+        <location filename="../qml/Viewer.qml" line="295" />
         <source>auto-adapt off</source>
         <translation>auto-tilpasning fra</translation>
     </message>

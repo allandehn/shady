@@ -654,13 +654,40 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
                 const QString t = m->property("text").toString();
                 check(t == t.toLower() && t.contains("quality:") && t.contains("fps"), "meta line is lower case with quality and fps: " + t);
             }
-            if (auto *n = viewer->findChild<QQuickItem *>("captionName"), *h = viewer->findChild<QQuickItem *>("captionHints"); n && h) {
-                const QRectF nr = n->mapRectToScene(QRectF(0, 0, n->width(), n->height()));
+            auto *capOverlay = caption;
+            auto layout = [&](const QString &what, bool wantWrapped) {
+                waitFor([] { return false; }, 300);
+                auto *n = viewer->findChild<QQuickItem *>("captionName"), *h = viewer->findChild<QQuickItem *>("captionHints");
+                if (!n || !h) { check(false, "caption name and hints exist"); return; }
+                const QRectF nr = n->mapRectToScene(QRectF(0, 0, n->implicitWidth(), n->height()));
                 const QRectF hr = h->mapRectToScene(QRectF(0, 0, h->width(), h->height()));
-                check(nr.left() < win->width() * 0.1 && nr.bottom() > win->height() * 0.85, "name sits bottom-left");
-                check(std::abs(hr.right() - win->width() * 0.97) < 3 && hr.bottom() > win->height() * 0.85, "hints sit bottom-right");
-            }
+                const double m = std::round(win->width() * 0.03);
+                const bool wrapped = capOverlay->property("wrapped").toBool();
+                check(wrapped == wantWrapped, QString("%1: hints %2 (window %3 px)").arg(what, wantWrapped ? "wrap" : "share the name's row").arg(win->width()));
+                check(std::abs(nr.left() - m) < 2 && nr.bottom() > win->height() * 0.8, what + ": name sits bottom-left");
+                if (!wrapped) {
+                    check(std::abs(hr.right() - (win->width() - m)) < 2, what + ": hints sit bottom-right");
+                    check(hr.left() - nr.right() >= 24, QString("%1: at least 24 px between name and hints (%2)").arg(what).arg(hr.left() - nr.right()));
+                    const double nb = nr.top() + n->baselineOffset(), hb = hr.top() + h->baselineOffset();
+                    check(std::abs(nb - hb) < 2, QString("%1: hints on the name's baseline (%2 vs %3)").arg(what).arg(hb).arg(nb));
+                } else {
+                    check(std::abs(hr.left() - m) < 2, what + ": wrapped hints left-aligned with the name");
+                    check(hr.top() >= nr.bottom() - 4 && hr.bottom() <= win->height(), what + ": wrapped hints sit under the name, on screen");
+                }
+            };
+            const QSize orig = win->size();
+            layout("default window", false);
+            win->resize(1280, 720);
+            mouse(win, QPointF(200, 200), QEvent::MouseMove);
+            layout("wide window", false);
+            shotAs("live-fresh-wide");
+            win->resize(400, 700);
+            mouse(win, QPointF(200, 200), QEvent::MouseMove);
+            layout("narrow window", true);
             shotAs("live-fresh");
+            win->resize(orig);
+            mouse(win, QPointF(200, 210), QEvent::MouseMove);
+            layout("default window again", false);
             key(win, Qt::Key_Up);
             check(lib->learnedViewerKeys(), "changing quality sets learnedViewerKeys");
             auto *bv = viewer->findChild<QQuickItem *>("badgeValue");
@@ -1123,6 +1150,14 @@ void runDanishShot(QQuickWindow *win, Library *lib, const QString &shot)
     key(win, Qt::Key_Escape); // close the editor (no changes)
     QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
     key(win, Qt::Key_Return); waitFor([] { return false; }, 800); step("viewer");
+    key(win, Qt::Key_Up);
+    if (auto *bl = win->findChild<QQuickItem *>("badgeLabel")) {
+        const QString want = QCoreApplication::translate("Viewer", "Quality").toUpper();
+        check(bl->property("text").toString() == want, "badge label is translated: " + bl->property("text").toString() + " (want " + want + ")");
+    } else check(false, "badge label exists");
+    step("badge");
+    key(win, Qt::Key_Down);
+    if (auto *b = win->findChild<QQuickItem *>("badge")) waitFor([b] { return !b->isVisible(); }, 4000);
     // Narrow tiled window: text must still fit (elide or wrap), nothing spills.
     key(win, Qt::Key_Escape);
     win->resize(440, 700);

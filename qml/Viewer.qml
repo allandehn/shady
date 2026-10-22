@@ -81,6 +81,10 @@ FocusScope {
         readonly property real u: viewer.height  // mockup sizes are fractions of the height
         readonly property real margin: Math.round(viewer.width * 0.03)
         readonly property real base: viewer.height - Math.round(u * 0.055)
+        // Narrow window: the hints get their own row under the name when the
+        // two don't fit side by side with at least 24 px between them.
+        readonly property bool wrapped: nameLabel.implicitWidth + 24 + hintRow.implicitWidth > viewer.width - 2 * margin
+        readonly property real nameBase: wrapped ? base - Math.round(Math.max(18, u * 0.035)) : base
 
         Rectangle {
             objectName: "scrim"
@@ -97,7 +101,7 @@ FocusScope {
             objectName: "captionMeta"
             x: overlay.margin + 4
             width: viewer.width - x - overlay.margin
-            y: overlay.base - Math.round(overlay.u * 0.057) - baselineOffset
+            y: overlay.nameBase - Math.round(overlay.u * 0.057) - baselineOffset
             text: {
                 const p = []
                 if (viewer.item.author) p.push(qsTr("by %1").arg(viewer.item.author))
@@ -115,8 +119,8 @@ FocusScope {
             id: nameLabel
             objectName: "captionName"
             x: overlay.margin
-            width: hintRow.x - x - 24
-            y: overlay.base - baselineOffset
+            width: overlay.wrapped ? viewer.width - x - overlay.margin : hintRow.x - x - 24
+            y: overlay.nameBase - baselineOffset
             text: viewer.item.name || ""
             color: ui.fg
             font.pixelSize: Math.max(16, Math.round(overlay.u * 0.045)); font.weight: Font.Medium
@@ -126,8 +130,8 @@ FocusScope {
         Row {
             id: hintRow
             objectName: "captionHints"
-            x: viewer.width - overlay.margin - width
-            anchors.baseline: nameLabel.baseline
+            x: overlay.wrapped ? overlay.margin : viewer.width - overlay.margin - width
+            y: overlay.base - hintMetric.baselineOffset
             baselineOffset: hintMetric.baselineOffset
             Label { id: hintMetric; visible: false; text: "x"; font.bold: true; font.pixelSize: hintRow.fs }
             spacing: Math.round(overlay.u * 0.016)
