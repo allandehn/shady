@@ -36,7 +36,14 @@ const vec2 P[] = vec2[](
 const int G0[] = int[](0, 5, 14, 26, 35, 39, 44, 51, 61, 68, 76);
 const int G1[] = int[](5, 14, 26, 35, 39, 44, 51, 61, 68, 76, 88);
 
-float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+// Sin-free hash (Dave Hoskins, hash12): sin() loses precision on some GPUs
+// and clusters values, which skewed every glyph towards the same hues.
+float hash(vec2 p)
+{
+    vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
 
 // Square-capped stroke: distance to the box around segment a->b.
 float segBox(vec2 p, vec2 a, vec2 b) {
@@ -109,11 +116,14 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord)
                    + (1.0 - step(8.0, lt)) * smoothstep(0.0, 1.0, lt);
         if (on > 0.5 && fade > 0.001) {
             vec2 r = glyph(lp, gi, drawn);
-            // Per-glyph hue over the whole wheel: golden-ratio steps from a
-            // hash keep neighbours apart; soft saturation and capped value so
-            // the glow sits calmly on the navy instead of flashing.
-            float hue = fract(hash(id + cyc * 1.13 + 5.0) + cyc * 0.618034);
-            vec3 c = hsv(hue, 0.55, 0.95);
+            // Per-glyph hue spread evenly over the whole wheel: golden-ratio
+            // steps by slot number keep neighbours apart and every hue equally
+            // common; each new cycle shifts by another golden step. Saturation
+            // 0.8 lets the warm hues read on the navy; value is capped so the
+            // glow stays calm, not neon.
+            float slotN = id.y * cols.x + id.x;
+            float hue = fract(slotN * 0.618034 + cyc * 0.381966 + 0.12 * hash(id + 5.0));
+            vec3 c = hsv(hue, 0.8, 0.9);
             float w = 0.16;
             float core = 1.0 - smoothstep(w - 0.04, w + 0.04, r.x);
             float glow = exp(-r.x * 3.5) * 0.30 + exp(-r.x * 1.6) * 0.05;
