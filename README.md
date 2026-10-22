@@ -4,13 +4,17 @@ Shadertoy-style GLSL shaders as a calm, keyboard-first screensaver and viewer fo
 
 Designed together by [Allan](https://github.com/allandehn) and [Grok](https://x.ai).
 
-![The start page with the four example shaders](docs/list.png)
+![The start page with the five example shaders](docs/list.png)
 
 ![The editor open on Northern Veil](docs/editor.png)
 
 ## Features
 
-- Paste Shadertoy code (`mainImage`, `iTime`, `iResolution`, `iMouse`, `iChannel0–3`) and it runs.
+- Paste Shadertoy code (`mainImage`, `iTime`, `iResolution`, `iMouse`, `iChannel0–3`) and it runs. A `// @name` / `@author` / `@description` / `@license` header fills in the details.
+- Five examples, including Crouwel's New Alphabet: glyphs after Wim Crouwel drawing themselves on a grid.
+- Click a shader to run it. Hover a card to star it or trash it, with tooltips.
+- The viewer shows a centred badge when a shader starts (name, author, keys) and again when you change quality, fps or auto-adapt.
+- Key hints along the bottom of every screen, written as `key:action`, and `?` for the full list. The mouse back button works like `esc`.
 - Star, hide, multi-select, Trash with undo.
 - An editor with a live preview, built-in noise textures or your own images as channels, and every compile error linked to its line.
 - Quality and fps per shader, auto-adapt on slow machines, and a pause for shaders that are too heavy.
@@ -41,6 +45,19 @@ Needs Qt 6.6+ (`qt6-base`, `qt6-declarative`, `qt6-shadertools`, plus `qt6-tools
     cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
     cmake --build build
     sudo cmake --install build      # installs /usr/local/bin/shady
+
+## Shader metadata header
+
+Start a shader with a comment and Shady fills in the editor's fields when you paste or edit it:
+
+```glsl
+// @name Crouwel's New Alphabet
+// @author Shady
+// @description Glyphs on a grid, after Wim Crouwel
+// @license MIT
+```
+
+`Name:` / `Author:` / `Description:` / `License:` (also `Title:`, `By:`) work too, case-insensitive, in `//` lines or one leading `/* */` block. A field follows the header while it's empty or still matches it; once you type your own value it stays yours. Editing the fields doesn't rewrite the source.
 
 ## Uninstall
 

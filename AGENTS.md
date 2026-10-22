@@ -60,3 +60,7 @@
 
 ## Text fit
 Every screenshot step in the UI, potato and language tests runs `fits()`. It fails if any visible Text spills past the nearest background, clip or window, or overlaps another Text in the same box. The language test (`--danish-shot`, run with SHADY_LANG=da and en) also checks a narrow 440 px window. Give a Label a width and let it elide, or let the layout reflow. Install iA Writer Mono (github.com/iaolo/iA-Fonts) system-wide so headless screenshots match Omarchy.
+
+## Approval rule
+
+Never create issues, PRs, comments, releases, tags or pushes, or post anything in Allan's name, without his explicit approval for that specific action.

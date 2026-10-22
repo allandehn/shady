@@ -1,6 +1,20 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.2.0
+
+- Shader metadata header: `// @name`, `@author`, `@description`, `@license` (also `Name:` etc.) fill in the editor's fields when you paste or edit.
+- New example: Crouwel's New Alphabet, glyphs after Wim Crouwel drawn on a grid in colours from the whole spectrum.
+- Click a card to run it; hover shows the star and trash buttons with tooltips.
+- Viewer: a centred badge shows name, author, description and keys when a shader starts, and the setting you changed (quality, fps, auto-adapt). No bottom bar.
+- Key hints on every screen, lower case and written as `key:action`; `?` lists every key and mouse action.
+- The mouse back button works like `esc`.
+- I-beam pointer over text fields.
+
+## 0.1.1
+
+- Packaging: the QML module is compiled into the binary; the package ships the .desktop file, icon and license. One-line installer.
+
+## 0.1.0
 
 First release.
 
