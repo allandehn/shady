@@ -13,12 +13,14 @@
 set -euo pipefail
 BIN=${1:-./build/shady}
 SHOT=${2:-}
-T=$(mktemp -d /tmp/shady-test.XXXX); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d /tmp/shady-test.XXXX); trap 'rm -rf "$T" 2>/dev/null || { sleep 1; rm -rf "$T" 2>/dev/null; } || true' EXIT
 iso() {
-  rm -rf "$T"/{data,config,cache,home}; mkdir -p "$T"/{data,config,cache,home}
+  # A new dir per run instead of rm -rf: D-Bus-activated helpers of the last run
+  # (portals) can still be writing into its cache, and rm then fails under set -e.
+  local R; R=$(mktemp -d "$T/run.XXXX"); mkdir -p "$R"/{data,config,cache,home}
   # HOME too: Omarchy's palette lives at a fixed $HOME/.local/state path.
   env -u DISPLAY -u WAYLAND_DISPLAY -u HYPRLAND_INSTANCE_SIGNATURE -u OMARCHY_PATH -u QT_QPA_PLATFORMTHEME -u QT_STYLE_OVERRIDE -u GTK_THEME \
-    HOME="$T/home" XDG_DATA_HOME="$T/data" XDG_CONFIG_HOME="$T/config" XDG_CACHE_HOME="$T/cache" \
+    HOME="$R/home" XDG_DATA_HOME="$R/data" XDG_CONFIG_HOME="$R/config" XDG_CACHE_HOME="$R/cache" \
     QT_FORCE_STDERR_LOGGING=1 QSG_RHI_BACKEND="${QSG_RHI_BACKEND:-opengl}" "$@"
 }
 UI=(--ui-test); [[ -n $SHOT ]] && UI+=(--screenshot "$SHOT")
