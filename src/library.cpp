@@ -448,17 +448,16 @@ void Library::seedIfEmpty()
     // keeps them from coming back after the user deletes them.
     const QString marker = m_dataDir + QStringLiteral("/.seeded");
     if (QFileInfo::exists(marker) || !QDir(shadersDir()).isEmpty()) return;
-    struct Ex { const char *file, *name, *desc; };
-    for (const Ex &x : {Ex{"northern-veil", "Northern Veil", "Slow aurora ribbons"},
-                        Ex{"plasma-drift", "Plasma Drift", "Classic plasma, gently moving"},
-                        Ex{"cell-garden", "Cell Garden", "Voronoi cells that breathe"},
-                        Ex{"warp-tunnel", "Warp Tunnel", "A checkered tunnel"}}) {
-        QFile f(QStringLiteral(":/examples/%1.glsl").arg(QLatin1String(x.file)));
+    // Each example's name, author, description and license come from its header.
+    for (const char *file : {"northern-veil", "plasma-drift", "cell-garden", "warp-tunnel", "crouwel-new-alphabet"}) {
+        QFile f(QStringLiteral(":/examples/%1.glsl").arg(QLatin1String(file)));
         if (!f.open(QIODevice::ReadOnly)) continue;
-        const QString slug = createShader(QString::fromUtf8(x.name), QStringLiteral("Shady"), QString::fromUtf8(f.readAll()));
+        const QString code = QString::fromUtf8(f.readAll());
+        const QVariantMap h = parseHeader(code);
+        const QString slug = createShader(h.value("name").toString(), h.value("author", "Shady").toString(), code);
         if (ShaderEntry *e = entry(slug)) {
-            e->meta.insert(QStringLiteral("description"), QString::fromUtf8(x.desc));
-            e->meta.insert(QStringLiteral("license"), QStringLiteral("MIT"));
+            e->meta.insert(QStringLiteral("description"), h.value("description"));
+            e->meta.insert(QStringLiteral("license"), h.value("license", "MIT"));
             e->meta.insert(QStringLiteral("seeded"), true); // defaults follow the first-run benchmark
             save(*e);
         }
@@ -532,7 +531,7 @@ int Library::moveToTrash(int row)
     if (e.trashed || !moveEntry(e, true)) return row;
     pushUndo(Undo::Trashed, {e.slug});
     reset();
-    emit noted(tr("Moved to Trash · Ctrl+Z undo"));
+    emit noted(tr("Moved to Trash · ctrl+z undo"));
     return std::max(0, std::min(row - 1, int(m_rows.size()) - 1)); // focus the previous card
 }
 
@@ -544,7 +543,7 @@ int Library::restore(int row)
     pushUndo(Undo::Restored, {e.slug});
     const QString name = nameOf(e);
     reset();
-    emit noted(tr("Restored %1 · Ctrl+Z undo").arg(name));
+    emit noted(tr("Restored %1 · ctrl+z undo").arg(name));
     return std::clamp(row, m_rows.isEmpty() ? -1 : 0, int(m_rows.size()) - 1);
 }
 
@@ -612,7 +611,7 @@ int Library::trashMany(const QStringList &slugs)
         if (ShaderEntry *e = entry(s); e && !e->trashed && moveEntry(*e, true)) done << e->slug;
     pushUndo(Undo::Trashed, done);
     reset();
-    if (!done.isEmpty()) emit noted(tr("Moved to Trash · Ctrl+Z undo"));
+    if (!done.isEmpty()) emit noted(tr("Moved to Trash · ctrl+z undo"));
     return done.size();
 }
 
@@ -624,8 +623,8 @@ int Library::restoreMany(const QStringList &slugs)
         if (ShaderEntry *e = entry(s); e && e->trashed && moveEntry(*e, false)) { done << e->slug; name = nameOf(*e); }
     pushUndo(Undo::Restored, done);
     reset();
-    if (done.size() == 1) emit noted(tr("Restored %1 · Ctrl+Z undo").arg(name));
-    else if (!done.isEmpty()) emit noted(tr("Restored %n shaders · Ctrl+Z undo", "", int(done.size())));
+    if (done.size() == 1) emit noted(tr("Restored %1 · ctrl+z undo").arg(name));
+    else if (!done.isEmpty()) emit noted(tr("Restored %n shaders · ctrl+z undo", "", int(done.size())));
     return done.size();
 }
 
@@ -658,6 +657,39 @@ QStringList Library::allSlugs() const
     QStringList l;
     for (int i : m_rows) l << m_entries[i].slug;
     return l;
+}
+
+QVariantMap Library::parseHeader(const QString &code)
+{
+    // Leading comment only: "//" lines, or one "/* ... */" block (" * " prefixes ok).
+    // "@key value" (colon optional) or "Key: value", case-insensitive.
+    QStringList lines;
+    const QString src = code.trimmed();
+    if (src.startsWith(QLatin1String("/*"))) {
+        lines = src.mid(2).section(QStringLiteral("*/"), 0, 0).split(u'\n');
+    } else {
+        for (const QString &l : src.split(u'\n')) {
+            const QString t = l.trimmed();
+            if (!t.startsWith(QLatin1String("//"))) break;
+            lines << t.mid(2);
+        }
+    }
+    static const QRegularExpression re(QStringLiteral(
+        "^\\s*\\*?\\s*(?:@(name|title|author|by|description|desc|license|licence)\\b\\s*[:=]?"
+        "|(name|title|author|by|description|desc|license|licence)\\s*:)\\s*(.+?)\\s*$"),
+        QRegularExpression::CaseInsensitiveOption);
+    QVariantMap out;
+    for (const QString &l : lines) {
+        const auto m = re.match(l);
+        if (!m.hasMatch()) continue;
+        QString k = (m.captured(1).isEmpty() ? m.captured(2) : m.captured(1)).toLower();
+        if (k == u"title") k = QStringLiteral("name");
+        else if (k == u"by") k = QStringLiteral("author");
+        else if (k == u"desc") k = QStringLiteral("description");
+        else if (k == u"licence") k = QStringLiteral("license");
+        if (!out.contains(k)) out.insert(k, m.captured(3));
+    }
+    return out;
 }
 
 QString Library::licenseHint(const QString &code)

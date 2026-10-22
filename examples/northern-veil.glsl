@@ -1,4 +1,7 @@
-// Northern Veil · Shady example · MIT
+// @name Northern Veil
+// @author Shady
+// @description Slow aurora ribbons
+// @license MIT
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
     vec2 uv = fragCoord / iResolution.xy;

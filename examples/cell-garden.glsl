@@ -1,4 +1,7 @@
-// Cell Garden · Shady example · MIT
+// @name Cell Garden
+// @author Shady
+// @description Voronoi cells that breathe
+// @license MIT
 vec2 hash2(vec2 p)
 {
     p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));

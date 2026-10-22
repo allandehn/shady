@@ -35,7 +35,7 @@ qt_add_qml_module(shady
   VERSION 1.0
   QML_FILES
     qml/Main.qml qml/ShaderList.qml qml/ShaderCard.qml qml/Viewer.qml
-    qml/ShaderView.qml qml/Label.qml qml/Hint.qml qml/Hatch.qml
+    qml/ShaderView.qml qml/Label.qml qml/Hint.qml qml/Hatch.qml qml/Tip.qml
     qml/Button.qml qml/Confirm.qml qml/Menu.qml qml/KeySheet.qml qml/SettingsSheet.qml
     qml/Editor.qml qml/Field.qml qml/Channel.qml qml/ChannelPicker.qml qml/Benchmark.qml
 )
@@ -45,6 +45,7 @@ qt_add_resources(shady "examples"
   FILES
     examples/northern-veil.glsl examples/plasma-drift.glsl
     examples/cell-garden.glsl examples/warp-tunnel.glsl
+    examples/crouwel-new-alphabet.glsl
 )
 
 # English is in the source; Danish ships from the start (i18n/update.sh).

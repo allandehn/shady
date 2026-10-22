@@ -1,4 +1,7 @@
-// Warp Tunnel · Shady example · MIT
+// @name Warp Tunnel
+// @author Shady
+// @description A checkered tunnel
+// @license MIT
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
     vec2 p = (2.0 * fragCoord - iResolution.xy) / iResolution.y;

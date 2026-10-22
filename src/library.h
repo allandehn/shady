@@ -54,6 +54,9 @@ public:
     static QString slugify(const QString &name);
     static QVector<int> fpsStepsFor(int maxFps);
     Q_INVOKABLE static QString licenseHint(const QString &code);
+    // Metadata from the source's leading comment: "// @name X", "// Author: Y", ...
+    // Returns only the keys found (name, author, description, license).
+    Q_INVOKABLE static QVariantMap parseHeader(const QString &code);
 
     void load();
     void seedIfEmpty();
@@ -133,7 +136,7 @@ signals:
     void undoChanged();
     void settingsChanged();
     void slowMachineChanged();
-    void noted(const QString &text); // status note: "Moved to Trash · Ctrl+Z undo"
+    void noted(const QString &text); // status note: "Moved to Trash · ctrl+z undo"
     void draftCompiled(bool ok, const QUrl &url, int errorLine, const QString &errorText, const QString &code, const QString &types, const QVariantList &errors);
 
 private:

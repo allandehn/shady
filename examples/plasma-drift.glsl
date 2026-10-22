@@ -1,4 +1,7 @@
-// Plasma Drift · Shady example · MIT
+// @name Plasma Drift
+// @author Shady
+// @description Classic plasma, gently moving
+// @license MIT
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
     vec2 p = (fragCoord - 0.5 * iResolution.xy) / iResolution.y * 4.0;
