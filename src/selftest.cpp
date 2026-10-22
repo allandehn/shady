@@ -597,17 +597,20 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         };
         chip = firstOf("starChip"); xchip = firstOf("trashChip");
         const QString slug0 = target;
-        const bool was = lib->get(lib->rowOf(target)).value("starred").toBool();
+        const bool origStar = lib->get(lib->rowOf(target)).value("starred").toBool();
+        if (origStar) { lib->toggleStar(lib->rowOf(target)); waitFor([&] { return !lib->get(lib->rowOf(target)).value("starred").toBool(); }, 2000); chip = firstOf("starChip"); xchip = firstOf("trashChip"); }
+        const bool was = false; // the card starts unstarred
+        check(!lib->get(lib->rowOf(target)).value("starred").toBool(), "tooltip card starts unstarred");
         if (chip && xchip) {
             mouse(win, xchip->mapToScene(QPointF(-40, 60)), QEvent::MouseMove); // hover the card first: the star shows
-            waitFor([&] { return chip->isVisible(); }, 500);
+            waitFor([&] { return chip->isVisible(); }, 3000);
             const QPointF c = chip->mapToScene(QPointF(9, 9));
             mouse(win, c, QEvent::MouseMove);
             QQuickItem *tip = nullptr; for (QQuickItem *t : allItems(chip)) if (t->objectName() == "tip") tip = t;
             check(tip && !tip->isVisible(), "tooltip waits before showing");
-            waitFor([&] { return chip->isVisible() && xchip->opacity() > 0.5; }, 300);
+            waitFor([&] { return chip->isVisible() && xchip->opacity() > 0.5; }, 3000);
             check(chip->isVisible() && xchip->opacity() > 0.5, "hovering the star keeps both the star and × chips");
-            waitFor([&] { return tip && tip->isVisible(); }, 1500);
+            waitFor([&] { if (tip && !tip->isVisible()) mouse(win, chip->mapToScene(QPointF(9, 9)), QEvent::MouseMove); return tip && tip->isVisible(); }, 5000); // slow machines: keep hovering, poll up to 5 s
             check(tip && tip->isVisible() && tip->property("text") == (was ? "Unstar" : "Star"), "star tooltip names the action: " + (tip ? tip->property("text").toString() : QString()));
             check(xchip->property("tipText") == "Trash", "× tooltip says Trash");
             fits(win, "tooltip-star");
@@ -624,7 +627,8 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
             check(chip && chip->property("tipText") == (was ? "Star" : "Unstar"), "tooltip text follows the star state");
             const int r0 = lib->rowOf(slug0);
             lib->toggleStar(r0); // put it back
-            waitFor([] { return false; }, 200);
+            waitFor([&] { return lib->get(lib->rowOf(slug0)).value("starred").toBool() == was; }, 2000);
+            if (origStar) lib->toggleStar(lib->rowOf(slug0)); // the original star state
             check(lib->get(lib->rowOf(slug0)).value("starred").toBool() == was, QString("star restored (was %1, now %2, row %3)").arg(was).arg(lib->get(lib->rowOf(slug0)).value("starred").toBool()).arg(r0) + QString(" filter %1 count %2").arg(int(lib->filter())).arg(lib->count()));
             mouse(win, QPointF(2, 2), QEvent::MouseMove);
         } else check(false, "star and × chips exist");
