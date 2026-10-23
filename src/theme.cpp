@@ -87,6 +87,27 @@ void Theme::reload()
     pick("accent", m_accent);
     pick("color1", m_error);
     if (!m.contains(QStringLiteral("lighter_background"))) m_bg2 = m_bg.lighter(130);
+    // Syntax colours: colorN, else its bright twin colorN+8, else Tokyo Night's
+    // (the built-in palette), reset on every reload so a theme without the key
+    // doesn't keep the last theme's colour.
+    auto ansi = [&](int n, const char *fallback) {
+        for (int k : {n, n + 8}) {
+            const QColor c(m.value(QStringLiteral("color%1").arg(k)).toString());
+            if (c.isValid()) return c;
+        }
+        return QColor(QLatin1String(fallback));
+    };
+    m_yellow = ansi(3, "#e0af68");
+    m_blue = ansi(4, "#7aa2f7");
+    m_magenta = ansi(5, "#bb9af7");
+    m_cyan = ansi(6, "#7dcfff");
+    const QColor red = ansi(1, "#f7768e");
+    m_orange = QColor(m.value(QStringLiteral("orange")).toString());
+    if (!m_orange.isValid())
+        m_orange = m.contains(QStringLiteral("color1")) || m.contains(QStringLiteral("color3"))
+            ? QColor::fromRgbF((red.redF() + m_yellow.redF()) / 2, (red.greenF() + m_yellow.greenF()) / 2,
+                               (red.blueF() + m_yellow.blueF()) / 2)
+            : QColor("#ff9e64");
     QFile n(m_namePath);
     if (n.open(QIODevice::ReadOnly)) m_name = QString::fromUtf8(n.readAll()).trimmed();
     emit changed();

@@ -193,13 +193,14 @@ FocusScope {
                     y: code.y + (ed.focusedLine > 0 ? ed.lineY(ed.focusedLine) : 0); width: parent.width; height: code.lineH
                     color: Qt.rgba(ui.accent.r, ui.accent.g, ui.accent.b, 0.09)
                 }
-                // Error line: faint tint and a 2 px red bar (the only red in the app).
+                // Error line: a faint red tint and a 2 px red bar.
                 Repeater {
                     model: ed.upToDate ? ed.errors.filter(x => x.line > 0) : []
                     Rectangle {
                         required property var modelData
+                        objectName: "errorLineTint"
                         y: code.y + ed.lineY(modelData.line); width: parent.width; height: code.lineH
-                        color: "transparent" // one red: just the 2 px bar and the gutter number
+                        color: Qt.rgba(theme.error.r, theme.error.g, theme.error.b, 0.08)
                         Rectangle { width: 2; height: parent.height; color: theme.error }
                     }
                 }
@@ -230,6 +231,7 @@ FocusScope {
                             ed.compile(); e.accepted = true
                         }
                     }
+                    GlslHighlighter { objectName: "highlighter"; document: code.textDocument; colors: theme }
                     onTextChanged: { ed.applyHeader(); if (!ed.licenseTouched && !ed.parsedHeader.license) { const h = library.licenseHint(text); if (h) license.text = h } }
                 }
             }

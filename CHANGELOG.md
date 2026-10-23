@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Editor: GLSL syntax colours from your theme (keywords, types, numbers, built-ins and Shadertoy uniforms, preprocessor lines, comments), following theme changes live. The line a compile error points to gets a faint red tint.
 - Examples stay current: on startup, examples you haven't edited are updated to the version Shady ships (including libraries from 0.1.x and 0.2.0, so the new Crouwel colours arrive), and examples added in a release appear for existing users. Edited examples and fields you changed are left alone; examples you deleted or put in the Trash stay there.
 
 ## 0.2.0

@@ -6,6 +6,10 @@
 #include "library.h"
 #include "toml.h"
 #include "theme.h"
+#include "glslhighlighter.h"
+#include <QTextDocument>
+#include <QQmlContext>
+#include <QQmlEngine>
 #include "textures.h"
 #include <QTranslator>
 #include <QLocale>
@@ -440,6 +444,42 @@ int runSelfTest()
         write(home.path() + "/.local/state/omarchy/current/theme.name", "frost\n");
         waitFor([&] { return th.accent() == QColor("#00aaff") && th.property("name") == "frost"; }, 3000);
         check(th.accent() == QColor("#00aaff") && th.property("name") == "frost" && changes > 0, "theme change followed live");
+        // GLSL highlighting: theme colours per token kind
+        {
+            write(dir + "/colors.toml", "background = \"#202020\"\nforeground = \"#dddddd\"\naccent = \"#00aaff\"\n"
+                  "color1 = \"#ff0000\"\ncolor3 = \"#ffff00\"\ncolor4 = \"#0000ff\"\ncolor5 = \"#ff00ff\"\ncolor6 = \"#00ffff\"\n");
+            th.refresh();
+            QTextDocument doc;
+            doc.documentLayout(); // like the TextEdit's document; without one setPlainText isn't re-highlighted
+            doc.setPlainText("// @name Test\n#define N 3\nuniform vec3 c; mat3x2 m;\nfloat x = mix(1.5e-3, 0x1F, 2u) + iTime;\n"
+                             "/* a\n   b */ if (x > .5) discard;\nvoid mainImage(out vec4 fragColor) { foo = 1; }\n");
+            GlslHighlighter hl;
+            hl.setTheme(&th);
+            hl.setTextDocument(&doc);
+            const QColor kw("#ff00ff"), ty("#ffff00"), nu = th.orange(), bi("#0000ff"), pp("#00ffff"), mu = th.muted();
+            auto at = [&](int l, int c) { return hl.colorAt(l, c); };
+            check(nu.red() == 255 && nu.green() > 100 && nu.green() < 150 && nu.blue() == 0, "orange is between the theme red and yellow");
+            check(at(0, 0) == mu && at(0, 5) == mu, "highlight: // @name header is muted");
+            check(at(1, 0) == pp && at(1, 9) == pp, "highlight: preprocessor line is cyan");
+            check(at(2, 0) == kw && at(2, 8) == ty && at(2, 16) == ty && !at(2, 13).isValid(), "highlight: keywords magenta, vec3/mat3x2 yellow, names plain");
+            check(at(3, 0) == ty && at(3, 10) == bi && at(3, 14) == nu && at(3, 22) == nu && at(3, 28) == nu && at(3, 35) == bi,
+                  QString("highlight: float, mix, 1.5e-3, 0x1F, 2u, iTime (%1 %2 %3)").arg(at(3, 14).name(), at(3, 22).name(), at(3, 28).name()));
+            check(at(4, 0) == mu && at(5, 3) == mu && at(5, 6) == mu, "highlight: /* */ spans lines (block state)");
+            check(at(5, 8) == kw && at(5, 16) == nu && at(5, 20) == kw, "highlight: code after */ is coloured");
+            check(at(6, 0) == ty && at(6, 5) == bi && at(6, 15) == kw && at(6, 24) == bi && !at(6, 37).isValid(), "highlight: mainImage/fragColor blue, foo plain");
+            doc.setPlainText("/* open\nfloat a;\n"); QCoreApplication::processEvents();
+            check(at(1, 0) == mu, "highlight: unclosed comment keeps the next line muted");
+            doc.setPlainText("float a; /* x */ int b;\n"); QCoreApplication::processEvents();
+            check(at(0, 17) == ty, "highlight: inline comment ends on the same line");
+            // Theme switch recolours live; a theme without a key falls back.
+            write(dir + "/colors.toml", "background = \"#ffffff\"\nforeground = \"#111111\"\ncolor5 = \"#aa0055\"\ncolor12 = \"#3355cc\"\n");
+            th.refresh();
+            doc.setPlainText("if (x) y = sin(1.0);\nvec2 v;\n"); QCoreApplication::processEvents();
+            th.refresh();
+            check(at(0, 0) == QColor("#aa0055"), "highlight: theme switch recolours (keywords)");
+            check(at(0, 11) == QColor("#3355cc"), "highlight: missing color4 falls back to bright color12");
+            check(at(1, 0) == QColor("#e0af68") && at(0, 15) == QColor("#ff9e64"), "highlight: missing yellow/orange fall back to defaults");
+        }
         qputenv("HOME", oldHome);
     }
 
@@ -961,6 +1001,63 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         check(line == want && code->property("activeFocus").toBool(), QString("Enter on an error jumps to line %1 (got %2)").arg(want).arg(line));
         auto *tint = editor->findChild<QQuickItem *>("focusLineTint");
         check(tint && !tint->isVisible(), "the tint clears when the list loses focus");
+    }
+    // GLSL highlighting in the editor: Crouwel, an injected error, a second theme.
+    {
+        auto *hl = editor->findChild<QObject *>("highlighter");
+        QObject *th = qvariant_cast<QObject *>(qmlContext(editor)->contextProperty("theme"));
+        QFile cf(":/examples/crouwel-new-alphabet.glsl");
+        cf.open(QIODevice::ReadOnly);
+        const QString crouwel = QString::fromUtf8(cf.readAll());
+        auto compileNow = [&] {
+            QMetaObject::invokeMethod(code, "forceActiveFocus");
+            key(win, Qt::Key_Return, "", Qt::ControlModifier);
+            waitFor([&] { return !editor->property("compiling").toBool(); }, 20000);
+        };
+        code->setProperty("text", crouwel);
+        compileNow();
+        auto colorAt = [&](int l, int c) { QColor r; QMetaObject::invokeMethod(hl, "colorAt", Q_RETURN_ARG(QColor, r), Q_ARG(int, l), Q_ARG(int, c)); return r; };
+        const QStringList lines = crouwel.split(u'\n');
+        int vl = -1; for (int i = 0; i < lines.size(); ++i) if (lines[i].startsWith("void mainImage")) { vl = i; break; }
+        check(hl && colorAt(0, 1) == th->property("muted").value<QColor>(), QString("editor: the @name header is muted (%1 vs %2)").arg(colorAt(0, 1).name(), th->property("muted").value<QColor>().name()));
+        check(vl >= 0 && colorAt(vl, 0) == th->property("yellow").value<QColor>() && colorAt(vl, 6) == th->property("blue").value<QColor>(),
+              "editor: void is yellow, mainImage blue");
+        waitFor([] { return false; }, 300);
+        shotAs("hl-editor");
+        // Error: drop the first semicolon after the header; its line gets a faint red tint.
+        QString broken = crouwel;
+        const int semi = broken.indexOf(u';', broken.indexOf("\n", broken.indexOf("@license")));
+        broken.remove(semi, 1);
+        code->setProperty("text", broken);
+        compileNow();
+        const int el = editor->property("errorLine").toInt();
+        QQuickItem *tint = nullptr;
+        std::function<void(QQuickItem *)> find = [&](QQuickItem *i) {
+            if (i->objectName() == "errorLineTint" && i->isVisible()) tint = i;
+            for (QQuickItem *c : i->childItems()) find(c);
+        };
+        find(editor);
+        const QColor tc = tint ? tint->property("color").value<QColor>() : QColor();
+        const QColor red = th->property("error").value<QColor>();
+        check(el > 0 && tint && tc.alphaF() > 0.03 && tc.alphaF() < 0.2 && tc.red() == red.red() && tc.blue() == red.blue(),
+              QString("error line %1 has a faint red tint (%2 a=%3, %4)").arg(el).arg(tc.name()).arg(tc.alphaF()).arg(red.name()));
+        waitFor([] { return false; }, 300);
+        shotAs("hl-error");
+        // Another theme, followed live.
+        code->setProperty("text", crouwel);
+        compileNow();
+        const QString tdir = QDir::homePath() + "/.local/state/omarchy/current/theme";
+        QDir().mkpath(tdir);
+        auto writeTheme = [&](const QByteArray &d) { QFile f(tdir + "/colors.toml"); f.open(QIODevice::WriteOnly | QIODevice::Truncate); f.write(d); };
+        writeTheme("background = \"#fbf1c7\"\nforeground = \"#3c3836\"\naccent = \"#076678\"\ncolor1 = \"#cc241d\"\ncolor3 = \"#b57614\"\n"
+                   "color4 = \"#076678\"\ncolor5 = \"#8f3f71\"\ncolor6 = \"#427b58\"\n");
+        QMetaObject::invokeMethod(th, "refresh");
+        check(colorAt(vl, 0) == QColor("#b57614") && colorAt(vl, 6) == QColor("#076678"), QString("editor: a theme switch recolours the code (%1 %2, theme %3)").arg(colorAt(vl, 0).name(), colorAt(vl, 6).name(), th->property("yellow").value<QColor>().name()));
+        waitFor([] { return false; }, 300);
+        shotAs("hl-theme2");
+        QFile::remove(tdir + "/colors.toml");
+        writeTheme("background = \"#1a1b26\"\nforeground = \"#c0caf5\"\naccent = \"#7aa2f7\"\ncolor1 = \"#f7768e\"\n");
+        QMetaObject::invokeMethod(th, "refresh");
     }
     code->setProperty("text", single);
     QMetaObject::invokeMethod(code, "forceActiveFocus");

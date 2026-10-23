@@ -26,6 +26,7 @@ qt_add_executable(shady
   src/theme.h src/theme.cpp
   src/selftest.h src/selftest.cpp
   src/textures.h src/textures.cpp
+  src/glslhighlighter.h src/glslhighlighter.cpp
   src/framemeter.h
 )
 target_compile_definitions(shady PRIVATE SHADY_VERSION="${PROJECT_VERSION}")
@@ -58,6 +59,7 @@ qt_add_lrelease(shady TS_FILES i18n/shady_da.ts QM_FILES_OUTPUT_VARIABLE shady_q
 qt_add_resources(shady "translations" PREFIX "/i18n" BASE "${CMAKE_CURRENT_BINARY_DIR}" FILES ${shady_qm})
 
 target_link_libraries(shady PRIVATE Qt6::Core Qt6::Gui Qt6::GuiPrivate Qt6::Quick)
+target_include_directories(shady PRIVATE src)
 include(GNUInstallDirs)
 install(TARGETS shady RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES packaging/linux/shady.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
