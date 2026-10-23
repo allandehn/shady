@@ -10,6 +10,10 @@
 # (no ShaderEffect). Then it retries with xcb on a private Xvfb (xvfb-run -a),
 # which is still headless and isolated from any real display.
 # Each run starts from a fresh library, so first-run seeding is tested too.
+# The phases are independent (own dirs, D-Bus and Xvfb each), so they run in
+# parallel; each one's output is buffered and printed in the usual order, and
+# the exit code is the first failing phase's. SHADY_TEST_JOBS=1 runs them one
+# after another, streaming (handy when debugging a hang).
 set -euo pipefail
 BIN=${1:-./build/shady}
 SHOT=${2:-}
@@ -25,36 +29,57 @@ iso() {
 }
 UI=(--ui-test); [[ -n $SHOT ]] && UI+=(--screenshot "$SHOT")
 
-echo "== self-test"
-iso QT_QPA_PLATFORM=offscreen timeout 120 dbus-run-session -- "$BIN" --self-test
-
 # gui <timeout> <args...>: offscreen if it has GL, else xcb on a private Xvfb.
+# A server number per phase (-n, with -a still skipping taken ones) so parallel
+# xvfb-runs don't race for the same display.
 PLAT=offscreen
 gui() {
   local t=$1; shift
   if [[ $PLAT == offscreen ]]; then
     iso QT_QPA_PLATFORM=offscreen timeout "$t" dbus-run-session -- "$BIN" "$@" && return 0
-    command -v xvfb-run >/dev/null || { echo "FAIL offscreen has no GL and xvfb-run is missing"; exit 1; }
+    command -v xvfb-run >/dev/null || { echo "FAIL offscreen has no GL and xvfb-run is missing"; return 1; }
     PLAT=xcb; echo "== retrying with xcb on a private Xvfb"
   fi
-  iso QT_QPA_PLATFORM=xcb timeout "$t" xvfb-run -a -s "-screen 0 1280x900x24 -nolisten tcp" \
+  iso QT_QPA_PLATFORM=xcb timeout "$t" xvfb-run -a -n "$XNUM" -s "-screen 0 1280x900x24 -nolisten tcp" \
     dbus-run-session -- "$BIN" "$@"
 }
 
-echo "== UI test"
-gui 120 "${UI[@]}"
+P_NAMES=(); P_CMDS=()
+phase() { P_NAMES+=("$1"); P_CMDS+=("$2"); }
+phase "self-test" 'iso QT_QPA_PLATFORM=offscreen timeout 120 dbus-run-session -- "$BIN" --self-test'
+phase "UI test" 'gui 120 "${UI[@]}"'
 # Potato: the benchmark, iChannels on screen, auto-adapt and the too-heavy pause.
 # SHADY_SOFTWARE=0 so a software rasterizer is treated as a (very slow) GPU.
-if [[ -z ${SKIP_POTATO:-} ]]; then
-echo "== potato test"
-SHADY_SOFTWARE=0 gui 240 --potato-test
-fi
+[[ -z ${SKIP_POTATO:-} ]] && phase "potato test" 'SHADY_SOFTWARE=0 gui 240 --potato-test'
 # Text-fit sweep over every screen, normal and narrow, in Danish and English.
-echo "== Danish"
-SHADY_LANG=da gui 120 --danish-shot ${SHOT:+--screenshot "${SHOT%.png}-da.png"}
-echo "== English sweep"
-SHADY_LANG=en gui 120 --danish-shot ${SHOT:+--screenshot "${SHOT%.png}-en.png"}
+phase "Danish" 'SHADY_LANG=da gui 120 --danish-shot ${SHOT:+--screenshot "${SHOT%.png}-da.png"}'
+phase "English sweep" 'SHADY_LANG=en gui 120 --danish-shot ${SHOT:+--screenshot "${SHOT%.png}-en.png"}'
+
+XBASE=$(( 200 + (RANDOM % 150) * 20 ))
+RC=0
+if [[ ${SHADY_TEST_JOBS:-} == 1 ]]; then
+  for i in "${!P_NAMES[@]}"; do
+    echo "== ${P_NAMES[i]}"; XNUM=$((XBASE + i)); s=$SECONDS
+    ( eval "${P_CMDS[i]}" ) || { RC=$?; exit $RC; }
+    echo "-- ${P_NAMES[i]}: $((SECONDS - s)) s"
+  done
+else
+  PIDS=()
+  for i in "${!P_NAMES[@]}"; do
+    XNUM=$((XBASE + i))
+    ( s=$SECONDS; set +e; ( eval "${P_CMDS[i]}" ) </dev/null >"$T/phase.$i" 2>&1; r=$?
+      echo "-- ${P_NAMES[i]}: $((SECONDS - s)) s" >>"$T/phase.$i"; exit $r ) &
+    PIDS+=($!)
+  done
+  for i in "${!P_NAMES[@]}"; do
+    r=0; wait "${PIDS[i]}" || r=$?
+    echo "== ${P_NAMES[i]}"; cat "$T/phase.$i"
+    (( r == 0 )) || { echo "FAIL phase ${P_NAMES[i]} (exit $r)"; (( RC )) || RC=$r; }
+  done
+  (( RC == 0 )) || exit $RC
+fi
 # Install regression (skipped when this run is already testing an installed binary).
+# After the others: it hides the build tree while it runs.
 if [[ -z ${SKIP_POTATO:-} && -d $(dirname "$BIN") && -f $(dirname "$BIN")/cmake_install.cmake ]]; then
   echo "== installed-package test"
   "$(dirname "$0")/installed.sh" "$(dirname "$BIN")"
