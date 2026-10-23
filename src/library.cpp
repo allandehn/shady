@@ -352,7 +352,14 @@ int Library::toggleStar(int row)
     const QString slug = e.slug;
     e.meta.insert(QStringLiteral("starred"), !e.meta.value("starred").toBool());
     save(e);
-    beginResetModel();
+    if (m_filter != Starred) {
+        // The card stays exactly where it is; "starred first" applies on the
+        // next rebuild (filter switch, reload), never under the user's cursor.
+        const QModelIndex i = index(row);
+        emit dataChanged(i, i, {StarredRole});
+        return row;
+    }
+    beginResetModel(); // unstarring in the Starred view removes the card
     rebuild();
     endResetModel();
     emit countChanged();

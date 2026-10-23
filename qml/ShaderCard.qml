@@ -1,7 +1,7 @@
 import QtQuick
 
 // One card: preview on top, name and "by author" below. Neutral, no colored
-// border; focus or hover adds a 1 px accent outline and swaps the author line
+// border; the highlighted card (last hovered or key-selected) gets a 1 px accent outline and swaps the author line
 // for the shader's saved settings. Only the current card plays live.
 // The last card in the All view is the quieter "+ New shader" card.
 Item {
@@ -35,8 +35,11 @@ Item {
     signal trashRequested()
     signal starRequested()
 
-    readonly property bool hot: current || hover.hovered
-    HoverHandler { id: hover }
+    // One highlight, owned by the grid's current index: hovering moves it here
+    // (see mouseMoved), keys move it away. So never two hot cards.
+    readonly property bool hot: current
+    signal mouseMoved(point scenePos)
+    HoverHandler { id: hover; onPointChanged: if (hovered) card.mouseMoved(point.scenePosition) }
     opacity: (hidden || trashed) && !isNew ? 0.55 : 1
     layer.enabled: opacity < 1 // fade as one, so the corner masks still cover the preview
 

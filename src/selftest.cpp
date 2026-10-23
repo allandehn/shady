@@ -145,8 +145,12 @@ int runSelfTest()
     check(readToml(dir + "/shader.toml").value("quality").toInt() == 100, "quality clamps to 100");
     check(QDir(dir).entryList(QDir::Files).size() == 2, "atomic writes leave no temp files");
 
-    lib.toggleStar(lib.rowOf(b));
-    check(lib.rowOf(b) == 0, "starred shaders sort first");
+    {
+        const int rb = lib.rowOf(b);
+        check(lib.toggleStar(rb) == rb && lib.rowOf(b) == rb, "starring keeps the card where it is");
+        lib.setFilter(Library::Hidden); lib.setFilter(Library::All);
+        check(lib.rowOf(b) == 0, "starred shaders sort first after a refresh");
+    }
     lib.toggleHidden(lib.rowOf(a));
     check(lib.rowOf(a) == -1 && lib.count() == 2, "hidden shader leaves the list and the count");
     lib.setFilter(Library::Hidden);
@@ -657,8 +661,8 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
     const QString slug = lib->get(1).value("slug").toString();
     const QString toml = lib->shadersDir() + "/" + slug + "/shader.toml";
     key(win, Qt::Key_S, "s");
-    check(readToml(toml).value("starred").toBool() && lib->rowOf(slug) == 0, "S stars and moves it first");
-    check(list->property("currentRow").toInt() == 0, "focus follows the starred card");
+    check(readToml(toml).value("starred").toBool() && lib->rowOf(slug) == 1, "S stars and the card stays put");
+    check(list->property("currentRow").toInt() == 1, "focus stays on the starred card");
 
     key(win, Qt::Key_Return);
     check(viewer->isVisible() && !list->isVisible(), "Enter opens the viewer");
@@ -742,6 +746,34 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
             check(list->property("currentRow").toInt() == total - 1, QString("Down from %1 goes to the shorter row's last card (%2)").arg(from).arg(list->property("currentRow").toInt()));
             key(win, Qt::Key_Up);
             check(list->property("currentRow").toInt() == total - 1 - cols, "Up goes straight back up");
+        }
+        QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+
+        {   // One highlight, following the last input (mouse or keys); only it plays.
+            auto cards = [&] { QList<QQuickItem *> o; for (QQuickItem *c : allItems(win->contentItem()))
+                if (c->property("isNew").isValid() && c->property("hot").isValid() && c->isVisible()) o << c; return o; };
+            auto cardAt = [&](int i) -> QQuickItem * { for (QQuickItem *c : cards()) if (c->property("index").toInt() == i) return c; return nullptr; };
+            auto hotRows = [&] { QList<int> o; for (QQuickItem *c : cards()) if (c->property("hot").toBool()) o << c->property("index").toInt(); return o; };
+            auto playing = [&] { int n = 0; for (QQuickItem *c : cards()) if (c->property("live").toBool()) ++n; return n; };
+            const bool canPlay = !lib->slowMachine();
+            auto center = [&](int i) { QQuickItem *c = cardAt(i); return c ? c->mapToScene(QPointF(c->width() / 2, c->height() / 3)) : QPointF(); };
+            mouse(win, center(2), QEvent::MouseMove); mouse(win, center(2) + QPointF(2, 2), QEvent::MouseMove);
+            check(hotRows() == QList<int>{2} && list->property("currentRow").toInt() == 2, QString("hover takes the highlight (hot %1)").arg(hotRows().size()));
+            if (canPlay) check(playing() <= 1, "only the hovered card plays");
+            key(win, Qt::Key_Right);
+            check(hotRows() == QList<int>{3}, QString("keys move it off the hovered card (hot %1)").arg(hotRows().size()));
+            if (canPlay) check(playing() <= 1, "only the key-selected card plays");
+            // A synthetic hover at the same spot (as when cards scroll under a still cursor) must not steal it.
+            mouse(win, center(2) + QPointF(2, 2), QEvent::MouseMove);
+            check(hotRows() == QList<int>{3}, "a still cursor doesn't take the highlight back");
+            mouse(win, center(1), QEvent::MouseMove);
+            check(hotRows() == QList<int>{1} && list->property("currentRow").toInt() == 1, "moving the mouse takes it back");
+            const QString s1 = lib->get(1).value("slug").toString();
+            QMetaObject::invokeMethod(list, "act", Q_ARG(QVariant, "star"), Q_ARG(QVariant, 1));
+            check(lib->rowOf(s1) == 1 && list->property("currentRow").toInt() == 1, "starring from the grid doesn't move the card");
+            QMetaObject::invokeMethod(list, "act", Q_ARG(QVariant, "star"), Q_ARG(QVariant, 1));
+            check(lib->rowOf(s1) == 1, "unstarring doesn't move it either");
+            mouse(win, QPointF(2, 2), QEvent::MouseMove);
         }
         QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
 

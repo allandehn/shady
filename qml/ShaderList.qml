@@ -230,9 +230,20 @@ FocusScope {
         keyNavigationEnabled: true
         highlightFollowsCurrentItem: false
         boundsBehavior: Flickable.StopAtBounds
+        property bool mouseDriven: false // last input was the mouse
+        property point lastMouse: Qt.point(-1, -1)
+        onActiveFocusChanged: if (activeFocus) mouseDriven = false
         delegate: ShaderCard {
             width: grid.cellWidth; height: grid.cellHeight
-            current: GridView.isCurrentItem && grid.activeFocus
+            current: GridView.isCurrentItem && (grid.activeFocus || grid.mouseDriven)
+            // Only a real pointer move takes the highlight: cards scrolling
+            // under a still cursor (after key nav) must not steal it back.
+            onMouseMoved: (p) => {
+                if (p.x === grid.lastMouse.x && p.y === grid.lastMouse.y) return
+                grid.lastMouse = p
+                grid.mouseDriven = true
+                if (grid.currentIndex !== index) grid.currentIndex = index
+            }
             live: current && !theme.software && !library.slowMachine
             selected: !!panel.sel[slug]
             selecting: panel.selecting
@@ -246,6 +257,7 @@ FocusScope {
         }
 
         Keys.onPressed: (e) => {
+            grid.mouseDriven = false
             const r = grid.currentIndex
             const ctrl = e.modifiers & Qt.ControlModifier, shift = e.modifiers & Qt.ShiftModifier
             const isNewCard = r === library.count && library.filter === 0
