@@ -13,11 +13,12 @@ Item {
     property string code: ""        // source being measured ("" = idle)
     property int frame: 0
     property int tries: 0
+    property int idleMs: 1500       // pause between shaders (the UI test shortens it)
     property var wanted: null       // {code, url, channels} from the editor
     readonly property bool busy: code !== ""
     ShaderView { id: view; anchors.fill: parent; running: false; quality: 1.0 }
     Timer { id: settle; interval: 250; onTriggered: maker.step() }
-    Timer { id: idle; interval: 1500; onTriggered: maker.kick() }
+    Timer { id: idle; interval: maker.idleMs; onTriggered: maker.kick() }
 
     function request(c, url, channels) {
         if (!c || library.livelyOf(c) >= 0) return

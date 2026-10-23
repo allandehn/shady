@@ -641,6 +641,9 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
     check(list && viewer, "list and viewer exist");
     if (!list || !viewer) { QCoreApplication::exit(1); return; }
 
+    // The liveliness meter normally waits 1.5 s of idle between shaders; nothing
+    // here checks that pacing, so let it run back to back (the scores are the same).
+    if (auto *lm = win->findChild<QObject *>("livelyMaker")) lm->setProperty("idleMs", 50);
     waitFor([&] { return lib->preparing() == 0; }, 60000);
     check(lib->preparing() == 0 && lib->count() >= 4, QString("%1 shaders compiled with still frames").arg(lib->count()));
     waitFor([] { return false; }, 400);
@@ -696,8 +699,9 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
 
     // Trash, undo, Trash view, delete forever
     auto shotAs = [&](const QString &suffix) {
-        waitFor([] { return false; }, 300);
-        waitFor([] { return false; }, 100);
+        // Settle: a couple of frames plus the longest unconditional UI animation
+        // (editor pane height, 120 ms). Longer fades are waited on explicitly.
+        waitFor([] { return false; }, 150);
         fits(win, suffix);
         if (shot.isEmpty()) return;
         QString p = shot; p.replace(".png", "-" + suffix + ".png");
