@@ -174,18 +174,22 @@ FocusScope {
             y: overlay.base - hintMetric.baselineOffset
             baselineOffset: hintMetric.baselineOffset
             Label { id: hintMetric; visible: false; text: "x"; font.bold: true; font.pixelSize: hintRow.fs }
-            spacing: Math.round(overlay.u * 0.016)
+            spacing: 0
             readonly property int fs: Math.max(10, Math.round(overlay.u * 0.016))
             Repeater {
                 model: library.learnedViewerKeys ? [["?", qsTr("keys")], ["esc", qsTr("back")]]
                      : [["↑↓", qsTr("quality")], ["←→", qsTr("fps")], ["?", qsTr("keys")], ["esc", qsTr("back")]]
                 Row {
+                    id: capHint
                     required property var modelData
+                    required property int index
                     objectName: "captionHint"
                     readonly property real baselineOffset: k.baselineOffset
+                    Label { text: " · "; color: "#8c95c0"; font.pixelSize: hintRow.fs; visible: capHint.index > 0 && capHint.x > 0
+                            style: Text.Raised; styleColor: Qt.rgba(0, 0, 0, 0.45) }
                     Label { id: k; text: modelData[0]; font.bold: true; font.pixelSize: hintRow.fs
                             style: Text.Raised; styleColor: Qt.rgba(0, 0, 0, 0.45) }
-                    Label { text: ":" + modelData[1]; color: "#8c95c0"; font.pixelSize: hintRow.fs
+                    Label { text: " " + modelData[1]; color: "#8c95c0"; font.pixelSize: hintRow.fs
                             style: Text.Raised; styleColor: Qt.rgba(0, 0, 0, 0.45) }
                 }
             }
@@ -296,7 +300,7 @@ FocusScope {
                 width: parent.width; height: 30
                 Row { anchors.verticalCenter: parent.verticalCenter
                     Label { text: "esc"; font.bold: true; font.pixelSize: 11 }
-                    Label { text: ":" + qsTr("close"); dim: true; font.pixelSize: 11 } }
+                    Label { text: " " + qsTr("close"); dim: true; font.pixelSize: 11 } }
                 Button { id: tryBtn; anchors.right: parent.right; primary: true; focus: true
                          text: qsTr("Try %1%").arg(viewer.tryQuality); onClicked: viewer.tryLower() }
             }

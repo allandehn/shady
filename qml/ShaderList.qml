@@ -419,7 +419,7 @@ FocusScope {
                     onClicked: keys.open(panel.inTrash ? "trash" : panel.selecting ? "organize" : "browse")
                     Row { id: qRow; spacing: 0
                           Label { text: "?"; font.pixelSize: 11; font.bold: true; color: allKeys.containsMouse ? ui.accent : ui.fg }
-                          Label { text: ":" + qsTr("all keys"); font.pixelSize: 11; dim: true } }
+                          Label { text: " " + qsTr("all keys"); font.pixelSize: 11; dim: true } }
                 }
             }
         }
