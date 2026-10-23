@@ -173,4 +173,12 @@ DA = {
 'trash': 'papirkurv',
 'undo': 'fortryd',
 'unhide': 'vis igen',
+'lively': 'livlig',
+'heatmap': 'varmekort',
+'hide heatmap': 'skjul varmekort',
+'burn-in heatmap': 'varmekort for indbrænding',
+'red = static': 'rød = stillestående',
+'measuring…': 'måler…',
+'Burn-in protection': 'Beskyttelse mod indbrænding',
+'Slow drift and dimming when fullscreen': 'Langsom forskydning og dæmpning i fuld skærm',
 }

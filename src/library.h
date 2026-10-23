@@ -7,6 +7,10 @@
 #include <QAbstractListModel>
 #include <QDateTime>
 #include <QDir>
+#include <QHash>
+#include <QSet>
+#include <QImage>
+#include <QUrl>
 #include <QTimer>
 #include <QVariantMap>
 #include <QVector>
@@ -41,13 +45,14 @@ class Library : public QAbstractListModel
     Q_PROPERTY(bool benchmarked READ benchmarked NOTIFY settingsChanged)
     Q_PROPERTY(int defaultQuality READ defaultQuality NOTIFY settingsChanged)
     Q_PROPERTY(int defaultFps READ defaultFps NOTIFY settingsChanged)
+    Q_PROPERTY(bool antiBurnIn READ antiBurnIn WRITE setAntiBurnIn NOTIFY settingsChanged)
     Q_PROPERTY(bool slowMachine READ slowMachine WRITE setSlowMachine NOTIFY slowMachineChanged)
 public:
     enum Filter { All, Starred, Hidden, Trash };
     Q_ENUM(Filter)
     enum Role { SlugRole = Qt::UserRole + 1, NameRole, AuthorRole, LicenseRole, DescriptionRole,
                 QualityRole, FpsRole, StarredRole, HiddenRole, StateRole, ErrorLineRole,
-                ErrorTextRole, ShaderUrlRole, StillUrlRole, IsNewRole, TrashedRole, RemovedRole, ChannelsRole };
+                ErrorTextRole, ShaderUrlRole, StillUrlRole, IsNewRole, TrashedRole, RemovedRole, ChannelsRole, LivelyRole };
 
     Library(const QString &dataDir, const QString &cacheDir, int maxFps, QObject *parent = nullptr,
             const QString &configDir = {});
@@ -125,6 +130,22 @@ public:
     Q_INVOKABLE qint64 cacheBytes() const;
     Q_INVOKABLE void clearCache();
     Q_INVOKABLE int monitorCount() const;
+    // Burn-in protection. Liveliness: % of pixels whose luminance range over
+    // ~90 s of shader time (sampled at 1 fps, 160x90) exceeds kLivelyThreshold.
+    // Lazy: the QML LivelyMaker feeds frames; cached by source sha1.
+    static constexpr int kLivelyThreshold = 8;  // of 255
+    Q_INVOKABLE int livelyOf(const QString &code) const;      // -1 = not known yet
+    Q_INVOKABLE QUrl heatmapOf(const QString &code) const;    // red = static, empty if unknown
+    Q_INVOKABLE int nextNeedingLively() const;
+    Q_INVOKABLE void livelyBegin();
+    Q_INVOKABLE void livelyAdd(const QVariant &image);
+    Q_INVOKABLE int livelyFinish(const QString &code);
+    Q_INVOKABLE void livelyFailed(const QString &code); // couldn't render: skip it this session
+    // Anti-burn-in drift at t seconds for a shader of the given liveliness:
+    // {x, y} offset (px, |.| <= radius), radius, pad (overscan), dim (0..), hue (0..1), tint (alpha).
+    Q_INVOKABLE static QVariantMap drift(double t, int lively);
+    bool antiBurnIn() const { return m_antiBurnIn; }
+    void setAntiBurnIn(bool on) { if (on != m_antiBurnIn) { m_antiBurnIn = on; saveSettings(); emit settingsChanged(); } }
     QString screensaverOn() const { return m_screensaverOn; }
     void setScreensaverOn(const QString &v);
 
@@ -140,6 +161,7 @@ signals:
     void undoChanged();
     void settingsChanged();
     void slowMachineChanged();
+    void livelyChanged();
     void noted(const QString &text); // status note: "Moved to Trash · ctrl+z undo"
     void draftCompiled(bool ok, const QUrl &url, int errorLine, const QString &errorText, const QString &code, const QString &types, const QVariantList &errors);
 
@@ -173,5 +195,10 @@ private:
     double m_benchMs = 0;
     int m_defQuality = 50, m_defFps = 30;
     QString m_crashed; // shader that was open when the app last died
+    bool m_antiBurnIn = true;
+    QHash<QString, int> m_lively;
+    QSet<QString> m_livelySkip;   // source sha1 -> lively %
+    QVector<uchar> m_lmin, m_lmax; int m_lw = 0, m_lh = 0, m_ln = 0;
+    QString livelyDir() const { return m_cacheDir + QStringLiteral("/lively"); }
     QString m_draftId = QStringLiteral(" draft");
 };

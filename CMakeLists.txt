@@ -38,7 +38,7 @@ qt_add_qml_module(shady
     qml/Main.qml qml/ShaderList.qml qml/ShaderCard.qml qml/Viewer.qml
     qml/ShaderView.qml qml/Label.qml qml/Hint.qml qml/Hatch.qml qml/Tip.qml
     qml/Button.qml qml/Confirm.qml qml/Menu.qml qml/KeySheet.qml qml/SettingsSheet.qml
-    qml/Editor.qml qml/Field.qml qml/Channel.qml qml/ChannelPicker.qml qml/Benchmark.qml
+    qml/Editor.qml qml/Field.qml qml/Channel.qml qml/ChannelPicker.qml qml/Benchmark.qml qml/LivelyMaker.qml
 )
 
 qt_add_resources(shady "examples"

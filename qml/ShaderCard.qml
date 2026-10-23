@@ -22,6 +22,7 @@ Item {
     required property url shaderUrl
     required property url stillUrl
     required property var channels
+    required property int lively
     property bool selected: false
     property bool selecting: false
     signal toggled()
@@ -167,8 +168,9 @@ Item {
                     : card.shaderState === "unreadable" ? card.slug
                     : card.shaderState === "error" ? qsTr("Draft · line %1").arg(card.errorLine)
                     : card.hidden && !card.hot ? qsTr("Hidden")
-                    : card.hot ? qsTr("%1% · %2 fps").arg(card.quality).arg(card.fps)
-                    : (card.author ? qsTr("by %1").arg(card.author) : "")
+                    : card.hot ? qsTr("%1% · %2 fps").arg(card.quality).arg(card.fps) + (card.lively >= 0 ? " · " + qsTr("lively") + ":" + card.lively + "%" : "")
+                    : [card.author ? qsTr("by %1").arg(card.author) : "",
+                       card.lively >= 0 ? qsTr("lively") + ":" + card.lively + "%" : ""].filter(Boolean).join(" · ")
             }
         }
     }

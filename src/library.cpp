@@ -28,6 +28,7 @@ Library::Library(const QString &dataDir, const QString &cacheDir, int maxFps, QO
             if (v == QLatin1String("all") || v == QLatin1String("primary")) m_screensaverOn = v;
             m_autoAdapt = m.value("auto_adapt", true).toBool();
             m_learned = m.value("learned_viewer_keys", false).toBool();
+            m_antiBurnIn = m.value("anti_burn_in", true).toBool();
             m_benchMs = m.value("benchmark_ms", 0).toDouble();
             m_defQuality = std::clamp(m.value("default_quality", 50).toInt(), 10, 100);
             m_defFps = std::clamp(m.value("default_fps", 30).toInt(), 10, std::max(10, maxFps));
@@ -39,6 +40,13 @@ Library::Library(const QString &dataDir, const QString &cacheDir, int maxFps, QO
         if (f.open(QIODevice::ReadOnly)) m_crashed = QString::fromUtf8(f.readAll()).trimmed();
     }
     QDir().mkpath(m_cacheDir + QStringLiteral("/stills"));
+    {
+        QFile f(livelyDir() + QStringLiteral("/scores.toml"));
+        if (f.open(QIODevice::ReadOnly)) {
+            const QVariantMap m = Toml::parse(QString::fromUtf8(f.readAll()));
+            for (auto it = m.begin(); it != m.end(); ++it) m_lively.insert(it.key().mid(1), it.value().toInt());
+        }
+    }
     // Settings changed in the viewer are saved straight away, but batched
     // about half a second apart so a held arrow key doesn't hammer the disk.
     m_saveTimer.setSingleShot(true);
@@ -241,6 +249,7 @@ QVariant Library::data(const QModelIndex &idx, int role) const
         if (role == SlugRole || role == StateRole) return QString();
         if (role == NameRole) return tr("New shader");
         if (role == ShaderUrlRole || role == StillUrlRole) return QUrl();
+        if (role == LivelyRole) return -1;
         return role == StarredRole || role == HiddenRole || role == TrashedRole ? QVariant(false) : QVariant(0);
     }
     if (idx.row() > m_rows.size()) return {};
@@ -263,6 +272,7 @@ QVariant Library::data(const QModelIndex &idx, int role) const
     case IsNewRole: return false;
     case TrashedRole: return e.trashed;
     case ChannelsRole: return channelsOf(e.slug);
+    case LivelyRole: return livelyOf(e.code);
     case RemovedRole: {
         const QDateTime t = QDateTime::fromString(e.meta.value("trashed").toString(), Qt::ISODate);
         if (!t.isValid()) return QString();
@@ -280,7 +290,7 @@ QHash<int, QByteArray> Library::roleNames() const
             {StarredRole, "starred"}, {HiddenRole, "hidden"}, {StateRole, "shaderState"},
             {ErrorLineRole, "errorLine"}, {ErrorTextRole, "errorText"}, {ShaderUrlRole, "shaderUrl"},
             {StillUrlRole, "stillUrl"}, {IsNewRole, "isNew"}, {TrashedRole, "trashed"},
-            {RemovedRole, "removed"}, {ChannelsRole, "channels"}};
+            {RemovedRole, "removed"}, {ChannelsRole, "channels"}, {LivelyRole, "lively"}};
 }
 
 QVariantMap Library::get(int row) const
@@ -976,7 +986,7 @@ void Library::saveSettings()
     QDir().mkpath(m_configDir);
     QSaveFile f(configFile());
     QVariantMap m{{"screensaver_on", m_screensaverOn}, {"auto_adapt", m_autoAdapt}, {"learned_viewer_keys", m_learned},
-                  {"default_quality", m_defQuality}, {"default_fps", m_defFps}};
+                  {"default_quality", m_defQuality}, {"default_fps", m_defFps}, {"anti_burn_in", m_antiBurnIn}};
     if (m_benchMs > 0) m.insert(QStringLiteral("benchmark_ms"), m_benchMs);
     if (f.open(QIODevice::WriteOnly)) {
         f.write(Toml::serialize(m).toUtf8());
@@ -1085,4 +1095,108 @@ bool Library::crashedLastTime(const QString &slug)
     if (slug.isEmpty() || slug != m_crashed) return false;
     m_crashed.clear(); // only the next open
     return true;
+}
+
+// ---- Burn-in protection -------------------------------------------------
+
+int Library::livelyOf(const QString &code) const
+{
+    return code.isEmpty() ? -1 : m_lively.value(sha1(code), -1);
+}
+
+QUrl Library::heatmapOf(const QString &code) const
+{
+    if (code.isEmpty()) return {};
+    const QString path = livelyDir() + QLatin1Char('/') + sha1(code) + QStringLiteral(".png");
+    return QFileInfo::exists(path) ? QUrl::fromLocalFile(path) : QUrl();
+}
+
+int Library::nextNeedingLively() const
+{
+    for (int r = 0; r < m_rows.size(); ++r) {
+        const ShaderEntry &e = m_entries[m_rows[r]];
+        if (e.state == QLatin1String("ready") && !e.qsbPath.isEmpty() && !e.trashed && livelyOf(e.code) < 0
+            && !m_livelySkip.contains(sha1(e.code))) return r;
+    }
+    return -1;
+}
+
+void Library::livelyBegin()
+{
+    m_lmin.clear(); m_lmax.clear(); m_lw = m_lh = m_ln = 0;
+}
+
+void Library::livelyAdd(const QVariant &image)
+{
+    QImage img = image.value<QImage>();
+    if (img.isNull()) return;
+    img = img.convertToFormat(QImage::Format_RGB32);
+    if (m_ln == 0) {
+        m_lw = img.width(); m_lh = img.height();
+        m_lmin.fill(255, m_lw * m_lh);
+        m_lmax.fill(0, m_lw * m_lh);
+    }
+    if (img.width() != m_lw || img.height() != m_lh) img = img.scaled(m_lw, m_lh);
+    for (int y = 0; y < m_lh; ++y) {
+        const QRgb *line = reinterpret_cast<const QRgb *>(img.constScanLine(y));
+        uchar *lo = m_lmin.data() + y * m_lw, *hi = m_lmax.data() + y * m_lw;
+        for (int x = 0; x < m_lw; ++x) {
+            const QRgb c = line[x];
+            const uchar l = uchar((qRed(c) * 54 + qGreen(c) * 183 + qBlue(c) * 19) >> 8); // Rec. 709 luma
+            lo[x] = std::min(lo[x], l);
+            hi[x] = std::max(hi[x], l);
+        }
+    }
+    ++m_ln;
+}
+
+int Library::livelyFinish(const QString &code)
+{
+    if (m_ln < 2 || m_lw * m_lh == 0) { livelyBegin(); return -1; }
+    const int n = m_lw * m_lh;
+    int lively = 0;
+    QImage heat(m_lw, m_lh, QImage::Format_ARGB32);
+    for (int i = 0; i < n; ++i) {
+        const int range = m_lmax[i] - m_lmin[i];
+        const bool moving = range > kLivelyThreshold;
+        lively += moving;
+        // Red where the pixel stays put; fades out as it starts to move.
+        const int a = moving ? 0 : 200 - range * 10;
+        heat.setPixel(i % m_lw, i / m_lw, qRgba(255, 30, 30, std::max(0, a)));
+    }
+    const int pct = int(std::lround(100.0 * lively / n));
+    const QString hash = sha1(code);
+    QDir().mkpath(livelyDir());
+    heat.save(livelyDir() + QLatin1Char('/') + hash + QStringLiteral(".png"));
+    m_lively.insert(hash, pct);
+    QVariantMap m;
+    for (auto it = m_lively.begin(); it != m_lively.end(); ++it) m.insert(QLatin1Char('h') + it.key(), it.value());
+    QSaveFile f(livelyDir() + QStringLiteral("/scores.toml"));
+    if (f.open(QIODevice::WriteOnly)) { f.write(Toml::serialize(m).toUtf8()); f.commit(); }
+    for (int i = 0; i < m_entries.size(); ++i)
+        if (m_entries[i].code == code) changed(i, {LivelyRole});
+    livelyBegin();
+    emit livelyChanged();
+    return pct;
+}
+
+QVariantMap Library::drift(double t, int lively)
+{
+    // Low liveliness = more static pixels = more drift. Unknown counts as lively.
+    const double strong = lively < 0 ? 0.0 : std::clamp((60.0 - lively) / 60.0, 0.0, 1.0);
+    const double radius = 2.0 + 3.0 * strong;        // 2..5 px
+    const double period = 300.0;                     // one orbit per 5 min
+    const double a = 2 * M_PI * std::fmod(t, period) / period;
+    // Slightly breathing radius so pixels don't sit on one fixed circle.
+    const double r = radius * (0.8 + 0.2 * std::sin(2 * M_PI * std::fmod(t, 1170.0) / 1170.0));
+    const double dimMax = 0.03 + 0.03 * strong;      // 3..6 %
+    return {{"x", r * std::cos(a)}, {"y", r * std::sin(a)}, {"radius", radius}, {"pad", 6},
+            {"dim", dimMax * (0.5 + 0.5 * std::sin(2 * M_PI * std::fmod(t, 97.0) / 97.0))},
+            {"hue", std::fmod(t, 600.0) / 600.0}, {"tint", 0.015 + 0.02 * strong}};
+}
+
+void Library::livelyFailed(const QString &code)
+{
+    m_livelySkip.insert(sha1(code));
+    livelyBegin();
 }

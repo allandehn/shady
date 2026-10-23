@@ -21,9 +21,26 @@ FocusScope {
     signal close()
     signal toggleFullscreen()
 
+    // Anti-burn-in (screensaver/fullscreen): the whole output orbits a few px
+    // over minutes (overscanned by `pad` so edges never show), with a gentle
+    // brightness and hue wobble. Stronger for shaders with low liveliness.
+    // Updated once a second: costs a recomposite, never a shader change.
+    property bool burnGuard: false
+    property int lively: -1
+    property var drift: library.drift(0, -1)
+    readonly property real driftPad: burnGuard ? drift.pad : 0
+    Timer {
+        id: driftClock
+        interval: 1000; repeat: true; triggeredOnStart: true
+        running: viewer.burnGuard && viewer.visible
+        onTriggered: viewer.drift = library.drift(Date.now() / 1000, viewer.lively)
+    }
+    Connections { target: library; function onLivelyChanged() { if (viewer.row >= 0) viewer.lively = library.get(viewer.row).lively } }
+
     function load(r, resumeAt) {
         row = r
         item = library.get(r)
+        lively = item.lively
         // No real GPU: start at minimum for this session (not saved).
         openedAtMinimum = library.crashedLastTime(item.slug)
         quality = theme.software || openedAtMinimum ? 10 : item.quality
@@ -58,13 +75,27 @@ FocusScope {
     Rectangle { anchors.fill: parent; color: "black" }
     ShaderView {
         id: view
-        anchors.fill: parent
+        objectName: "viewerView"
+        x: viewer.burnGuard ? Math.round((viewer.drift.x - viewer.driftPad) * 4) / 4 : 0
+        y: viewer.burnGuard ? Math.round((viewer.drift.y - viewer.driftPad) * 4) / 4 : 0
+        width: viewer.width + 2 * viewer.driftPad
+        height: viewer.height + 2 * viewer.driftPad
         source: viewer.item.shaderUrl || ""
         channels: viewer.item.channels || []
         quality: viewer.renderQuality / 100
         fps: viewer.fps
         running: viewer.visible && !viewer.paused
         opacity: viewer.paused ? 0.35 : 1
+    }
+    Rectangle { // hue wobble: a faint, slowly turning tint
+        objectName: "driftTint"
+        anchors.fill: parent; visible: viewer.burnGuard
+        color: Qt.hsva(viewer.drift.hue, 1, 1, 1); opacity: viewer.drift.tint
+    }
+    Rectangle { // brightness wobble: a few % darker and back
+        objectName: "driftDim"
+        anchors.fill: parent; visible: viewer.burnGuard
+        color: "black"; opacity: viewer.drift.dim
     }
 
     // Info caption: a soft scrim rising from the bottom edge, the meta line and
@@ -108,6 +139,7 @@ FocusScope {
                 if (viewer.item.license) p.push(viewer.item.license)
                 p.push(qsTr("quality") + ":" + viewer.renderQuality + "%")
                 p.push(qsTr("%1 fps").arg(viewer.fps))
+                if (viewer.lively >= 0) p.push(qsTr("lively") + ":" + viewer.lively + "%")
                 return p.join(" · ").toLowerCase()
             }
             color: Qt.rgba(169/255, 177/255, 214/255, 0.88)

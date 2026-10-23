@@ -11,6 +11,16 @@ FocusScope {
     property var saved: ({})
     property url previewUrl: ""
     property string compiledCode: ""
+    property string previewCode: ""      // source of the preview (last good compile)
+    // Burn-in heatmap (ctrl+h): red over the preview where pixels never change
+    // in ~90 s; the preview goes 16:9 (screen shape) so the map lines up.
+    property bool heatmap: false
+    property QtObject livelyMaker: null
+    property int livelyTick: 0
+    Connections { target: library; function onLivelyChanged() { ed.livelyTick++ } }
+    readonly property int previewLively: livelyTick >= 0 && previewCode ? library.livelyOf(previewCode) : -1
+    function toggleHeatmap() { heatmap = !heatmap; askLively() }
+    function askLively() { if (heatmap && previewCode && livelyMaker) livelyMaker.request(previewCode, previewUrl, previewChannels) }
     property bool compiling: false
     property bool lastOk: false
     property int errorLine: 0
@@ -104,7 +114,7 @@ FocusScope {
         licenseTouched = saved.license !== ""
         parsedHeader = library.parseHeader(saved.code)
         loading = false
-        previewUrl = ""; compiledCode = ""; errorLine = 0; errorText = ""; errors = []; lastOk = false; pendingSave = false
+        previewUrl = ""; previewCode = ""; compiledCode = ""; errorLine = 0; errorText = ""; errors = []; lastOk = false; pendingSave = false
         compile()
         name.forceActiveFocus()
     }
@@ -126,7 +136,7 @@ FocusScope {
             ed.errorText = ok ? "" : text
             ed.errors = ok ? [] : (errs && errs.length ? errs : [{ line: line, text: text }])
             ed.errorsOpen = ed.errors.length > 1
-            if (ok) ed.previewUrl = url // a broken edit never blanks the preview
+            if (ok) { ed.previewUrl = url; ed.previewCode = src; ed.askLively() } // a broken edit never blanks the preview
             if (ed.pendingSave) {
                 ed.pendingSave = false
                 const s = library.saveShader(ed.slug, { name: name.text, author: author.text, license: license.text,
@@ -229,6 +239,8 @@ FocusScope {
                     Keys.onPressed: (e) => {
                         if ((e.key === Qt.Key_Return || e.key === Qt.Key_Enter) && (e.modifiers & Qt.ControlModifier)) {
                             ed.compile(); e.accepted = true
+                        } else if (e.key === Qt.Key_H && (e.modifiers & Qt.ControlModifier)) {
+                            ed.toggleHeatmap(); e.accepted = true
                         }
                     }
                     GlslHighlighter { objectName: "highlighter"; document: code.textDocument; colors: theme }
@@ -400,12 +412,31 @@ FocusScope {
             height: Math.max(40, Math.min(Math.round(width * 0.9), results.y - 14 - y - 14 - chBlock.height))
             color: ui.bg2; radius: theme.rounding; clip: true
             ShaderView {
-                anchors.fill: parent
+                id: preview
+                anchors.centerIn: parent
+                width: parent.width
+                height: ed.heatmap ? Math.min(parent.height, Math.round(parent.width * 9 / 16)) : parent.height
                 source: ed.visible ? ed.previewUrl : ""
                 channels: ed.previewChannels
                 quality: 0.6
                 fps: 30
                 running: ed.visible
+            }
+            Image {
+                objectName: "heatmap"
+                anchors.fill: preview
+                visible: ed.heatmap && ed.previewUrl != ""
+                source: visible && ed.previewLively >= 0 ? library.heatmapOf(ed.previewCode) : ""
+                smooth: false; cache: false
+            }
+            Label {
+                objectName: "heatmapLabel"
+                visible: ed.heatmap && ed.previewUrl != ""
+                anchors { left: parent.left; bottom: parent.bottom; margins: 6 }
+                text: ed.previewLively >= 0 ? qsTr("lively") + ":" + ed.previewLively + "% · " + qsTr("red = static")
+                                            : qsTr("measuring…")
+                font.pixelSize: 11
+                style: Text.Outline; styleColor: Qt.rgba(0, 0, 0, 0.6)
             }
             Label { anchors.centerIn: parent; visible: ed.previewUrl == ""; text: ed.compiling ? qsTr("Preparing…") : qsTr("Not compiled")
                     dim: true; font.pixelSize: 11 }
@@ -492,7 +523,7 @@ FocusScope {
             singleLine: true
             keys: ed.broken && ed.errorsOpen
                   ? [["↵", qsTr("jump to line")], ["↑↓", qsTr("next error")], ["tab", qsTr("leave")], ["?", qsTr("keys")]]
-                  : [["esc", qsTr("cancel")]]
+                  : [["esc", qsTr("cancel")], ["ctrl+h", ed.heatmap ? qsTr("hide heatmap") : qsTr("heatmap")]]
         }
         Row {
             id: footRight
@@ -528,6 +559,7 @@ FocusScope {
     Keys.onPressed: (e) => {
         if ((e.key === Qt.Key_Return || e.key === Qt.Key_Enter) && (e.modifiers & Qt.ControlModifier)) ed.compile()
         else if (e.key === Qt.Key_S && (e.modifiers & Qt.ControlModifier)) ed.save()
+        else if (e.key === Qt.Key_H && (e.modifiers & Qt.ControlModifier)) ed.toggleHeatmap()
         else if (e.key === Qt.Key_Escape) ed.cancel()
         else return
         e.accepted = true

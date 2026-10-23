@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Burn-in protection for screensaver use. New `--screensaver` launch flag (fullscreen viewer).
+  In screensaver mode and whenever the viewer is fullscreen the whole output slowly orbits
+  a few pixels (2–5 px, one turn per 5 min, overscanned so edges never show) with a gentle
+  brightness (3–6 %) and hue wobble; stronger for shaders with a low liveliness score.
+  Updated once a second, so it costs nothing on slow machines. Settings (`,`) → Burn-in protection turns it off.
+- Liveliness score: each shader is rendered off-screen in the background (90 s of shader time at
+  1 fps, 160×90, faster than realtime) and the share of pixels that ever change is shown as
+  `lively:87%` on cards and in the viewer caption. Cached by source, so it runs once per version.
+- Editor: `ctrl+h` shows a burn-in heatmap over the preview (red = pixels that never change).
 - Editor: GLSL syntax colours from your theme (keywords, types, numbers, built-ins and Shadertoy uniforms, preprocessor lines, comments), following theme changes live. The line a compile error points to gets a faint red tint.
 - Examples stay current: on startup, examples you haven't edited are updated to the version Shady ships (including libraries from 0.1.x and 0.2.0, so the new Crouwel colours arrive), and examples added in a release appear for existing users. Edited examples and fields you changed are left alone; examples you deleted or put in the Trash stay there.
 

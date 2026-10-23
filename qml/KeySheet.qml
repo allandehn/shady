@@ -14,7 +14,7 @@ FocusScope {
         { title: qsTr("Viewer"), keys: [
             ["↑↓", qsTr("quality")], ["←→", qsTr("fps")], ["a", qsTr("auto-adapt")], ["f", qsTr("fullscreen")], ["esc", qsTr("close")]] },
         { title: qsTr("Editor"), keys: [
-            ["ctrl+↵", qsTr("compile")], ["ctrl+s", qsTr("save")], ["tab", qsTr("next field")], ["esc", qsTr("cancel")]] },
+            ["ctrl+↵", qsTr("compile")], ["ctrl+s", qsTr("save")], ["ctrl+h", qsTr("burn-in heatmap")], ["tab", qsTr("next field")], ["esc", qsTr("cancel")]] },
         { title: qsTr("Mouse"), keys: [
             [qsTr("click"), qsTr("run")], [qsTr("right-click"), qsTr("menu")], [qsTr("back button"), qsTr("same as esc")]] }
     ], [

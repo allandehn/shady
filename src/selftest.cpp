@@ -483,6 +483,58 @@ int runSelfTest()
         qputenv("HOME", oldHome);
     }
 
+    // Burn-in: liveliness from frames, and the drift's bounds.
+    {
+        Library bl(tmp.path() + "/bdata", tmp.path() + "/bcache", 60);
+        auto frame = [](int t, bool anim) {
+            QImage im(160, 90, QImage::Format_RGB32);
+            for (int y = 0; y < 90; ++y)
+                for (int x = 0; x < 160; ++x) {
+                    // left quarter is a static logo even in the animated one
+                    const int v = anim && x >= 40 ? int(127 + 120 * std::sin(t * 0.7 + x * 0.1)) : (x * 255) / 160;
+                    im.setPixel(x, y, qRgb(v, v, v));
+                }
+            return im;
+        };
+        bl.livelyBegin();
+        for (int t = 0; t < 90; ++t) bl.livelyAdd(QVariant::fromValue(frame(t, false)));
+        const int still = bl.livelyFinish("static");
+        bl.livelyBegin();
+        for (int t = 0; t < 90; ++t) bl.livelyAdd(QVariant::fromValue(frame(t, true)));
+        const int anim = bl.livelyFinish("animated");
+        check(still == 0, QString("lively: a static image scores 0% (%1)").arg(still));
+        check(anim >= 70 && anim <= 80, QString("lively: 3/4 animated scores ~75% (%1)").arg(anim));
+        check(bl.livelyOf("static") == 0 && bl.livelyOf("animated") == anim && bl.livelyOf("other") == -1, "lively: cached by source");
+        check(!bl.heatmapOf("static").isEmpty() && QImage(bl.heatmapOf("static").toLocalFile()).size() == QSize(160, 90), "lively: heatmap saved");
+        {
+            const QImage h(bl.heatmapOf("animated").toLocalFile());
+            check(qAlpha(h.pixel(10, 45)) > 150 && qAlpha(h.pixel(100, 45)) == 0, "heatmap: red on the static part only");
+        }
+        Library bl2(tmp.path() + "/bdata", tmp.path() + "/bcache", 60);
+        check(bl2.livelyOf("animated") == anim, "lively: scores persist across restarts");
+        check(bl.antiBurnIn(), "anti-burn-in is on by default");
+        bl.setAntiBurnIn(false);
+        Library bl3(tmp.path() + "/bdata", tmp.path() + "/bcache", 60);
+        check(!bl3.antiBurnIn(), "anti-burn-in setting is saved");
+        // Drift: moves over time, stays within its radius and the overscan.
+        bool inBounds = true, moved = false;
+        double maxR = 0;
+        const QVariantMap d0 = Library::drift(0, 90);
+        for (int t = 0; t < 3600; t += 7) {
+            const QVariantMap d = Library::drift(t, 90);
+            const double r = std::hypot(d["x"].toDouble(), d["y"].toDouble());
+            maxR = std::max(maxR, r);
+            inBounds = inBounds && r <= d["radius"].toDouble() + 1e-9 && d["radius"].toDouble() <= d["pad"].toDouble()
+                       && d["dim"].toDouble() >= 0 && d["dim"].toDouble() <= 0.06 && d["tint"].toDouble() < 0.05;
+            moved = moved || std::abs(d["x"].toDouble() - d0["x"].toDouble()) > 1;
+        }
+        check(inBounds && moved && maxR >= 1.5, QString("drift: moves and stays within bounds (max %1 px)").arg(maxR, 0, 'f', 2));
+        const double rLow = Library::drift(0, 5)["radius"].toDouble(), rHigh = Library::drift(0, 95)["radius"].toDouble();
+        check(rLow > rHigh && rLow <= 5 && rHigh >= 2, QString("drift: stronger for low liveliness (%1 vs %2 px)").arg(rLow).arg(rHigh));
+        const QVariantMap a = Library::drift(100, 50), b = Library::drift(101, 50);
+        check(std::hypot(a["x"].toDouble() - b["x"].toDouble(), a["y"].toDouble() - b["y"].toDouble()) < 0.2, "drift: sub-pixel per second (invisible)");
+    }
+
     std::printf(g_fails ? "SELF-TEST FAILED (%d)\n" : "ALL PASS\n", g_fails);
     return g_fails ? 1 : 0;
 }
@@ -1059,6 +1111,35 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         writeTheme("background = \"#1a1b26\"\nforeground = \"#c0caf5\"\naccent = \"#7aa2f7\"\ncolor1 = \"#f7768e\"\n");
         QMetaObject::invokeMethod(th, "refresh");
     }
+    // Burn-in heatmap (ctrl+h) and liveliness of real shaders in the editor preview.
+    {
+        auto *heat = editor->findChild<QQuickItem *>("heatmap");
+        auto measure = [&](const QString &src, const QString &what) {
+            code->setProperty("text", src);
+            QMetaObject::invokeMethod(code, "forceActiveFocus");
+            key(win, Qt::Key_Return, "", Qt::ControlModifier);
+            waitFor([&] { return !editor->property("compiling").toBool(); }, 20000);
+            QMetaObject::invokeMethod(editor, "askLively");
+            waitFor([&] { return editor->property("previewLively").toInt() >= 0; }, 180000);
+            const int v = editor->property("previewLively").toInt();
+            std::printf("lively %s: %d%%\n", qPrintable(what), v);
+            return v;
+        };
+        QMetaObject::invokeMethod(code, "forceActiveFocus");
+        key(win, Qt::Key_H, "", Qt::ControlModifier);
+        check(editor->property("heatmap").toBool() && heat && heat->isVisible(), "ctrl+h shows the burn-in heatmap");
+        const int still = measure("void mainImage(out vec4 o, in vec2 p)\n{\n    o = vec4(p.x / iResolution.x, 0.3, 0.5, 1.0);\n}\n", "static test shader");
+        check(still >= 0 && still <= 1, QString("a static shader scores ~0% (%1)").arg(still));
+        const int anim = measure("void mainImage(out vec4 o, in vec2 p)\n{\n    o = vec4(vec3(0.5 + 0.5 * sin(iTime * 0.9 + p.x * 0.07)), 1.0);\n}\n", "animated test shader");
+        check(anim >= 90, QString("an animated shader scores high (%1)").arg(anim));
+        QFile cf(":/examples/crouwel-new-alphabet.glsl");
+        cf.open(QIODevice::ReadOnly);
+        const int cr = measure(QString::fromUtf8(cf.readAll()), "crouwel-new-alphabet (editor)");
+        waitFor([&] { return heat->property("status").toInt() == 1; }, 3000); // Image.Ready
+        check(cr >= 0 && heat->property("status").toInt() == 1, "heatmap image shown over the preview");
+        key(win, Qt::Key_H, "", Qt::ControlModifier);
+        check(!editor->property("heatmap").toBool() && !heat->isVisible(), "ctrl+h hides the heatmap again");
+    }
     code->setProperty("text", single);
     QMetaObject::invokeMethod(code, "forceActiveFocus");
     key(win, Qt::Key_Return, "", Qt::ControlModifier);
@@ -1148,6 +1229,42 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         }
     }
     waitFor([&] { return lib->preparing() == 0; }, 20000);
+    // Liveliness of every shader, shown on the cards.
+    {
+        auto allScored = [&] { for (int r = 0; r < lib->count(); ++r) { const QVariantMap m = lib->get(r);
+                                   if (!m.value("isNew").toBool() && m.value("shaderState") == "ready" && m.value("lively").toInt() < 0) return false; }
+                               return true; };
+        waitFor(allScored, 600000);
+        check(allScored(), "every shader gets a liveliness score");
+        for (int r = 0; r < lib->count(); ++r) {
+            const QVariantMap m = lib->get(r);
+            if (!m.value("isNew").toBool()) std::printf("lively %s: %d%%\n", qPrintable(m.value("slug").toString()), m.value("lively").toInt());
+        }
+        bool shown = false;
+        for (QQuickItem *i : allItems(list))
+            if (i->property("text").toString().contains(QRegularExpression("lively:\\d+%"))) shown = true;
+        check(shown, "cards show lively:NN%");
+        QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+        waitFor([] { return false; }, 500);
+        shotAs("burn-score");
+        // The Crouwel example in its own editor, heatmap on.
+        int cr = -1;
+        for (int r = 0; r < lib->count(); ++r) if (lib->get(r).value("name").toString().startsWith("Crouwel")) cr = r;
+        if (cr >= 0) {
+            QMetaObject::invokeMethod(list, "edit", Q_ARG(QString, lib->get(cr).value("slug").toString()));
+            waitFor([&] { return editor->isVisible() && !editor->property("compiling").toBool() && !editor->property("previewUrl").toString().isEmpty(); }, 20000);
+            QMetaObject::invokeMethod(code, "forceActiveFocus");
+            key(win, Qt::Key_H, "", Qt::ControlModifier);
+            auto *heat = editor->findChild<QQuickItem *>("heatmap");
+            waitFor([&] { return heat->property("status").toInt() == 1; }, 30000);
+            check(heat->isVisible() && heat->property("status").toInt() == 1, "Crouwel's heatmap from the cached score");
+            waitFor([] { return false; }, 600);
+            shotAs("burn-heatmap");
+            key(win, Qt::Key_H, "", Qt::ControlModifier);
+            key(win, Qt::Key_Escape);
+            waitFor([&] { return list->isVisible(); }, 3000);
+        }
+    }
     QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
     shotAs("final");
 

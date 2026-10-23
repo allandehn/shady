@@ -50,7 +50,8 @@ int main(int argc, char *argv[])
     QCommandLineOption danish(QStringLiteral("danish-shot"), QStringLiteral("Save Danish screenshots to --screenshot and exit."));
     QCommandLineOption docs(QStringLiteral("doc-shots"), QStringLiteral("Save the README screenshots (list, editor) into <dir> and exit."), QStringLiteral("dir"));
     QCommandLineOption shot(QStringLiteral("screenshot"), QStringLiteral("With --ui-test: save the list to <png> (and <png>-viewer.png)."), QStringLiteral("png"));
-    p.addOptions({version, self, ui, potato, danish, docs, shot});
+    QCommandLineOption saver(QStringLiteral("screensaver"), QStringLiteral("Start fullscreen in the viewer with anti-burn-in drift (screensaver mode)."));
+    p.addOptions({version, self, ui, potato, danish, docs, shot, saver});
     p.process(app);
 
     if (p.isSet(version)) { std::printf("shady %s\n", SHADY_VERSION); return 0; }
@@ -106,6 +107,9 @@ int main(int argc, char *argv[])
                      qPrintable(dev), sw ? " (software)" : "");
         QMetaObject::invokeMethod(&theme, [&theme, sw] { theme.setSoftware(sw); });
     }, Qt::DirectConnection);
+
+    if (p.isSet(saver))
+        QTimer::singleShot(0, win, [win] { QMetaObject::invokeMethod(win, "startScreensaver"); });
 
     if (p.isSet(ui) || p.isSet(potato) || p.isSet(danish) || p.isSet(docs)) {
         const QString out = p.isSet(docs) ? p.value(docs) : p.value(shot);

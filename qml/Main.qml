@@ -30,6 +30,16 @@ Window {
     readonly property bool hiddenOrOff: win.visibility === Window.Hidden || win.visibility === Window.Minimized
     property string mode: "list"
     property QtObject meter: null   // FrameMeter, set from C++
+    // Screensaver launch (--screensaver): fullscreen viewer, first shader in
+    // list order (starred first). Anti-burn-in drift runs here and whenever
+    // the viewer is fullscreen, unless turned off in settings.
+    property bool screensaver: false
+    function startScreensaver() {
+        screensaver = true
+        if (library.count === 0 || library.get(0).isNew) return
+        win.visibility = Window.FullScreen
+        list.open(0)
+    }
 
     ShaderList {
         id: list
@@ -54,6 +64,7 @@ Window {
         id: editor
         objectName: "editor"
         anchors.fill: parent
+        livelyMaker: lively
         visible: win.mode === "editor" && !win.hiddenOrOff
         onClosed: (slug) => {
             win.mode = "list"
@@ -67,6 +78,7 @@ Window {
         objectName: "viewer"
         anchors.fill: parent
         meter: win.meter
+        burnGuard: library.antiBurnIn && (win.screensaver || win.visibility === Window.FullScreen)
         visible: win.mode === "viewer" && !win.hiddenOrOff
         onClose: {
             if (win.visibility === Window.FullScreen) win.visibility = Window.Windowed
@@ -78,6 +90,7 @@ Window {
     }
 
     Benchmark { objectName: "benchmark" }
+    LivelyMaker { id: lively; objectName: "livelyMaker"; paused: win.mode === "viewer" || win.hiddenOrOff }
 
     // Experimental: the mouse back button acts like Esc everywhere. Only the
     // back button is accepted, so every other click passes straight through.
