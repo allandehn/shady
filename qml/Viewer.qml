@@ -106,14 +106,14 @@ FocusScope {
         objectName: "caption"
         anchors.fill: parent
         property bool shown: true
-        opacity: shown && !badge.visible ? 1 : 0
+        opacity: shown && !badge.visible && !viewerKeys.visible ? 1 : 0
         visible: opacity > 0
         // Asymmetric: quick in, slow ease-out so leaving never pulls the eye.
-        // A badge flash still clears it fast so they don't overlap.
+        // A badge flash or the key sheet still clears it fast so they don't overlap.
         Behavior on opacity {
             id: capFade; enabled: theme.animations
             NumberAnimation {
-                duration: capFade.targetValue > 0.5 ? 180 : (badge.shown ? 200 : 1800)
+                duration: capFade.targetValue > 0.5 ? 180 : (badge.shown || viewerKeys.visible ? 200 : 1800)
                 easing.type: capFade.targetValue > 0.5 ? Easing.OutQuad : Easing.OutCubic
             }
         }

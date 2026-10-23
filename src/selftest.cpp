@@ -873,6 +873,9 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
             check(vk && vk->isVisible(), "? opens the key sheet in the viewer");
             check(vk && vk->property("from").toString() == "viewer" && vk->property("glow").toReal() > 0.9, "viewer key sheet highlights VIEWER");
             shotAs("keys-from-viewer");
+            waitFor([&] { return vk->property("glow").toReal() < 0.45; }, 1500); // ~1 s in
+            check(!caption->isVisible(), "caption hides while the key sheet is open");
+            shotAs("keys-from-viewer-1s");
             waitFor([&] { return vk->property("glow").toReal() == 0; }, 3500);
             check(vk->property("glow").toReal() == 0, "highlight eases out by ~2.4 s");
             key(win, Qt::Key_Escape);
@@ -896,6 +899,8 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         check(keysSheet->isVisible(), "? opens the key list");
         check(keysSheet->property("from").toString() == "browse" && keysSheet->property("glow").toReal() > 0.9, "grid key sheet highlights BROWSE");
         shotAs("keys-from-grid");
+        waitFor([&] { return keysSheet->property("glow").toReal() < 0.45; }, 1500); // ~1 s in
+        shotAs("keys-from-grid-1s");
         shotAs("keys-overlay");
         click(win, QPointF(win->width() / 2.0, 30), Qt::BackButton);
         check(!keysSheet->isVisible(), "back button closes the key list");

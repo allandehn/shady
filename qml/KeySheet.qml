@@ -7,7 +7,7 @@ FocusScope {
     anchors.fill: parent
     // open(from): from is the section id ("browse", "viewer", "editor",
     // "organize", "trash"); that group gets a brief accent highlight that
-    // holds ~0.4 s then eases out over 2 s. Layout never moves.
+    // holds 0.6 s then eases out over 1.6 s. Layout never moves.
     property string from: ""
     property real glow: 0
     function open(src) {
@@ -17,8 +17,8 @@ FocusScope {
     }
     SequentialAnimation {
         id: glowAnim
-        PauseAnimation { duration: 400 }
-        NumberAnimation { target: sheet; property: "glow"; to: 0; duration: 2000; easing.type: Easing.OutCubic }
+        PauseAnimation { duration: 600 }
+        NumberAnimation { target: sheet; property: "glow"; to: 0; duration: 1600; easing.type: Easing.OutCubic }
     }
     function close() { visible = false }
     // Two balanced columns, read top-left first (F-pattern), most-used keys first.
@@ -56,13 +56,14 @@ FocusScope {
                 text: "esc " + qsTr("close"); dim: true; font.pixelSize: 11 }
         Flickable {
             id: scroller
-            x: 20; y: 48; width: parent.width - 40; height: parent.height - 56
-            contentHeight: flow.implicitHeight + 8; clip: true
+            x: 12; y: 40; width: parent.width - 24; height: parent.height - 48  // 8 px room for the highlight bleed
+            contentHeight: flow.implicitHeight + 24; clip: true
             boundsBehavior: Flickable.StopAtBounds
         // Two columns side by side; stacked into one when the window is narrow.
         Grid {
             id: flow
-            width: scroller.width
+            x: 8; y: 8
+            width: scroller.width - 16
             readonly property bool two: width >= 460
             columns: two ? 2 : 1
             columnSpacing: 22; rowSpacing: 18
@@ -80,16 +81,20 @@ FocusScope {
                             readonly property real g: modelData.id === sheet.from ? sheet.glow : 0
                             width: parent.width
                             height: grpCol.implicitHeight
+                            // Tint hugs the content: 8 px past the longest line on every side,
+                            // plus a 2 px accent bar on the left. Both fade with the header.
                             Rectangle {
-                                anchors { fill: parent; margins: -6 }
-                                color: ui.accent; opacity: 0.09 * grp.g
+                                x: -8; y: -8
+                                width: grpCol.childrenRect.width + 16; height: grpCol.implicitHeight + 16
+                                color: Qt.rgba(ui.accent.r, ui.accent.g, ui.accent.b, 0.06 * grp.g)
                                 visible: grp.g > 0
+                                Rectangle { width: 2; height: parent.height; color: ui.accent; opacity: grp.g }
                             }
                         Column {
                             id: grpCol
                             width: parent.width
                             spacing: 5
-                            Label { text: grp.modelData.title; smallCaps: true
+                            Label { text: grp.modelData.title; smallCaps: true; font.bold: grp.g >= 1
                                     color: Qt.rgba(ui.muted.r + (ui.accent.r - ui.muted.r) * grp.g,
                                                    ui.muted.g + (ui.accent.g - ui.muted.g) * grp.g,
                                                    ui.muted.b + (ui.accent.b - ui.muted.b) * grp.g, 1) }
@@ -98,10 +103,10 @@ FocusScope {
                                 Row {
                                     id: keyRow
                                     required property var modelData
-                                    width: parent.width
+                                    readonly property real avail: grpCol.width
                                     spacing: 8
                                     Label { id: keyCap; width: 88; text: String(keyRow.modelData[0]).replace(/\+(?=.)/g, " "); font.pixelSize: 11; font.bold: true }
-                                    Label { width: keyRow.width - keyCap.width - keyRow.spacing; text: keyRow.modelData[1]; font.pixelSize: 11; dim: true; elide: Text.ElideRight }
+                                    Label { width: Math.min(implicitWidth, keyRow.avail - keyCap.width - keyRow.spacing); text: keyRow.modelData[1]; font.pixelSize: 11; dim: true; elide: Text.ElideRight }
                                 }
                             }
                         }
