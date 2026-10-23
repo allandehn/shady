@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Live view: the caption now fades in quickly (180 ms) and fades out slowly (1.8 s, ease-out).
+
 - Burn-in protection for screensaver use. New `--screensaver` launch flag (fullscreen viewer).
   In screensaver mode and whenever the viewer is fullscreen the whole output slowly orbits
   a few pixels (2–5 px, one turn per 5 min, overscanned so edges never show) with a gentle

@@ -108,7 +108,15 @@ FocusScope {
         property bool shown: true
         opacity: shown && !badge.visible ? 1 : 0
         visible: opacity > 0
-        Behavior on opacity { enabled: theme.animations; NumberAnimation { duration: 840 } }
+        // Asymmetric: quick in, slow ease-out so leaving never pulls the eye.
+        // A badge flash still clears it fast so they don't overlap.
+        Behavior on opacity {
+            id: capFade; enabled: theme.animations
+            NumberAnimation {
+                duration: capFade.targetValue > 0.5 ? 180 : (badge.shown ? 200 : 1800)
+                easing.type: capFade.targetValue > 0.5 ? Easing.OutQuad : Easing.OutCubic
+            }
+        }
         readonly property real u: viewer.height  // mockup sizes are fractions of the height
         readonly property real margin: Math.round(viewer.width * 0.03)
         readonly property real base: viewer.height - Math.round(u * 0.055)
