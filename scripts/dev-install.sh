@@ -11,9 +11,15 @@
 # touches your desktop), then `sudo pacman -U` (you type your password).
 # Never touches ~/.local/bin. Stops at the first failure.
 #
+# Builds are incremental: the CMake/Ninja build tree lives on in
+# ~/.cache/shady-dev/cmake-build and compiles straight from the git checkout,
+# so a rerun only rebuilds what changed. ccache (if installed) also caches
+# compiler output in ~/.cache/shady-dev/ccache. Use --clean for a full rebuild.
+#
 # Options (flag or env):
 #   --no-install   / SHADY_DEV_NO_INSTALL=1   build and test, but don't install
 #   --skip-tests   / SHADY_DEV_SKIP_TESTS=1   skip tests/headless.sh
+#   --clean        / SHADY_DEV_CLEAN=1        wipe the build cache, rebuild from scratch
 #   --nodeps       / SHADY_DEV_NODEPS=1       skip pacman dependency checks
 #                                             (testing on a non-Arch box only)
 #   SHADY_DEV_DIR=path                        cache dir (default ~/.cache/shady-dev)
@@ -28,14 +34,15 @@ set -euo pipefail
 main() {
   local REPO=${SHADY_DEV_REPO:-https://github.com/allandehn/shady.git}
   local DIR=${SHADY_DEV_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/shady-dev}
-  local NO_INSTALL=${SHADY_DEV_NO_INSTALL:-0} SKIP_TESTS=${SHADY_DEV_SKIP_TESTS:-0} NODEPS=${SHADY_DEV_NODEPS:-0} a
+  local NO_INSTALL=${SHADY_DEV_NO_INSTALL:-0} SKIP_TESTS=${SHADY_DEV_SKIP_TESTS:-0} NODEPS=${SHADY_DEV_NODEPS:-0} CLEAN=${SHADY_DEV_CLEAN:-0} a
   for a in "$@"; do
     case $a in
       --no-install) NO_INSTALL=1 ;;
       --skip-tests) SKIP_TESTS=1 ;;
       --nodeps) NODEPS=1 ;;
-      -h|--help) sed -n '2,24p' "${BASH_SOURCE[0]}" 2>/dev/null || echo "see the header of scripts/dev-install.sh"; return 0 ;;
-      *) die "unknown option: $a (use --no-install or --skip-tests)" ;;
+      --clean) CLEAN=1 ;;
+      -h|--help) sed -n '2,30p' "${BASH_SOURCE[0]}" 2>/dev/null || echo "see the header of scripts/dev-install.sh"; return 0 ;;
+      *) die "unknown option: $a (see --help)" ;;
     esac
   done
   export GIT_TERMINAL_PROMPT=0 GIT_EDITOR=false
@@ -71,20 +78,39 @@ main() {
   fi
 
   step "Building the package (makepkg)"
-  local B=$DIR/build; rm -rf "$B"; mkdir -p "$B"
+  local B=$DIR/build CB=$DIR/cmake-build; rm -rf "$B"; mkdir -p "$B"
+  (( ! CLEAN )) || { echo "--clean: wiping the build cache"; rm -rf "$CB" "$DIR/ccache"; }
+  mkdir -p "$CB"
+  # Incremental: build() compiles from the stable git checkout into the kept
+  # build tree ($CB, used in place of makepkg's ./build), so Ninja only redoes
+  # what changed. Everything else (check, package) runs as in a release.
+  export SHADY_DEV_SRC=$SRC SHADY_DEV_BUILD=$CB
+  if command -v ccache >/dev/null; then
+    export CMAKE_CXX_COMPILER_LAUNCHER=ccache CCACHE_DIR=$DIR/ccache CCACHE_BASEDIR=$DIR
+    echo "using ccache ($DIR/ccache)"
+  else
+    echo "tip: 'sudo pacman -S ccache' makes rebuilds after big changes faster too"
+  fi
   git -C "$SRC" archive --format=tar.gz --prefix="shady-$VER/" -o "$B/shady-$VER.tar.gz" HEAD </dev/null
   # The release PKGBUILD, pointed at that tarball. The binary reports the
   # base version (CMakeLists), so check() compares against $BASE.
   sed -e "s/^pkgver=.*/pkgver=$VER/" -e 's/^pkgrel=.*/pkgrel=1/' \
       -e "s|^source=.*|source=(\"\$pkgname-\$pkgver.tar.gz\")|" \
       -e "s|\"shady \$pkgver\"|\"shady $BASE\"|" \
+      -e 's|^  cmake -S "\$pkgname-\$pkgver" |  cmake -S "$SHADY_DEV_SRC" |' \
+      -e 's#\(-B\|--build\|--install\) build$#\1 "$SHADY_DEV_BUILD"#; s#\(-B\|--build\|--install\) build #\1 "$SHADY_DEV_BUILD" #' \
+      -e 's#\./build/shady#"$SHADY_DEV_BUILD"/shady#g; s#installed\.sh" build$#installed.sh" "$SHADY_DEV_BUILD"#' \
       "$SRC/packaging/PKGBUILD" > "$B/PKGBUILD"
-  if ! grep -q "^pkgver=$VER\$" "$B/PKGBUILD" || ! grep -q "\"shady $BASE\"" "$B/PKGBUILD"; then
+  if ! grep -q "^pkgver=$VER\$" "$B/PKGBUILD" || ! grep -q "\"shady $BASE\"" "$B/PKGBUILD" \
+     || ! grep -q 'cmake -S "$SHADY_DEV_SRC" -B "$SHADY_DEV_BUILD"' "$B/PKGBUILD" \
+     || grep -qE '(-B|--build|--install|\./)build( |/|$)|installed\.sh" build' "$B/PKGBUILD"; then
     die "could not adapt packaging/PKGBUILD (has its format changed?)"
   fi
   local deps
   deps=$(cd "$B" && makepkg --printsrcinfo </dev/null | sed -n 's/^\t\(make\|check\)\?depends = //p' | tr '\n' ' ')
-  local MP=(-f --noconfirm)
+  # --nocheck: tests/headless.sh below already runs the self-test and the
+  # installed-binary test, so makepkg's check() would only repeat them.
+  local MP=(-f --noconfirm --nocheck)
   if (( NODEPS )); then MP+=(--nodeps)
   elif command -v pacman >/dev/null; then
     local need
@@ -105,7 +131,7 @@ main() {
     step "Skipping headless tests (--skip-tests)"
   else
     step "Headless self-tests (offscreen, private D-Bus, throwaway dirs)"
-    ( cd "$B/src/shady-$VER" && timeout 1200 tests/headless.sh "$B/src/build/shady" </dev/null >"$B/test.log" 2>&1 ) \
+    ( cd "$B/src/shady-$VER" && timeout 1200 tests/headless.sh "$CB/shady" </dev/null >"$B/test.log" 2>&1 ) \
       || { grep -E 'FAIL' "$B/test.log" >&2 || tail -25 "$B/test.log" >&2; die "headless tests failed (log: $B/test.log)"; }
     grep -q 'ALL PASS' "$B/test.log" || die "tests did not report ALL PASS (log: $B/test.log)"
     echo "ALL PASS"
