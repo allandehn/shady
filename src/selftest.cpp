@@ -920,6 +920,18 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
             check(vk->property("glow").toReal() == 0, "highlight eases out by ~2.4 s");
             key(win, Qt::Key_Escape);
             check(vk && !vk->isVisible() && viewer->isVisible(), "esc closes the key sheet, not the viewer");
+            {   // Keys must still reach the viewer after the sheet (Esc and click close).
+                const int q = viewer->property("quality").toInt();
+                key(win, Qt::Key_Down);
+                check(viewer->property("quality").toInt() == std::max(10, q - 10), QString("viewer keys work after the key sheet (Esc) %1 -> %2").arg(q).arg(viewer->property("quality").toInt()));
+                key(win, Qt::Key_Up);
+                key(win, Qt::Key_Question);
+                click(win, QPointF(6, win->height() - 6)); // the scrim, outside the panel
+                check(!vk->isVisible() && viewer->isVisible(), "click closes the viewer key sheet");
+                key(win, Qt::Key_Down);
+                check(viewer->property("quality").toInt() == std::max(10, q - 10), "viewer keys work after the key sheet (click)");
+                key(win, Qt::Key_Up);
+            }
             lib->setLearnedViewerKeys(false);
             key(win, Qt::Key_Down); // undo the quality change
             click(win, QPointF(win->width() / 2.0, 30), Qt::BackButton);
@@ -944,6 +956,15 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         shotAs("keys-overlay");
         click(win, QPointF(win->width() / 2.0, 30), Qt::BackButton);
         check(!keysSheet->isVisible(), "back button closes the key list");
+        {
+            const int r0 = list->property("currentRow").toInt();
+            key(win, Qt::Key_Right);
+            check(list->property("currentRow").toInt() == r0 + 1, "grid keys work after the key list (back button)");
+            key(win, Qt::Key_Question, "?"); key(win, Qt::Key_Question, "?");
+            check(!keysSheet->isVisible(), "? closes the key list");
+            key(win, Qt::Key_Left);
+            check(list->property("currentRow").toInt() == r0, "grid keys work after the key list (?)");
+        }
         QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
     }
 
@@ -951,14 +972,30 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
     QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 1));
     const QString victim = lib->get(1).value("slug").toString();
     key(win, Qt::Key_Delete);
-    check(lib->trashCount() == 1 && lib->rowOf(victim) == -1, "Del moves to Trash");
+    check(confirm->isVisible() && lib->trashCount() == 0, "Del asks before moving to Trash");
+    shotAs("delete-confirm");
+    key(win, Qt::Key_Escape);
+    check(!confirm->isVisible() && lib->trashCount() == 0 && lib->rowOf(victim) == 1, "Esc keeps it");
+    key(win, Qt::Key_Right);
+    check(list->property("currentRow").toInt() == 2, "keys work after cancelling");
+    key(win, Qt::Key_Left);
+    key(win, Qt::Key_Delete);
+    key(win, Qt::Key_Return);
+    check(lib->trashCount() == 1 && lib->rowOf(victim) == -1, "Enter moves to Trash");
     check(list->property("currentRow").toInt() == 0, "focus moves to the previous card");
     check(list->property("note").toString() == "Moved to Trash · ctrl+z undo", "Moved to Trash note");
     key(win, Qt::Key_Z, "", Qt::ControlModifier);
     check(lib->trashCount() == 0 && lib->rowOf(victim) >= 0, "Ctrl+Z undoes it");
-    key(win, Qt::Key_Delete);
+    key(win, Qt::Key_Delete); key(win, Qt::Key_Return);
     QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
-    key(win, Qt::Key_Delete);
+    {   // The card's × chip and the menu's "Move to Trash" ask too.
+        const QString s0 = lib->get(0).value("slug").toString();
+        QMetaObject::invokeMethod(list, "act", Q_ARG(QVariant, "trash"), Q_ARG(QVariant, 0));
+        check(confirm->isVisible() && lib->rowOf(s0) == 0, "× chip / menu trash asks first");
+        key(win, Qt::Key_Escape);
+        check(!confirm->isVisible() && lib->rowOf(s0) == 0, "Esc keeps it (× chip)");
+    }
+    key(win, Qt::Key_Delete); key(win, Qt::Key_Return);
     check(lib->trashCount() == 2, "two in the Trash");
     key(win, Qt::Key_Backtab);
     check(lib->filter() == Library::Trash && lib->count() == 2, "Shift+Tab to the Trash view");
@@ -982,6 +1019,14 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
     key(win, Qt::Key_Down);
     key(win, Qt::Key_Return);
     check(editor->isVisible(), "menu Edit opens the editor");
+    if (auto *ek = editor->findChild<QQuickItem *>("editorKeys")) {
+        QQuickItem *before = win->activeFocusItem();
+        QMetaObject::invokeMethod(ek, "open", Q_ARG(QVariant, "editor"));
+        check(ek->isVisible(), "editor key sheet opens");
+        key(win, Qt::Key_Escape);
+        check(!ek->isVisible() && editor->isVisible(), "Esc closes the editor key sheet, not the editor");
+        check(win->activeFocusItem() == before, "focus returns to where it was in the editor");
+    } else check(false, "editor key sheet exists");
     key(win, Qt::Key_Escape);
     check(!editor->isVisible() && list->isVisible(), "Esc without changes closes the editor");
 
@@ -1247,7 +1292,9 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         key(win, Qt::Key_Right);
         key(win, Qt::Key_Space, " ");
         key(win, Qt::Key_Delete);
-        check(lib->trashCount() == 2 && lib->count() == total - 2, "Del trashes the selection, no confirmation");
+        check(confirm->isVisible() && lib->trashCount() == 0, "Del on a selection asks first");
+        key(win, Qt::Key_Return);
+        check(lib->trashCount() == 2 && lib->count() == total - 2, "Enter trashes the selection");
         key(win, Qt::Key_Backtab);
         key(win, Qt::Key_A, "", Qt::ControlModifier);
         key(win, Qt::Key_Delete);
@@ -1457,7 +1504,7 @@ void runDanishShot(QQuickWindow *win, Library *lib, const QString &shot)
     key(win, Qt::Key_Question, "?"); step("keys"); key(win, Qt::Key_Escape);
     QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
     key(win, Qt::Key_Menu); step("menu"); key(win, Qt::Key_Escape);
-    key(win, Qt::Key_Delete);
+    key(win, Qt::Key_Delete); key(win, Qt::Key_Return);
     lib->setFilter(Library::Trash);
     QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
     step("trash");

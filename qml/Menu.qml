@@ -51,7 +51,7 @@ FocusScope {
                     Label { visible: !modelData.divider; x: 14; anchors.verticalCenter: parent.verticalCenter; text: modelData.text || ""; font.pixelSize: 12 }
                     Label { visible: !modelData.divider; anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
                             text: modelData.key || ""; dim: true; font.pixelSize: 11 }
-                    MouseArea { anchors.fill: parent; enabled: !modelData.divider; hoverEnabled: true
+                    MouseArea { anchors.fill: parent; enabled: !modelData.divider; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; 
                                 onEntered: menu.current = index
                                 onClicked: { menu.close(); menu.picked(modelData.action) } }
                 }

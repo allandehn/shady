@@ -10,7 +10,19 @@ FocusScope {
     // holds 0.6 s then eases out over 1.6 s. Layout never moves.
     property string from: ""
     property real glow: 0
+    // Focus goes back to whatever had it (else `fallback`) however the sheet
+    // closes. The sheet must also drop its own `focus`, or the parent
+    // FocusScope (viewer, editor) keeps handing focus to this hidden item.
+    property Item fallback: null
+    property Item prev: null
+    onVisibleChanged: if (!visible) {
+        focus = false
+        const p = prev && prev.visible ? prev : fallback
+        prev = null
+        if (p) p.forceActiveFocus()
+    }
     function open(src) {
+        if (!visible) prev = Window.activeFocusItem
         from = src || ""; visible = true; forceActiveFocus()
         glowAnim.stop(); glow = from && theme.animations ? 1 : 0
         if (glow > 0) glowAnim.start()

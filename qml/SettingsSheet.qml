@@ -59,7 +59,7 @@ FocusScope {
                         }
                         Label { text: modelData.text; font.pixelSize: 12; dim: modelData.later }
                     }
-                    MouseArea { anchors.fill: parent; onClicked: { sheet.current = index; sheet.pick() } }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { sheet.current = index; sheet.pick() } }
                 }
             }
             Label {
@@ -92,7 +92,7 @@ FocusScope {
                     }
                     Label { text: qsTr("Slow drift and dimming when fullscreen"); font.pixelSize: 12 }
                 }
-                MouseArea { anchors.fill: parent; onClicked: { sheet.current = 4; sheet.pick() } }
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { sheet.current = 4; sheet.pick() } }
             }
             Item { width: 1; height: 4 }
         }

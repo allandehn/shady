@@ -122,7 +122,7 @@ Item {
                 border.width: card.selected ? 0 : 1
                 border.color: ui.muted
                 Label { anchors.centerIn: parent; visible: card.selected; text: "✓"; color: ui.bg; font.pixelSize: 12; font.bold: true }
-                MouseArea { anchors.fill: parent; onClicked: card.toggled() }
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: card.toggled() }
             }
             // Star and × sit on small background chips, in the foreground color, with
             // a hover tooltip naming what a click does.
@@ -140,7 +140,7 @@ Item {
                     enabled: hover.hovered
                     width: 18; height: 18; color: ui.bg; radius: Math.min(theme.rounding, 4)
                     Label { anchors.centerIn: parent; text: "×"; font.pixelSize: 13 }
-                    MouseArea { id: xMouse; anchors.fill: parent; hoverEnabled: true; onClicked: card.trashRequested() }
+                    MouseArea { id: xMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: card.trashRequested() }
                     Tip { anchors { top: parent.bottom; right: parent.right; topMargin: 4 } text: xChip.tipText; hovered: xMouse.containsMouse }
                 }
                 Rectangle {
@@ -152,7 +152,7 @@ Item {
                     width: 18; height: 18; color: ui.bg; radius: Math.min(theme.rounding, 4)
                     Label { anchors.centerIn: parent; text: card.starred ? "★" : "☆"; font.pixelSize: 12
                             color: starMouse.containsMouse ? ui.accent : ui.fg }
-                    MouseArea { id: starMouse; anchors.fill: parent; hoverEnabled: true; onClicked: card.starRequested() }
+                    MouseArea { id: starMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: card.starRequested() }
                     Tip { anchors { top: parent.bottom; right: parent.right; topMargin: 4 } text: starChip.tipText; hovered: starMouse.containsMouse }
                 }
             }
@@ -214,7 +214,7 @@ Item {
         id: mouse
         z: -1
         anchors.fill: parent
-        hoverEnabled: true
+        hoverEnabled: true; cursorShape: Qt.PointingHandCursor; 
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         onClicked: (m) => {
             card.picked()

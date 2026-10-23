@@ -60,15 +60,29 @@ FocusScope {
         for (const x of list) { const row = library.rowOf(x); if (row >= 0 && library.get(row).starred === all) library.toggleStar(row) }
         focusRow(grid.currentIndex)
     }
-    function trashSelected() { const n = library.trashMany(selected()); clearSel(); focusRow(grid.currentIndex) }
+    // Every delete asks first, even the recoverable move to Trash.
+    function ask(title, line, detail, action, hint, run) {
+        confirm.title = title; confirm.line = line; confirm.detail = detail
+        confirm.actionText = action; confirm.hintAction = hint; confirm.run = run
+        confirm.open()
+    }
+    function askForever(line, run) { ask(qsTr("Delete forever?"), line, qsTr("This can't be undone."), qsTr("Delete forever"), qsTr("delete"), run) }
+    function askTrash(line, run) { ask(qsTr("Move to Trash?"), line, qsTr("You can restore it from the Trash."), qsTr("Move to Trash"), qsTr("trash"), run) }
+    function trashSelected() {
+        const list = selected()
+        if (list.length === 0) return
+        askTrash(qsTr("Move %n shaders to the Trash?", "", list.length),
+                 () => { library.trashMany(list); clearSel(); focusRow(grid.currentIndex) })
+    }
+    function confirmTrash(r) {
+        const m = library.get(r)
+        askTrash(qsTr("Move %1 to the Trash?").arg(m.name), () => { const row = library.rowOf(m.slug); if (row >= 0) focusRow(library.moveToTrash(row)) })
+    }
     function hideSelected() { library.hideMany(selected(), library.filter !== 2); clearSel(); focusRow(grid.currentIndex) }
     function restoreSelected() { library.restoreMany(selected()); clearSel(); focusRow(0) }
     function confirmDeleteSelected() {
         const list = selected()
-        confirm.title = qsTr("Delete forever?")
-        confirm.line = qsTr("Permanently delete %n shaders?", "", list.length)
-        confirm.run = () => { library.deleteMany(list); clearSel(); focusRow(0) }
-        confirm.open()
+        askForever(qsTr("Permanently delete %n shaders?", "", list.length), () => { library.deleteMany(list); clearSel(); focusRow(0) })
     }
     Connections { target: library; function onFilterChanged() { panel.clearSel() } }
 
@@ -88,17 +102,11 @@ FocusScope {
     function cycle(d) { clearSel(); library.filter = (library.filter + d + 4) % 4; focusRow(0) }
     function confirmDelete(r) {
         const m = library.get(r)
-        confirm.title = qsTr("Delete forever?")
-        confirm.line = qsTr("Permanently delete %1?").arg(m.name)
-        confirm.run = () => { library.deleteForever(library.rowOf(m.slug)); focusRow(r - 1) }
-        confirm.open()
+        askForever(qsTr("Permanently delete %1?").arg(m.name), () => { library.deleteForever(library.rowOf(m.slug)); focusRow(r - 1) })
     }
     function confirmEmpty() {
         if (library.trashCount === 0) return
-        confirm.title = qsTr("Delete forever?")
-        confirm.line = qsTr("Permanently delete %n shaders?", "", library.trashCount)
-        confirm.run = () => { library.emptyTrash(); focusRow(0) }
-        confirm.open()
+        askForever(qsTr("Permanently delete %n shaders?", "", library.trashCount), () => { library.emptyTrash(); focusRow(0) })
     }
     function openMenu(r, x, y) {
         if (!isShader(r)) return
@@ -124,7 +132,7 @@ FocusScope {
         else if (action === "edit") panel.edit(slug)
         else if (action === "star") focusRow(library.toggleStar(r))
         else if (action === "hide") focusRow(library.toggleHidden(r))
-        else if (action === "trash") focusRow(library.moveToTrash(r))
+        else if (action === "trash") confirmTrash(r)
         else if (action === "restore") focusRow(library.restore(r))
         else if (action === "forever") confirmDelete(r)
         else if (action === "select") toggle(r)
@@ -430,6 +438,6 @@ FocusScope {
         onAccepted: { if (run) run(); grid.forceActiveFocus() }
         onCanceled: grid.forceActiveFocus()
     }
-    KeySheet { id: keys; objectName: "keys"; onVisibleChanged: if (!visible) grid.forceActiveFocus() }
+    KeySheet { id: keys; objectName: "keys"; fallback: grid }
     SettingsSheet { id: settings; objectName: "settings"; onVisibleChanged: if (!visible) grid.forceActiveFocus() }
 }

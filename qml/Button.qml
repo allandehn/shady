@@ -33,5 +33,5 @@ Rectangle {
         Label { id: label; font.pixelSize: 12; color: b.primary ? ui.bg : ui.fg; font.bold: b.primary }
         Label { text: b.keyHint; visible: text; font.pixelSize: 10; dim: true; anchors.verticalCenter: parent.verticalCenter }
     }
-    MouseArea { anchors.fill: parent; onClicked: if (b.enabled) b.clicked() }
+    MouseArea { anchors.fill: parent; cursorShape: b.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor; onClicked: if (b.enabled) b.clicked() }
 }

@@ -349,5 +349,5 @@ FocusScope {
         if (!badge.shown) viewer.wake()
     }
 
-    KeySheet { id: viewerKeys; objectName: "viewerKeys"; z: 20; onVisibleChanged: if (!visible) viewer.forceActiveFocus() }
+    KeySheet { id: viewerKeys; objectName: "viewerKeys"; z: 20; fallback: viewer }
 }

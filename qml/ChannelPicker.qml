@@ -57,7 +57,7 @@ FocusScope {
                                 visible: pk.current === index; color: Qt.rgba(ui.accent.r, ui.accent.g, ui.accent.b, 0.16) }
                     Label { x: 14; anchors.verticalCenter: parent.verticalCenter; font.pixelSize: 12; text: modelData.label
                             font.bold: pk.value.source === modelData.source }
-                    MouseArea { anchors.fill: parent; onClicked: { pk.current = index; pk.choose(index) } }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { pk.current = index; pk.choose(index) } }
                 }
             }
             Field {
@@ -87,9 +87,9 @@ FocusScope {
                     Row {
                         x: 90; anchors.verticalCenter: parent.verticalCenter; spacing: 14
                         Label { text: modelData.a; font.pixelSize: 12; font.bold: pk.value[modelData.key] === modelData.a; dim: pk.value[modelData.key] !== modelData.a
-                                MouseArea { anchors.fill: parent; onClicked: pk.setOpt(modelData.key, modelData.a) } }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: pk.setOpt(modelData.key, modelData.a) } }
                         Label { text: modelData.b; font.pixelSize: 12; font.bold: pk.value[modelData.key] === modelData.b; dim: pk.value[modelData.key] !== modelData.b
-                                MouseArea { anchors.fill: parent; onClicked: pk.setOpt(modelData.key, modelData.b) } }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: pk.setOpt(modelData.key, modelData.b) } }
                     }
                 }
             }

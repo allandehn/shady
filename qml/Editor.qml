@@ -278,7 +278,7 @@ FocusScope {
                     text: ed.compiling ? qsTr("Compiling…") : qsTr("Compile") }
             Label { id: cbHint; anchors { left: cbLabel.right; leftMargin: 8; verticalCenter: parent.verticalCenter }
                     text: "ctrl+↵"; font.pixelSize: 11; dim: true }
-            MouseArea { id: cbMouse; anchors.fill: parent; hoverEnabled: true; onClicked: if (compileBtn.enabled_) ed.compile() }
+            MouseArea { id: cbMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: compileBtn.enabled_ ? Qt.PointingHandCursor : Qt.ArrowCursor; onClicked: if (compileBtn.enabled_) ed.compile() }
         }
         }
         // Compile result: full width under everything, flat on the background.
@@ -485,7 +485,7 @@ FocusScope {
                         Label { width: parent.width; text: "iChannel" + index; smallCaps: true; dim: true; font.pixelSize: 9 }
                         Label { width: parent.width; text: info.label || ""; font.pixelSize: 11; dim: !info.source }
                     }
-                    MouseArea { anchors.fill: parent; onClicked: { parent.forceActiveFocus(); ed.openPicker(index, parent) } }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { parent.forceActiveFocus(); ed.openPicker(index, parent) } }
                 }
             }
         }
@@ -542,7 +542,7 @@ FocusScope {
         return code.positionToRectangle(pos).y
     }
 
-    KeySheet { id: edKeys; objectName: "editorKeys"; z: 20; onVisibleChanged: if (!visible) errList.forceActiveFocus() }
+    KeySheet { id: edKeys; objectName: "editorKeys"; z: 20; fallback: errList }
 
     Confirm {
         id: discard
