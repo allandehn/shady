@@ -149,7 +149,11 @@ int runSelfTest()
         const int rb = lib.rowOf(b);
         check(lib.toggleStar(rb) == rb && lib.rowOf(b) == rb, "starring keeps the card where it is");
         lib.setFilter(Library::Hidden); lib.setFilter(Library::All);
-        check(lib.rowOf(b) == 0, "starred shaders sort first after a refresh");
+        check(lib.rowOf(b) == rb, "starred shaders keep their alphabetical place after a refresh");
+        bool alpha = true;
+        for (int i = 1; i < lib.count(); ++i)
+            if (QString::localeAwareCompare(lib.get(i - 1).value("name").toString(), lib.get(i).value("name").toString()) > 0) alpha = false;
+        check(alpha, "All view is plain alphabetical");
     }
     lib.toggleHidden(lib.rowOf(a));
     check(lib.rowOf(a) == -1 && lib.count() == 2, "hidden shader leaves the list and the count");

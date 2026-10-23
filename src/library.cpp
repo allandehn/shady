@@ -193,11 +193,9 @@ void Library::rebuild()
         });
         return;
     }
-    // Starred first, then by name.
+    // Plain alphabetical; starring never moves a card.
     std::stable_sort(m_rows.begin(), m_rows.end(), [this](int a, int b) {
         const ShaderEntry &x = m_entries[a], &y = m_entries[b];
-        const bool sx = x.meta.value("starred").toBool(), sy = y.meta.value("starred").toBool();
-        if (sx != sy) return sx;
         return QString::localeAwareCompare(nameOf(x), nameOf(y)) < 0;
     });
 }
@@ -353,8 +351,7 @@ int Library::toggleStar(int row)
     e.meta.insert(QStringLiteral("starred"), !e.meta.value("starred").toBool());
     save(e);
     if (m_filter != Starred) {
-        // The card stays exactly where it is; "starred first" applies on the
-        // next rebuild (filter switch, reload), never under the user's cursor.
+        // Order is alphabetical only, so the card stays exactly where it is.
         const QModelIndex i = index(row);
         emit dataChanged(i, i, {StarredRole});
         return row;

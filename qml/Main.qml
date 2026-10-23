@@ -31,7 +31,7 @@ Window {
     property string mode: "list"
     property QtObject meter: null   // FrameMeter, set from C++
     // Screensaver launch (--screensaver): fullscreen viewer, first shader in
-    // list order (starred first). Anti-burn-in drift runs here and whenever
+    // list order (alphabetical). Anti-burn-in drift runs here and whenever
     // the viewer is fullscreen, unless turned off in settings.
     property bool screensaver: false
     function startScreensaver() {
