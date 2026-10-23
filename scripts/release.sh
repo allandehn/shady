@@ -59,7 +59,7 @@ PKG=shady-$VER-1-x86_64.pkg.tar.zst
 WORK=$(mktemp -d /tmp/shady-rel.XXXX)
 cleanup() {
   rm -rf "$WORK"
-  if (( DRY )); then git -C "$ROOT" checkout -q -- CMakeLists.txt packaging/PKGBUILD; fi
+  if (( DRY )); then git -C "$ROOT" checkout -q -- CMakeLists.txt packaging/PKGBUILD README.md; fi
 }
 trap cleanup EXIT
 
@@ -96,6 +96,11 @@ fi
 step "Bump version to $VER"
 sed -i "s/^project(shady VERSION [0-9.]*/project(shady VERSION $VER/" CMakeLists.txt
 sed -i "s/^pkgver=.*/pkgver=$VER/; s/^pkgrel=.*/pkgrel=1/" packaging/PKGBUILD
+# README's dev-install lines point at this release's tag and the script's sha256.
+DEVSHA=$(sha256sum scripts/dev-install.sh | cut -d' ' -f1)
+sed -i -E "s#(raw\.githubusercontent\.com/allandehn/shady/)[^/]+(/scripts/dev-install\.sh)#\1v$VER\2#; s#^echo \"[0-9a-f]{64}(  /tmp/shady-dev-install\.sh)#echo \"$DEVSHA\1#" README.md
+grep -q "shady/v$VER/scripts/dev-install.sh" README.md && grep -q "^echo \"$DEVSHA  /tmp/shady-dev-install.sh" README.md \
+  || die "README dev-install lines not updated (has their format changed?)"
 grep -q "project(shady VERSION $VER " CMakeLists.txt || die "version bump in CMakeLists.txt failed"
 
 step "Build"

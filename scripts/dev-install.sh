@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
-# Try the development version of Shady: builds main as a pacman package and
-# installs it. For Arch / Omarchy.
+# Build Shady from source as a pacman package and install it. For Arch / Omarchy.
+# By default it builds the latest v* release tag. --main builds the latest
+# development code instead (opt-in, since it hasn't been released yet).
 #
-#   curl -fsSL https://raw.githubusercontent.com/allandehn/shady/main/scripts/dev-install.sh | bash
+#   curl -fsSLo /tmp/shady-dev-install.sh https://raw.githubusercontent.com/allandehn/shady/<tag>/scripts/dev-install.sh
+#   sha256sum /tmp/shady-dev-install.sh     # compare with the README
+#   bash /tmp/shady-dev-install.sh          # or: bash /tmp/shady-dev-install.sh --main
 #
-# Steps: clone or update main in ~/.cache/shady-dev, build a package with
+# Steps: clone or update the repo in ~/.cache/shady-dev, check out the tag (or
+# main), verify the commit against SHADY_DEV_SHA when it's set, build a package with
 # makepkg (pkgver like 0.2.0.r5.g1a2b3c4, which sorts above 0.2.0 and below
 # 0.2.1, so the next real release replaces it on `omarchy update`), run the
 # headless self-tests (offscreen Qt, private D-Bus, throwaway dirs; nothing
-# touches your desktop), then `sudo pacman -U` (you type your password).
+# touches your desktop), then `sudo pacman -U`: pacman shows what it will
+# install and asks you to confirm on your terminal (read from /dev/tty).
 # Never touches ~/.local/bin. Stops at the first failure.
 #
 # Builds are incremental: the CMake/Ninja build tree lives on in
@@ -17,8 +22,10 @@
 # compiler output in ~/.cache/shady-dev/ccache. Use --clean for a full rebuild.
 #
 # Options (flag or env):
+#   --main                                    build the latest main, not the latest tag
+#   SHADY_DEV_SHA=<full sha>                  refuse to build unless HEAD is exactly this commit
 #   --no-install   / SHADY_DEV_NO_INSTALL=1   build and test, but don't install
-#   --skip-tests   / SHADY_DEV_SKIP_TESTS=1   skip tests/headless.sh
+#   --skip-tests                              skip tests/headless.sh (flag only; tests are on by default)
 #   --clean        / SHADY_DEV_CLEAN=1        wipe the build cache, rebuild from scratch
 #   --nodeps       / SHADY_DEV_NODEPS=1       skip pacman dependency checks
 #                                             (testing on a non-Arch box only)
@@ -28,20 +35,21 @@
 #
 # Wrapped in main() so bash reads the whole script before running anything:
 # with `curl | bash` stdin is the script, so no command here may read stdin
-# (everything runs with </dev/null; sudo asks for the password on the tty).
+# (everything runs with </dev/null; sudo and pacman's confirm read /dev/tty).
 set -euo pipefail
 
 main() {
   local REPO=${SHADY_DEV_REPO:-https://github.com/allandehn/shady.git}
   local DIR=${SHADY_DEV_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/shady-dev}
-  local NO_INSTALL=${SHADY_DEV_NO_INSTALL:-0} SKIP_TESTS=${SHADY_DEV_SKIP_TESTS:-0} NODEPS=${SHADY_DEV_NODEPS:-0} CLEAN=${SHADY_DEV_CLEAN:-0} a
+  local NO_INSTALL=${SHADY_DEV_NO_INSTALL:-0} SKIP_TESTS=0 MAIN=0 WANT_SHA=${SHADY_DEV_SHA:-} NODEPS=${SHADY_DEV_NODEPS:-0} CLEAN=${SHADY_DEV_CLEAN:-0} a
   for a in "$@"; do
     case $a in
       --no-install) NO_INSTALL=1 ;;
       --skip-tests) SKIP_TESTS=1 ;;
+      --main) MAIN=1 ;;
       --nodeps) NODEPS=1 ;;
       --clean) CLEAN=1 ;;
-      -h|--help) sed -n '2,30p' "${BASH_SOURCE[0]}" 2>/dev/null || echo "see the header of scripts/dev-install.sh"; return 0 ;;
+      -h|--help) sed -n '2,38p' "${BASH_SOURCE[0]}" 2>/dev/null || echo "see the header of scripts/dev-install.sh"; return 0 ;;
       *) die "unknown option: $a (see --help)" ;;
     esac
   done
@@ -57,22 +65,36 @@ main() {
   fi
   if (( ! NO_INSTALL )); then command -v pacman >/dev/null || die "pacman not found: this script is for Arch / Omarchy"; fi
 
-  step "Getting latest main into $DIR"
+  step "Getting the source into $DIR"
   if [[ -d $DIR/src/.git ]]; then
-    git -C "$DIR/src" fetch -q --tags --force origin main </dev/null
-    git -C "$DIR/src" checkout -q -B main FETCH_HEAD </dev/null
-    git -C "$DIR/src" reset -q --hard FETCH_HEAD </dev/null
-    git -C "$DIR/src" clean -qfdx </dev/null
+    git -C "$DIR/src" remote set-url origin "$REPO" </dev/null
+    git -C "$DIR/src" fetch -q --tags --force --prune --prune-tags origin main </dev/null
   else
     mkdir -p "$DIR"; rm -rf "$DIR/src"
     git clone -q --branch main "$REPO" "$DIR/src" </dev/null
+    git -C "$DIR/src" fetch -q --tags --force origin </dev/null
   fi
-  local SRC=$DIR/src TAG N HASH BASE VER
+  local SRC=$DIR/src REF TAG N HASH FULL BASE VER
+  if (( MAIN )); then
+    REF=$(git -C "$SRC" rev-parse origin/main </dev/null)
+  else
+    REF=$(git -C "$SRC" tag -l 'v[0-9]*' --sort=-v:refname </dev/null | head -1)
+    [[ -n $REF ]] || die "no v* release tag found"
+  fi
+  git -C "$SRC" checkout -q --detach "$REF" </dev/null
+  git -C "$SRC" reset -q --hard "$REF" </dev/null
+  git -C "$SRC" clean -qfdx </dev/null
+  FULL=$(git -C "$SRC" rev-parse HEAD </dev/null)
+  if [[ -n $WANT_SHA ]]; then
+    [[ $FULL == "$WANT_SHA" ]] || die "commit mismatch: got $FULL, expected SHADY_DEV_SHA=$WANT_SHA"
+    echo "commit verified: $FULL"
+  fi
   TAG=$(git -C "$SRC" describe --tags --abbrev=0 --match 'v[0-9]*' HEAD </dev/null) || die "no v* release tag found"
   N=$(git -C "$SRC" rev-list --count "$TAG..HEAD" </dev/null)
   HASH=$(git -C "$SRC" rev-parse --short=7 HEAD </dev/null)
   BASE=${TAG#v}; VER=$BASE.r$N.g$HASH
-  echo "main is $HASH, $N commit(s) after $TAG -> package version $VER"
+  if (( MAIN )); then echo "main is $HASH, $N commit(s) after $TAG -> package version $VER"
+  else echo "release $TAG ($FULL) -> package version $VER"; fi
   if command -v vercmp >/dev/null; then
     (( $(vercmp "$VER" "$BASE") > 0 )) || die "$VER does not sort above $BASE"
   fi
@@ -143,8 +165,9 @@ main() {
     return 0
   fi
 
-  step "Installing (sudo pacman -U; type your password if asked)"
-  sudo pacman -U --noconfirm "$B/$PKG" </dev/null || die "pacman -U failed"
+  step "Installing (sudo pacman -U; check what it lists, then confirm)"
+  { : </dev/tty; } 2>/dev/null || die "no terminal to confirm on. Install it yourself with: sudo pacman -U $B/$PKG"
+  sudo pacman -U "$B/$PKG" </dev/tty || die "pacman -U failed or was declined"
 
   step "Installed: $(pacman -Q shady)"
   echo "The next release (above $BASE) replaces this on 'omarchy update'."

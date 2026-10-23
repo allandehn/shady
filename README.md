@@ -34,15 +34,17 @@ It adds the Shady package repository, with packages signed by Allan Kristensen (
 
 Prefer to do it by hand? Read [install.sh](install.sh). It's a handful of lines.
 
-## Try the development version
+## Build it yourself (dev-install)
 
-To try the latest work on `main` before it's released:
+Download the script from a release tag, check its checksum, then run it:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/allandehn/shady/main/scripts/dev-install.sh | bash
+curl -fsSLo /tmp/shady-dev-install.sh https://raw.githubusercontent.com/allandehn/shady/vNEXT/scripts/dev-install.sh
+echo "0000000000000000000000000000000000000000000000000000000000000000  /tmp/shady-dev-install.sh" | sha256sum -c
+bash /tmp/shady-dev-install.sh
 ```
 
-It builds a pacman package (version like `0.2.0.r3.g1a2b3c4`) in `~/.cache/shady-dev`, runs the headless tests, and installs it with `sudo pacman -U`. The next release replaces it on `omarchy update`. Add `bash -s -- --no-install` to build and test only.
+By default it builds the latest release tag. Add `--main` to build the latest work on `main` before it's released, and set `SHADY_DEV_SHA=<commit>` to refuse anything but that exact commit. It builds a pacman package (version like `0.2.0.r3.g1a2b3c4`) in `~/.cache/shady-dev`, runs the headless tests, then runs `sudo pacman -U`, which shows what it installs and asks you to confirm. The next release replaces it on `omarchy update`. `--no-install` builds and tests only, and `--clean` forces a full rebuild.
 
 ## Build from source
 
