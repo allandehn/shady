@@ -5,25 +5,39 @@ FocusScope {
     id: sheet
     visible: false
     anchors.fill: parent
-    function open() { visible = true; forceActiveFocus() }
+    // open(from): from is the section id ("browse", "viewer", "editor",
+    // "organize", "trash"); that group gets a brief accent highlight that
+    // holds ~0.4 s then eases out over 2 s. Layout never moves.
+    property string from: ""
+    property real glow: 0
+    function open(src) {
+        from = src || ""; visible = true; forceActiveFocus()
+        glowAnim.stop(); glow = from && theme.animations ? 1 : 0
+        if (glow > 0) glowAnim.start()
+    }
+    SequentialAnimation {
+        id: glowAnim
+        PauseAnimation { duration: 400 }
+        NumberAnimation { target: sheet; property: "glow"; to: 0; duration: 2000; easing.type: Easing.OutCubic }
+    }
     function close() { visible = false }
     // Two balanced columns, read top-left first (F-pattern), most-used keys first.
     readonly property var columns: [[
-        { title: qsTr("Browse"), keys: [
+        { id: "browse", title: qsTr("Browse"), keys: [
             ["←→↑↓", qsTr("navigate")], ["enter", qsTr("run")], ["tab", qsTr("next view")], ["esc", qsTr("close")], ["?", qsTr("this page")]] },
-        { title: qsTr("Viewer"), keys: [
+        { id: "viewer", title: qsTr("Viewer"), keys: [
             ["↑↓", qsTr("quality")], ["←→", qsTr("fps")], ["a", qsTr("auto-adapt")], ["f", qsTr("fullscreen")], ["esc", qsTr("close")]] },
-        { title: qsTr("Editor"), keys: [
+        { id: "editor", title: qsTr("Editor"), keys: [
             ["ctrl+↵", qsTr("compile")], ["ctrl+s", qsTr("save")], ["ctrl+h", qsTr("burn-in heatmap")], ["tab", qsTr("next field")], ["esc", qsTr("cancel")]] },
-        { title: qsTr("Mouse"), keys: [
+        { id: "mouse", title: qsTr("Mouse"), keys: [
             [qsTr("click"), qsTr("run")], [qsTr("right-click"), qsTr("menu")], [qsTr("back button"), qsTr("same as esc")]] }
     ], [
-        { title: qsTr("Organize"), keys: [
+        { id: "organize", title: qsTr("Organize"), keys: [
             ["space", qsTr("select")], ["shift+←→↑↓", qsTr("extend selection")], ["ctrl+a", qsTr("select all")],
             ["s", qsTr("star / unstar")], ["h", qsTr("hide / unhide")], ["n", qsTr("new")], ["ctrl+e", qsTr("edit")],
             ["del", qsTr("move to Trash")], ["shift+del", qsTr("delete permanently")], ["ctrl+z", qsTr("undo")],
             ["shift+f10", qsTr("menu (or Menu key)")], [",", qsTr("settings")]] },
-        { title: qsTr("Trash"), keys: [
+        { id: "trash", title: qsTr("Trash"), keys: [
             ["enter", qsTr("restore")], ["del", qsTr("delete forever")], ["tab", qsTr("empty trash")]] }
     ]]
     readonly property var groups: columns[0].concat(columns[1])
@@ -60,13 +74,27 @@ FocusScope {
                     spacing: 18
                     Repeater {
                         model: modelData
-                        Column {
+                        Item {
+                            id: grp
                             required property var modelData
+                            readonly property real g: modelData.id === sheet.from ? sheet.glow : 0
+                            width: parent.width
+                            height: grpCol.implicitHeight
+                            Rectangle {
+                                anchors { fill: parent; margins: -6 }
+                                color: ui.accent; opacity: 0.09 * grp.g
+                                visible: grp.g > 0
+                            }
+                        Column {
+                            id: grpCol
                             width: parent.width
                             spacing: 5
-                            Label { text: modelData.title; smallCaps: true; dim: true }
+                            Label { text: grp.modelData.title; smallCaps: true
+                                    color: Qt.rgba(ui.muted.r + (ui.accent.r - ui.muted.r) * grp.g,
+                                                   ui.muted.g + (ui.accent.g - ui.muted.g) * grp.g,
+                                                   ui.muted.b + (ui.accent.b - ui.muted.b) * grp.g, 1) }
                             Repeater {
-                                model: modelData.keys
+                                model: grp.modelData.keys
                                 Row {
                                     id: keyRow
                                     required property var modelData
@@ -76,6 +104,7 @@ FocusScope {
                                     Label { width: keyRow.width - keyCap.width - keyRow.spacing; text: keyRow.modelData[1]; font.pixelSize: 11; dim: true; elide: Text.ElideRight }
                                 }
                             }
+                        }
                         }
                     }
                 }

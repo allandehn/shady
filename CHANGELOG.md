@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Live view: the caption now fades in quickly (180 ms) and fades out slowly (1.8 s, ease-out).
+- Key sheet: the section you opened it from (browse, viewer, editor, organize, trash) gets a short accent highlight that holds 0.4 s and eases out over 2 s.
 
 - Burn-in protection for screensaver use. New `--screensaver` launch flag (fullscreen viewer).
   In screensaver mode and whenever the viewer is fullscreen the whole output slowly orbits

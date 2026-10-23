@@ -871,6 +871,10 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
             key(win, Qt::Key_Question);
             auto *vk = viewer->findChild<QQuickItem *>("viewerKeys");
             check(vk && vk->isVisible(), "? opens the key sheet in the viewer");
+            check(vk && vk->property("from").toString() == "viewer" && vk->property("glow").toReal() > 0.9, "viewer key sheet highlights VIEWER");
+            shotAs("keys-from-viewer");
+            waitFor([&] { return vk->property("glow").toReal() == 0; }, 3500);
+            check(vk->property("glow").toReal() == 0, "highlight eases out by ~2.4 s");
             key(win, Qt::Key_Escape);
             check(vk && !vk->isVisible() && viewer->isVisible(), "esc closes the key sheet, not the viewer");
             lib->setLearnedViewerKeys(false);
@@ -890,6 +894,8 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
 
         key(win, Qt::Key_Question, "?");
         check(keysSheet->isVisible(), "? opens the key list");
+        check(keysSheet->property("from").toString() == "browse" && keysSheet->property("glow").toReal() > 0.9, "grid key sheet highlights BROWSE");
+        shotAs("keys-from-grid");
         shotAs("keys-overlay");
         click(win, QPointF(win->width() / 2.0, 30), Qt::BackButton);
         check(!keysSheet->isVisible(), "back button closes the key list");

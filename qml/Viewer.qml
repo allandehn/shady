@@ -335,7 +335,7 @@ FocusScope {
             if (!library.autoAdapt) viewer.adapted = 0
             viewer.flash("auto", library.autoAdapt ? qsTr("auto-adapt on") : qsTr("auto-adapt off"))
         } else if (e.key === Qt.Key_Question) {
-            viewerKeys.open()
+            viewerKeys.open("viewer")
         } else if (e.key === Qt.Key_F) {
             viewer.toggleFullscreen()
         } else if (e.key === Qt.Key_Escape || e.key === Qt.Key_Q) {

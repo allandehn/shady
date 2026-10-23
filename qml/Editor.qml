@@ -350,7 +350,7 @@ FocusScope {
                 // (max 4 lines, tooltip for the rest), and the source line under it.
                 onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
                 Keys.onEscapePressed: code.forceActiveFocus()
-                Keys.onPressed: (e) => { if (e.key === Qt.Key_Question) { edKeys.open(); e.accepted = true } }
+                Keys.onPressed: (e) => { if (e.key === Qt.Key_Question) { edKeys.open("editor"); e.accepted = true } }
                 delegate: Item {
                     id: errRow
                     required property var modelData

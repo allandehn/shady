@@ -286,7 +286,7 @@ FocusScope {
             else if (e.key === Qt.Key_Menu || (e.key === Qt.Key_F10 && shift)) {
                 if (grid.currentItem) { const p = grid.currentItem.mapToItem(panel, 24, 40); panel.openMenu(r, p.x, p.y) }
             }
-            else if (e.key === Qt.Key_Question) keys.open()
+            else if (e.key === Qt.Key_Question) keys.open(panel.inTrash ? "trash" : panel.selecting ? "organize" : "browse")
             else if (e.key === Qt.Key_Comma) settings.open()
             else if (e.key === Qt.Key_Tab) { if (panel.inTrash && library.trashCount > 0) emptyBtn.forceActiveFocus(); else panel.cycle(1) }
             else if (e.key === Qt.Key_Backtab) panel.cycle(-1)
@@ -396,7 +396,7 @@ FocusScope {
                     anchors.right: parent.right
                     width: qRow.implicitWidth; height: qRow.implicitHeight
                     hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                    onClicked: keys.open()
+                    onClicked: keys.open(panel.inTrash ? "trash" : panel.selecting ? "organize" : "browse")
                     Row { id: qRow; spacing: 0
                           Label { text: "?"; font.pixelSize: 11; font.bold: true; color: allKeys.containsMouse ? ui.accent : ui.fg }
                           Label { text: ":" + qsTr("all keys"); font.pixelSize: 11; dim: true } }
