@@ -56,6 +56,10 @@ qt_add_resources(shady "selftest_fixtures"
 
 # English is in the source; Danish ships from the start (i18n/update.sh).
 qt_add_lrelease(shady TS_FILES i18n/shady_da.ts QM_FILES_OUTPUT_VARIABLE shady_qm)
+qt_add_resources(shady "appicon" PREFIX "/icons" BASE data/icons/hicolor FILES
+    data/icons/hicolor/shady-16.png data/icons/hicolor/shady-24.png data/icons/hicolor/shady-32.png
+    data/icons/hicolor/shady-48.png data/icons/hicolor/shady-64.png data/icons/hicolor/shady-128.png
+    data/icons/hicolor/shady-256.png)
 qt_add_resources(shady "translations" PREFIX "/i18n" BASE "${CMAKE_CURRENT_BINARY_DIR}" FILES ${shady_qm})
 
 target_link_libraries(shady PRIVATE Qt6::Core Qt6::Gui Qt6::GuiPrivate Qt6::Quick)
@@ -63,6 +67,12 @@ target_include_directories(shady PRIVATE src)
 include(GNUInstallDirs)
 install(TARGETS shady RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES packaging/linux/shady.desktop DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
-install(FILES packaging/linux/shady.svg DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+# App icon "hybrid8": hand-tuned PNGs (16-32 are pixel art, never rasterised
+# from the SVG) plus the SVG for scalable. data/icons/tile/ is kept, not installed.
+set(SHADY_ICON_SIZES 16 24 32 48 64 128 256 512)
+foreach(n ${SHADY_ICON_SIZES})
+    install(FILES data/icons/hicolor/shady-${n}.png DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/${n}x${n}/apps RENAME shady.png)
+endforeach()
+install(FILES data/icons/hicolor/shady.svg DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
 install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/shady)
 install(FILES README.md DESTINATION ${CMAKE_INSTALL_DATADIR}/doc/shady)

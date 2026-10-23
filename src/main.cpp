@@ -1,6 +1,7 @@
 // Shady: Shadertoy-style shader viewer/screensaver for Omarchy.
 #include <QCommandLineParser>
 #include <QGuiApplication>
+#include <QIcon>
 #include <QImage>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -36,6 +37,11 @@ static void pickGraphicsApi()
 int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
+    {   // Window icon: the theme's (installed hicolor) first, else the embedded PNGs.
+        QIcon fallback;
+        for (int n : {16, 24, 32, 48, 64, 128, 256}) fallback.addFile(QStringLiteral(":/icons/shady-%1.png").arg(n), QSize(n, n));
+        QGuiApplication::setWindowIcon(QIcon::fromTheme(QStringLiteral("shady"), fallback));
+    }
     QGuiApplication::setApplicationName(QStringLiteral("shady"));
     QGuiApplication::setDesktopFileName(QStringLiteral("shady"));
     QGuiApplication::setApplicationVersion(QStringLiteral(SHADY_VERSION));

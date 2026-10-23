@@ -15,7 +15,7 @@ else
 fi
 fail() { echo "FAIL $*"; exit 1; }
 echo "== installed files"
-for f in usr/bin/shady usr/share/applications/shady.desktop usr/share/icons/hicolor/scalable/apps/shady.svg usr/share/licenses/shady/LICENSE; do
+for f in usr/bin/shady usr/share/applications/shady.desktop usr/share/icons/hicolor/scalable/apps/shady.svg usr/share/icons/hicolor/16x16/apps/shady.png usr/share/icons/hicolor/256x256/apps/shady.png usr/share/licenses/shady/LICENSE; do
   [[ -s $ROOT/$f ]] || fail "missing $f"
 done
 D=$ROOT/usr/share/applications/shady.desktop

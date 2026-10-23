@@ -142,7 +142,7 @@ done
 cp "$WORK/$PKG" "$WORK/$PKG.sig" "$WORK/up/"
 for f in shady.db shady.files "$PKG"; do t 30 gpg --batch --verify "$WORK/up/$f.sig" "$WORK/up/$f" 2>/dev/null || die "bad signature on $f"; done
 PL=$(tar --zstd -tf "$WORK/$PKG")
-for f in usr/bin/shady usr/share/applications/shady.desktop usr/share/icons/hicolor/scalable/apps/shady.svg usr/share/licenses/shady/LICENSE; do
+for f in usr/bin/shady usr/share/applications/shady.desktop usr/share/icons/hicolor/scalable/apps/shady.svg usr/share/icons/hicolor/16x16/apps/shady.png usr/share/icons/hicolor/256x256/apps/shady.png usr/share/licenses/shady/LICENSE; do
   grep -qx "$f" <<<"$PL" || die "package lacks $f"
 done
 grep -q 'qmldir$' <<<"$PL" && die "package ships a qmldir; the QML module must be compiled into the binary"
