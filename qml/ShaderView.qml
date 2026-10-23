@@ -30,7 +30,7 @@ Item {
                 height: Math.max(1, Math.round(root.height * root.quality))
                 transformOrigin: Item.TopLeft
                 scale: root.width / Math.max(1, width)
-                layer.enabled: true // always: a stopped shader is then drawn from its last frame, not re-run on every repaint
+                layer.enabled: root.quality < 1.0 || !root.running // when stopped, reuse the last frame instead of re-running the shader on every repaint; at 100% while running, no extra copy
                 layer.smooth: true
                 blending: false
                 fragmentShader: root.source
