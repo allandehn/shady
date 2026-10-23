@@ -53,7 +53,7 @@
   desktop. If it times out, tell Allan a passphrase dialog may be waiting.
 
 ## Tests (more)
-`tests/headless.sh` runs these: self-test, UI test, `--potato-test` (with SHADY_SOFTWARE=0, it covers the benchmark, iChannels on screen, auto-adapt and the too-heavy pause) and `--danish-shot` (SHADY_LANG=da). Run `i18n/update.sh` after you change qsTr strings. Danish strings live in i18n/da.py.
+`tests/headless.sh` runs these: self-test, UI test, `--potato-test` (with SHADY_SOFTWARE=0, it covers the benchmark, iChannels on screen, auto-adapt and the too-heavy pause) and `--danish-shot` (SHADY_LANG=da). The phases run in parallel (each has its own dirs, D-Bus and Xvfb server number); output is buffered per phase and printed in order with a `-- <phase>: N s` line, and the exit code is the first failing phase's. `SHADY_TEST_JOBS=1` runs them one by one, streaming, for debugging a hang. The installed-package test runs last because it hides the build tree. About 50 s on the box (was ~165 s). Keep tests fast: wait on a condition, not a fixed sleep; screenshot steps settle 150 ms, so a longer fade needs its own explicit wait. Run `i18n/update.sh` after you change qsTr strings. Danish strings live in i18n/da.py.
 
 ## README screenshots
 `./build/shady --doc-shots docs` (in the same throwaway, headless setup as the tests, with SHADY_LANG=en) refreshes `docs/list.png` and `docs/editor.png`.
