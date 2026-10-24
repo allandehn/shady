@@ -44,7 +44,7 @@ FocusScope {
     // Two balanced columns, read top-left first (F-pattern), most-used keys first.
     readonly property var columns: [[
         { id: "browse", title: qsTr("Browse"), keys: [
-            ["←→↑↓", qsTr("navigate")], ["enter", qsTr("run")], ["tab", qsTr("next view")], ["esc", qsTr("close")], ["?", qsTr("this page")]] },
+            ["←→↑↓", qsTr("navigate")], ["enter", qsTr("run")], ["ctrl+↵", qsTr("edit")], ["tab", qsTr("next view")], ["esc", qsTr("close")], ["?", qsTr("this page")]] },
         { id: "viewer", title: qsTr("Viewer"), keys: [
             ["↑↓", qsTr("quality")], ["←→", qsTr("fps")], ["a", qsTr("auto-adapt")], ["f", qsTr("fullscreen")], ["esc", qsTr("close")]] },
         { id: "editor", title: qsTr("Editor"), keys: [
@@ -54,7 +54,7 @@ FocusScope {
     ], [
         { id: "organize", title: qsTr("Organize"), keys: [
             ["space", qsTr("select")], ["shift+←→↑↓", qsTr("extend selection")], ["ctrl+a", qsTr("select all")],
-            ["s", qsTr("star / unstar")], ["h", qsTr("hide / unhide")], ["n", qsTr("new")], ["ctrl+↵", qsTr("edit")],
+            ["s", qsTr("star / unstar")], ["h", qsTr("hide / unhide")], ["n", qsTr("new")],
             ["del", qsTr("move to Trash")], ["shift+del", qsTr("delete permanently")], ["ctrl+z", qsTr("undo")],
             ["shift+f10", qsTr("menu (or Menu key)")], [",", qsTr("settings")]] },
         { id: "trash", title: qsTr("Trash"), keys: [
@@ -81,13 +81,13 @@ FocusScope {
             general([["tab", qsTr("next field")], ["esc", qsTr("cancel")]])]] }
         // Grid (All / Starred / Hidden, browsing or selecting)
         return { title: tab === 1 ? qsTr("Starred keys") : tab === 2 ? qsTr("Hidden keys") : qsTr("Browse keys"), columns: [[
-            { id: "browse", title: qsTr("Browse"), keys: [["←→↑↓", qsTr("navigate")], ["enter", qsTr("run")]] },
+            { id: "browse", title: qsTr("Browse"), keys: [["←→↑↓", qsTr("navigate")], ["enter", qsTr("run")], ["ctrl+↵", qsTr("edit")]] },
             general([["tab", qsTr("switch tabs")], ["esc", qsTr("close")]])
         ], [
             { id: "organize", title: qsTr("Organize"), keys: [
                 ["space", qsTr("select")], ["shift+←→↑↓", qsTr("extend selection")], ["ctrl+a", qsTr("select all")],
                 ["s", tab === 1 ? qsTr("unstar") : qsTr("star / unstar")], ["h", tab === 2 ? qsTr("unhide") : qsTr("hide / unhide")],
-                ["n", qsTr("new")], ["ctrl+↵", qsTr("edit")],
+                ["n", qsTr("new")],
                 ["del", qsTr("move to Trash")], ["shift+del", qsTr("delete permanently")], ["ctrl+z", qsTr("undo")],
                 ["shift+f10", qsTr("menu (or Menu key)")], [",", qsTr("settings")]] }]] }
     }
