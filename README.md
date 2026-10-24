@@ -39,7 +39,7 @@ Prefer to do it by hand? Read [install.sh](install.sh). It's a handful of lines.
 Download the script, check its checksum, then run it:
 
 ```
-curl -fsSLo /tmp/shady-dev-install.sh https://raw.githubusercontent.com/allandehn/shady/bed930e3c4c9b252a51abdbb57887dcab9e633e5/scripts/dev-install.sh
+curl -fsSLo /tmp/shady-dev-install.sh https://raw.githubusercontent.com/allandehn/shady/v0.2.1/scripts/dev-install.sh
 echo "ff1158c1a61358e46019ae7dce6db904462f864b042556918b37495a7e0a437e  /tmp/shady-dev-install.sh" | sha256sum -c
 bash /tmp/shady-dev-install.sh
 ```
