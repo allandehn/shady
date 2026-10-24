@@ -920,7 +920,9 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
             auto *vk = viewer->findChild<QQuickItem *>("viewerKeys");
             check(vk && vk->isVisible(), "? opens the key sheet in the viewer");
             check(vk && vk->property("from").toString() == "viewer" && vk->property("glow").toReal() == 0, "viewer key sheet: no context highlight");
-            shotAs("keys-from-viewer");
+            check(vk->property("title") == "Viewer keys" && vk->property("shownGroups").toStringList() == QStringList{"Viewer", "General"},
+                  "viewer sheet shows only viewer keys: " + vk->property("shownGroups").toStringList().join(","));
+            shotAs("keys-ctx-viewer");
             waitFor([&] { return !caption->isVisible(); }, 2500);
             check(!caption->isVisible(), "caption hides while the key sheet is open");
             {   // the gated highlight still works when switched back on
@@ -964,7 +966,18 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         key(win, Qt::Key_Question, "?");
         check(keysSheet->isVisible(), "? opens the key list");
         check(keysSheet->property("from").toString() == "browse" && keysSheet->property("glow").toReal() == 0, "grid key sheet: no context highlight");
-        shotAs("keys-nohighlight");
+        check(keysSheet->property("title") == "Browse keys" && keysSheet->property("shownGroups").toStringList() == QStringList{"Browse", "General", "Organize"},
+              "grid sheet: Browse keys with Browse, General, Organize: " + keysSheet->property("shownGroups").toStringList().join(","));
+        auto *toggle = keysSheet->findChild<QObject *>("footerToggle");
+        check(toggle && toggle->property("text") == "? all keys", "context footer offers ? all keys");
+        shotAs("keys-ctx-grid");
+        key(win, Qt::Key_Question, "?");
+        check(keysSheet->isVisible() && keysSheet->property("title") == "All keys" && keysSheet->property("shownGroups").toStringList().contains("Mouse")
+              && toggle && toggle->property("text") == "? back", "? again shows all keys, with ? back");
+        shotAs("keys-ctx-all");
+        key(win, Qt::Key_Question, "?");
+        check(keysSheet->isVisible() && keysSheet->property("title") == "Browse keys" && !keysSheet->property("shownGroups").toStringList().contains("Mouse"),
+              "? once more goes back to the context keys");
         shotAs("keys-overlay");
         click(win, QPointF(win->width() / 2.0, 30), Qt::BackButton);
         check(!keysSheet->isVisible(), "back button closes the key list");
@@ -972,8 +985,8 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
             const int r0 = list->property("currentRow").toInt();
             key(win, Qt::Key_Right);
             check(list->property("currentRow").toInt() == r0 + 1, "grid keys work after the key list (back button)");
-            key(win, Qt::Key_Question, "?"); key(win, Qt::Key_Question, "?");
-            check(!keysSheet->isVisible(), "? closes the key list");
+            key(win, Qt::Key_Question, "?"); key(win, Qt::Key_Question, "?"); key(win, Qt::Key_Escape);
+            check(!keysSheet->isVisible(), "esc closes the key list from all keys");
             key(win, Qt::Key_Left);
             check(list->property("currentRow").toInt() == r0, "grid keys work after the key list (?)");
         }
@@ -1008,11 +1021,24 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         check(lib->count() == 0 && !hc->isVisible() && es->isVisible() && es->property("title") == "trash is empty"
               && es->property("line") == "just chillin'", "Trash empty state: just chillin'");
         shotAs("empty-trash");
+        QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+        up->setLatest(up->current());
+        key(win, Qt::Key_Question, "?");
+        check(keysSheet->isVisible() && keysSheet->property("title") == "Trash keys"
+              && keysSheet->property("shownGroups").toStringList() == QStringList{"Trash", "General"}, "Trash sheet: Trash and General only");
+        shotAs("keys-ctx-trash");
+        key(win, Qt::Key_Escape);
+        check(!keysSheet->isVisible(), "esc closes the Trash sheet");
         lib->setFilter(Library::All);
         const QString one = lib->get(0).value("slug").toString();
         lib->toggleStar(0); lib->setFilter(Library::Starred); settle();
         check(hcText() == "1 starred" && !es->isVisible(), "Starred shows its own count: " + hcText());
         shotAs("header-count");
+        QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+        key(win, Qt::Key_Question, "?");
+        check(keysSheet->property("title") == "Starred keys", "Starred tab: Starred keys");
+        shotAs("keys-ctx-starred");
+        key(win, Qt::Key_Escape);
         lib->toggleStar(0);
         lib->setFilter(Library::All);  // put everything back
         for (const QString &sl : starred) lib->toggleStar(lib->rowOf(sl));
@@ -1042,7 +1068,7 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         up->setLatest("0.0.1"); settle();
         check(up->state() == "latest", "an older release still reads latest");
         up->setLatest("");
-        key(win, Qt::Key_Question, "?");
+        key(win, Qt::Key_Escape);
         check(!keysSheet->isVisible(), "key sheet closes");
     }
 
@@ -1100,7 +1126,9 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
     if (auto *ek = editor->findChild<QQuickItem *>("editorKeys")) {
         QQuickItem *before = win->activeFocusItem();
         QMetaObject::invokeMethod(ek, "open", Q_ARG(QVariant, "editor"));
-        check(ek->isVisible(), "editor key sheet opens");
+        check(ek->isVisible() && ek->property("title") == "Editor keys" && ek->property("shownGroups").toStringList() == QStringList{"Editor", "General"},
+              "editor key sheet opens: Editor keys");
+        shotAs("keys-ctx-editor");
         key(win, Qt::Key_Escape);
         check(!ek->isVisible() && editor->isVisible(), "Esc closes the editor key sheet, not the editor");
         check(win->activeFocusItem() == before, "focus returns to where it was in the editor");
