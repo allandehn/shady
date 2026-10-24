@@ -919,13 +919,19 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
             key(win, Qt::Key_Question);
             auto *vk = viewer->findChild<QQuickItem *>("viewerKeys");
             check(vk && vk->isVisible(), "? opens the key sheet in the viewer");
-            check(vk && vk->property("from").toString() == "viewer" && vk->property("glow").toReal() > 0.9, "viewer key sheet highlights VIEWER");
+            check(vk && vk->property("from").toString() == "viewer" && vk->property("glow").toReal() == 0, "viewer key sheet: no context highlight");
             shotAs("keys-from-viewer");
-            waitFor([&] { return vk->property("glow").toReal() < 0.45; }, 1500); // ~1 s in
+            waitFor([&] { return !caption->isVisible(); }, 2500);
             check(!caption->isVisible(), "caption hides while the key sheet is open");
-            shotAs("keys-from-viewer-1s");
-            waitFor([&] { return vk->property("glow").toReal() == 0; }, 3500);
-            check(vk->property("glow").toReal() == 0, "highlight eases out by ~2.4 s");
+            {   // the gated highlight still works when switched back on
+                key(win, Qt::Key_Escape);
+                vk->setProperty("contextHighlight", true);
+                key(win, Qt::Key_Question);
+                check(vk->property("glow").toReal() > 0.9, "contextHighlight: true brings the VIEWER highlight back");
+                waitFor([&] { return vk->property("glow").toReal() == 0; }, 3500);
+                check(vk->property("glow").toReal() == 0, "highlight eases out by ~2.4 s");
+                vk->setProperty("contextHighlight", false);
+            }
             key(win, Qt::Key_Escape);
             check(vk && !vk->isVisible() && viewer->isVisible(), "esc closes the key sheet, not the viewer");
             {   // Keys must still reach the viewer after the sheet (Esc and click close).
@@ -957,10 +963,8 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
 
         key(win, Qt::Key_Question, "?");
         check(keysSheet->isVisible(), "? opens the key list");
-        check(keysSheet->property("from").toString() == "browse" && keysSheet->property("glow").toReal() > 0.9, "grid key sheet highlights BROWSE");
-        shotAs("keys-from-grid");
-        waitFor([&] { return keysSheet->property("glow").toReal() < 0.45; }, 1500); // ~1 s in
-        shotAs("keys-from-grid-1s");
+        check(keysSheet->property("from").toString() == "browse" && keysSheet->property("glow").toReal() == 0, "grid key sheet: no context highlight");
+        shotAs("keys-nohighlight");
         shotAs("keys-overlay");
         click(win, QPointF(win->width() / 2.0, 30), Qt::BackButton);
         check(!keysSheet->isVisible(), "back button closes the key list");
@@ -1021,7 +1025,7 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         lib->setFilter(Library::All); settle();
         QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
 
-        const QString base = "shady v" + QCoreApplication::applicationVersion() + " · mit";
+        const QString base = "shady v" + QCoreApplication::applicationVersion();
         check(QCoreApplication::applicationVersion() == SHADY_VERSION, "about version comes from the app");
         key(win, Qt::Key_Question, "?");
         up->setLatest(""); settle();

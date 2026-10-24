@@ -9,6 +9,10 @@ FocusScope {
     // "organize", "trash"); that group gets a brief accent highlight that
     // holds 0.6 s then eases out over 1.6 s. Layout never moves.
     property string from: ""
+    // Context highlight (tint, accent bar, header bold/accent fade on the group
+    // you came from) is switched off for now. Set true to bring it back; `from`
+    // is still recorded either way.
+    property bool contextHighlight: false
     property real glow: 0
     // Focus goes back to whatever had it (else `fallback`) however the sheet
     // closes. The sheet must also drop its own `focus`, or the parent
@@ -25,7 +29,7 @@ FocusScope {
         if (!visible) prev = Window.activeFocusItem
         from = src || ""; visible = true; forceActiveFocus()
         updates.ensureChecked()   // async, at most once a day; the line fills in when it answers
-        glowAnim.stop(); glow = from && theme.animations ? 1 : 0
+        glowAnim.stop(); glow = contextHighlight && from && theme.animations ? 1 : 0
         if (glow > 0) glowAnim.start()
     }
     SequentialAnimation {
@@ -51,7 +55,7 @@ FocusScope {
             ["del", qsTr("move to Trash")], ["shift+del", qsTr("delete permanently")], ["ctrl+z", qsTr("undo")],
             ["shift+f10", qsTr("menu (or Menu key)")], [",", qsTr("settings")]] },
         { id: "trash", title: qsTr("Trash"), keys: [
-            ["enter", qsTr("restore")], ["del", qsTr("delete forever")], ["tab", qsTr("empty trash")]] }
+            ["enter", qsTr("restore")], ["del", qsTr("delete forever")], ["tab", qsTr("go to Empty Trash")]] }
     ]]
     readonly property var groups: columns[0].concat(columns[1])
 
@@ -76,7 +80,7 @@ FocusScope {
             objectName: "about"
             readonly property string text: aboutMain.text + (aboutState.text ? " · " + aboutState.text : "")
             anchors { right: parent.right; rightMargin: 20; bottom: parent.bottom; bottomMargin: 14 }
-            Label { id: aboutMain; text: "shady v" + updates.current + " · mit"; color: about.dimColor; font.pixelSize: 11 }
+            Label { id: aboutMain; text: "shady v" + updates.current; color: about.dimColor; font.pixelSize: 11 }
             // " · latest" all dim; " · v1.2.3 available" with only "v1.2.3 available" in accent.
             Label { text: " · "; color: about.dimColor; font.pixelSize: 11; visible: updates.state !== "" }
             Label {
