@@ -126,6 +126,30 @@ int runSelfTest()
         qunsetenv("SHADY_NO_GLSLANG");
         check(!one.ok && one.errors.size() == 1 && one.errorLine == 3, "without glslangValidator: falls back to the first error");
     }
+    {
+        // No-line bake errors get a guessed line, a note and a hint.
+        const QString hash = "float h(uint x)\n{\n  x ^= 0x846ca68bu; // 0xffffffffu in a comment\n  x *= 3u;\n  return float(x);\n}\n"
+                             "void mainImage(out vec4 o, in vec2 p) { o = vec4(h(uint(p.x))); }\n";
+        CompileResult fake;
+        fake.errors << QVariantMap{{"line", 0}, {"text", "Shader baking failed: Tried to convert uint literal into int, but this made the literal negative."}};
+        Compiler::locateUnknown(fake, hash);
+        const QVariantMap e = fake.errors.first().toMap();
+        check(e.value("likely").toList() == QVariantList{3}, QString("uint-literal bake error points at the big literal (got %1)")
+              .arg(e.value("likely").toList().size()));
+        check(e.value("hint").toString().contains("float hash"), "uint-literal bake error has a float-hash hint");
+        CompileResult named;
+        named.errors << QVariantMap{{"line", 0}, {"text", "Shader baking failed: can't map 'h'"}};
+        Compiler::locateUnknown(named, hash);
+        check(named.errors.first().toMap().value("likely").toList().value(0).toInt() == 1, "a named symbol marks its first line");
+        CompileResult none;
+        none.errors << QVariantMap{{"line", 0}, {"text", "Shader baking failed: something odd"}};
+        Compiler::locateUnknown(none, hash);
+        check(none.errors.first().toMap().value("likely").toList().isEmpty()
+              && none.errors.first().toMap().value("note").toString().contains("no line is known"), "otherwise: says no line is known");
+        const CompileResult real = c.compileSync(hash);
+        if (!real.ok && real.errorLine == 0)
+            check(real.errors.first().toMap().value("likely").toList() == QVariantList{3}, "a real bake failure is located too");
+    }
     Q_UNUSED(good);
 
     // Library storage
@@ -738,8 +762,37 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         check(title, "title reads Shady");
         auto *hints = list->findChild<QObject *>("hints");
         auto hintText = [&] { QStringList o; for (const QVariant &k : hints->property("keys").toList()) o << k.toList().value(1).toString(); return o.join(","); };
-        check(hints && hintText() == "run,navigate,switch tabs", "grid hints: run, navigate, switch tabs (" + hintText() + ")");
+        check(hints && hintText() == "run,edit,navigate,switch tabs", "grid hints: run, edit, navigate, switch tabs (" + hintText() + ")");
         shotAs("grid-hints");
+
+        {   // Edit pencil: only on the highlighted (or hovered) card, never on New; click edits.
+            QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+            mouse(win, QPointF(2, 2), QEvent::MouseMove);
+            waitFor([] { return false; }, 100);
+            QList<QQuickItem *> pens;
+            for (QQuickItem *i : allItems(win->contentItem()))
+                if (i->objectName() == "editPencil" && i->isVisible()) pens << i;
+            check(pens.size() == 1 && pens[0]->parentItem()->property("index").toInt() == 0,
+                  QString("one pencil, on the highlighted card (%1)").arg(pens.size()));
+            shotAs("grid-pencil");
+            if (!pens.isEmpty()) {
+                const QPointF pc = pens[0]->mapToScene(QPointF(8, 8));
+                mouse(win, pc, QEvent::MouseMove); mouse(win, pc + QPointF(1, 0), QEvent::MouseMove);
+                check(pens[0]->property("hot").toBool(), "the pencil turns accent under the pointer");
+                waitFor([] { return false; }, 450);
+                shotAs("grid-pencil-hover");
+                click(win, pc + QPointF(1, 0));
+                waitFor([&] { return editor->isVisible(); }, 3000);
+                check(editor->isVisible(), "clicking the pencil opens the editor");
+                key(win, Qt::Key_Escape);
+                waitFor([&] { return !editor->isVisible(); }, 3000);
+                const int r0 = list->property("currentRow").toInt();
+                key(win, Qt::Key_Right);
+                check(list->property("currentRow").toInt() == r0 + 1, "the grid has the keys back after the editor");
+                mouse(win, QPointF(2, 2), QEvent::MouseMove);
+            }
+            QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+        }
 
         const int cols = list->property("columns").toInt();
         const int total = lib->count() + 1; // + New shader card
@@ -962,7 +1015,7 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         check(hintText().contains("extend") && hintText().contains("star") && !hintText().contains("run"), "selection hints replace the grid's: " + hintText());
         shotAs("grid-selection-hints");
         key(win, Qt::Key_Escape);
-        check(hintText() == "run,navigate,switch tabs", "hints return after clearing the selection");
+        check(hintText() == "run,edit,navigate,switch tabs", "hints return after clearing the selection");
 
         if (auto *up = Updates::instance()) up->setLatest(up->current()); // " · latest" in the shot
         key(win, Qt::Key_Question, "?");
@@ -1296,6 +1349,30 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         auto *tint = editor->findChild<QQuickItem *>("focusLineTint");
         check(tint && !tint->isVisible(), "the tint clears when the list loses focus");
     }
+    {   // A bake error with no line: the guessed line is marked "likely here", with a hint.
+        const QString before = code->property("text").toString();
+        code->setProperty("text", "// @name Hashy\nfloat h(uint x)\n{\n    x ^= 0x846ca68bu;\n    x *= 0x9e3779b9u;\n    return float(x) / 4294967295.0;\n}\n"
+                                  "void mainImage(out vec4 o, in vec2 p)\n{\n    o = vec4(vec3(h(uint(p.x) + uint(p.y) * 4096u)), 1.0);\n}\n");
+        QMetaObject::invokeMethod(code, "forceActiveFocus");
+        key(win, Qt::Key_Return, "", Qt::ControlModifier);
+        waitFor([&] { return !editor->property("compiling").toBool(); }, 20000);
+        const QVariantList errs = editor->property("errors").toList();
+        if (!errs.isEmpty() && errs[0].toMap().value("line").toInt() == 0) {
+            const QVariantList likely = editor->property("likelyLines").toList();
+            check(likely.size() == 2 && likely[0].toInt() == 4 && likely[1].toInt() == 5, QString("bake error: likely lines 4, 5 (got %1)").arg(likely.size()));
+            int tints = 0;
+            for (QQuickItem *i : allItems(editor)) if (i->objectName() == "likelyLineTint" && i->isVisible()) ++tints;
+            check(tints == 2, "both likely lines are tinted");
+            check(editor->property("errorSummary").toString() == "1 error · likely line 4", editor->property("errorSummary").toString());
+            editor->setProperty("errorsOpen", true);
+            auto *errList = editor->findChild<QQuickItem *>("errorList");
+            if (errList) QMetaObject::invokeMethod(errList, "forceActiveFocus");
+            waitFor([] { return false; }, 300);
+            shotAs("editor-bake-likely");
+        }
+        code->setProperty("text", before);
+        QMetaObject::invokeMethod(code, "forceActiveFocus");
+    }
     // GLSL highlighting in the editor: Crouwel, an injected error, a second theme.
     {
         auto *hl = editor->findChild<QObject *>("highlighter");
@@ -1409,8 +1486,8 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
     check(lib->get(lib->rowOf("glass-rain")).value("shaderState") == "error", "draft is marked not compiling");
     check(lib->get(lib->rowOf("glass-rain")).value("license") == "© Ana Example 2024 · see source", "license pre-filled from the comment");
     // Fix it in the editor; Esc with changes asks first
-    key(win, Qt::Key_E, "", Qt::ControlModifier);
-    check(editor->isVisible(), "Ctrl+E opens the focused shader in the editor");
+    key(win, Qt::Key_Return, "", Qt::ControlModifier);
+    check(editor->isVisible(), "Ctrl+Enter opens the focused shader in the editor");
     code->setProperty("text", "void mainImage(out vec4 o, in vec2 p)\n{\n    o = vec4(p / iResolution.xy, 0.5, 1.0);\n}\n");
     QMetaObject::invokeMethod(code, "forceActiveFocus");
     key(win, Qt::Key_Escape);

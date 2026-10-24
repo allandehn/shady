@@ -118,7 +118,7 @@ FocusScope {
                              { text: qsTr("Delete forever"), key: "del", action: "forever" }])
         else
             menu.open(x, y, [{ text: qsTr("Open"), key: "enter", action: "open" },
-                             { text: qsTr("Edit"), key: "ctrl+e", action: "edit" },
+                             { text: qsTr("Edit"), key: "ctrl ↵", action: "edit" },
                              { text: m.starred ? qsTr("Unstar") : qsTr("Star"), key: "s", action: "star" },
                              { text: m.hidden ? qsTr("Unhide") : qsTr("Hide"), key: "h", action: "hide" },
                              { text: panel.sel[m.slug] ? qsTr("Deselect") : qsTr("Select"), key: "space", action: "select" },
@@ -266,6 +266,7 @@ FocusScope {
             onMenuRequested: (mx, my) => { const p = mapToItem(panel, mx, my); panel.openMenu(index, p.x, p.y) }
             onTrashRequested: panel.act(panel.inTrash ? "forever" : "trash", index)
             onStarRequested: panel.act("star", index)
+            onEditRequested: panel.act("edit", index)
         }
 
         Keys.onPressed: (e) => {
@@ -273,7 +274,11 @@ FocusScope {
             const r = grid.currentIndex
             const ctrl = e.modifiers & Qt.ControlModifier, shift = e.modifiers & Qt.ShiftModifier
             const isNewCard = r === library.count && library.filter === 0
-            if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) {
+            if ((e.key === Qt.Key_Return || e.key === Qt.Key_Enter) && ctrl) {
+                if (isNewCard) panel.edit("")
+                else if (!panel.inTrash) panel.act("edit", r)
+            }
+            else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) {
                 if (panel.selecting && panel.inTrash) panel.restoreSelected()
                 else if (isNewCard) panel.edit("")
                 else panel.act(panel.inTrash ? "restore" : "open", r)
@@ -298,7 +303,7 @@ FocusScope {
                 else panel.trashSelected()
             }
             else if (e.key === Qt.Key_Z && ctrl) { const s = library.undo(); if (s) panel.focusSlug(s) }
-            else if (e.key === Qt.Key_E && ctrl) { if (!panel.inTrash) panel.act("edit", r) }
+            else if (e.key === Qt.Key_E && ctrl) { if (!panel.inTrash) panel.act("edit", r) } // old alias of ctrl+↵
             else if (e.key === Qt.Key_N && !ctrl) panel.edit("")
             else if (e.key === Qt.Key_S && !ctrl) { if (!panel.inTrash) panel.act("star", r) }
             else if (e.key === Qt.Key_H && !ctrl) { if (!panel.inTrash) panel.act("hide", r) }
@@ -416,7 +421,7 @@ FocusScope {
                                      : [["shift+←→↑↓", qsTr("extend")], ["space", qsTr("toggle")], ["s", qsTr("star")],
                                         ["h", library.filter === 2 ? qsTr("unhide") : qsTr("hide")], ["del", qsTr("trash")], ["esc", qsTr("clear")]])
                     : panel.inTrash ? [["enter", qsTr("restore")], ["←→↑↓", qsTr("navigate")], ["del", qsTr("delete forever")], library.trashCount > 0 ? ["tab", qsTr("go to Empty Trash")] : ["tab", qsTr("switch tabs")]]
-                    : [["enter", qsTr("run")], ["←→↑↓", qsTr("navigate")], ["tab", qsTr("switch tabs")]]
+                    : [["enter", qsTr("run")], ["ctrl ↵", qsTr("edit")], ["←→↑↓", qsTr("navigate")], ["tab", qsTr("switch tabs")]]
                 Hint { id: hintRow; width: parent.width - allKeys.width - 16; singleLine: true; keys: hints.keys }
                 MouseArea {
                     id: allKeys

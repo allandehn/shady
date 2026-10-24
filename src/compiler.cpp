@@ -1,5 +1,6 @@
 #include <QSet>
 #include "compiler.h"
+#include <functional>
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
@@ -166,6 +167,61 @@ CompileResult Compiler::parseErrors(const QString &log, int prefixLines)
     return r;
 }
 
+// Lines (1-based) whose code, comments stripped, matches `re`.
+static QVariantList linesMatching(const QStringList &lines, const QRegularExpression &re,
+                                  const std::function<bool(const QRegularExpressionMatch &)> &keep = {})
+{
+    QVariantList out;
+    for (int i = 0; i < lines.size(); ++i) {
+        const QString code = lines[i].section(QStringLiteral("//"), 0, 0);
+        for (auto it = re.globalMatch(code); it.hasNext();) {
+            if (!keep || keep(it.next())) { out << i + 1; break; }
+        }
+    }
+    return out;
+}
+
+void Compiler::locateUnknown(CompileResult &r, const QString &user)
+{
+    const QStringList lines = user.split(u'\n');
+    for (QVariant &v : r.errors) {
+        QVariantMap e = v.toMap();
+        if (e.value(QStringLiteral("line")).toInt() > 0) continue;
+        const QString t = e.value(QStringLiteral("text")).toString();
+        QVariantList likely;
+        QString hint;
+        if (t.contains(QLatin1String("uint literal"), Qt::CaseInsensitive)
+            || (t.contains(QLatin1String("literal"), Qt::CaseInsensitive) && t.contains(QLatin1String("negative"), Qt::CaseInsensitive))) {
+            // Hex or decimal literals with the top bit set (>= 0x80000000).
+            static const QRegularExpression lit(QStringLiteral("(?<![.\\w])(0[xX][0-9a-fA-F]+|\\d+)[uU]?(?![\\w.])")); // not floats like 4294967295.0
+            likely = linesMatching(lines, lit, [](const QRegularExpressionMatch &m) {
+                bool ok = false;
+                const qulonglong n = m.captured(1).toULongLong(&ok, 0);
+                return ok && n >= 0x80000000ull;
+            });
+            hint = tr("big uint literals: try a float hash");
+        } else {
+            // A quoted literal or symbol in the message: 'foo' or "foo".
+            static const QRegularExpression quoted(QStringLiteral("['\"`]([A-Za-z_0-9.]+)['\"`]"));
+            for (auto it = quoted.globalMatch(t); it.hasNext() && likely.isEmpty();) {
+                const QString name = it.next().captured(1);
+                likely = linesMatching(lines, QRegularExpression(QStringLiteral("(?<![A-Za-z_0-9.])")
+                                       + QRegularExpression::escape(name) + QStringLiteral("(?![A-Za-z_0-9])")));
+            }
+            if (t.contains(QLatin1String("recurs"), Qt::CaseInsensitive)) hint = tr("GLSL has no recursion: use a loop");
+            else if (t.contains(QLatin1String("double"), Qt::CaseInsensitive)) hint = tr("doubles aren't portable: use float");
+        }
+        while (likely.size() > 8) likely.removeLast();
+        e[QStringLiteral("likely")] = likely;
+        e[QStringLiteral("note")] = likely.isEmpty()
+            ? tr("failed while converting the compiled shader, so no line is known")
+            : tr("no line from the compiler · likely here: line %1").arg(
+                  [&] { QStringList s; for (const auto &l : likely) s << l.toString(); return s.join(QStringLiteral(", ")); }());
+        e[QStringLiteral("hint")] = hint;
+        v = e;
+    }
+}
+
 // Qt's built-in glslang stops at the first error. When glslangValidator is installed
 // (Arch: glslang, a required dependency), re-run it with cascading errors to list every error.
 // Fallback if it is somehow missing at runtime: qsb's single error.
@@ -208,6 +264,7 @@ CompileResult Compiler::compileSync(const QString &user, const QString &types)
     CompileResult r;
     if (!p.waitForFinished(30000) || p.exitStatus() != QProcess::NormalExit || p.exitCode() != 0) {
         r = withAllErrors(parseErrors(QString::fromUtf8(p.readAll()), prefix), in, prefix);
+        locateUnknown(r, user);
         QFile::remove(out + QStringLiteral(".tmp"));
     } else {
         QFile::remove(out);
@@ -247,6 +304,7 @@ void Compiler::next()
             r.qsbPath = out;
         } else {
             r = withAllErrors(parseErrors(QString::fromUtf8(m_proc->readAll()), prefix), in, prefix);
+            locateUnknown(r, m_current.user);
             QFile::remove(out + QStringLiteral(".tmp"));
         }
         QFile::remove(in);

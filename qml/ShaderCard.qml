@@ -35,6 +35,7 @@ Item {
     signal menuRequested(real x, real y)
     signal trashRequested()
     signal starRequested()
+    signal editRequested()
 
     // One highlight, owned by the grid's current index: hovering moves it here
     // (see mouseMoved), keys move it away. So never two hot cards.
@@ -161,12 +162,15 @@ Item {
         }
 
         Column {
+            id: info
             visible: !card.isNew
             anchors { left: parent.left; right: parent.right; top: preview.bottom; margins: 10; topMargin: 8 }
             spacing: 3
             Label { width: parent.width; text: card.name; font.bold: true }
             Label {
-                width: parent.width
+                id: byLine
+                width: parent.width - (pencil.visible ? pencil.width + 6 : 0)
+                elide: Text.ElideRight
                 dim: true
                 font.pixelSize: 11
                 text: card.trashed ? card.removed
@@ -178,6 +182,42 @@ Item {
                        card.lively >= 0 ? qsTr("lively") + ":" + card.lively + "%" : ""].filter(Boolean).join(" · ")
             }
         }
+    }
+
+    // Edit pencil: bottom-right of the info strip, its box's bottom on the "by …"
+    // baseline, nudged up 1 px, 12 px from the right. Highlighted or hovered card only.
+    Item {
+        id: pencil
+        objectName: "editPencil"
+        readonly property bool hot: pencilMouse.containsMouse
+        visible: !card.isNew && !card.trashed && (card.hot || hover.hovered)
+        width: 16; height: 16
+        x: frame.x + frame.width - 12 - width
+        y: frame.y + info.y + byLine.y + byLine.baselineOffset - height - 1
+        Canvas {
+            anchors.fill: parent
+            property color ink: pencil.hot ? ui.accent : ui.muted
+            onInkChanged: requestPaint()
+            onPaint: {
+                // Outlined pencil, ~14 px on the diagonal, 1.5 px stroke, tip bottom-left.
+                const c = getContext("2d")
+                c.reset()
+                c.strokeStyle = ink; c.lineWidth = 1.5; c.lineJoin = "round"; c.lineCap = "round"
+                c.translate(8, 8); c.rotate(-Math.PI / 4)
+                c.beginPath()
+                c.moveTo(-8, 0); c.lineTo(-4.5, -2); c.lineTo(7, -2); c.lineTo(7, 2); c.lineTo(-4.5, 2); c.closePath()
+                c.moveTo(4.5, -2); c.lineTo(4.5, 2)   // eraser band
+                c.moveTo(-4.5, -2); c.lineTo(-4.5, 2) // where the wood starts
+                c.stroke()
+            }
+        }
+        MouseArea {
+            id: pencilMouse
+            anchors.fill: parent; anchors.margins: -3 // a slightly bigger target than the 16 px glyph
+            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+            onClicked: { card.picked(); card.editRequested() }
+        }
+        Tip { anchors { top: parent.bottom; right: parent.right; topMargin: 4 } text: qsTr("Edit"); hovered: pencilMouse.containsMouse }
     }
 
     // Rounded corners: square previews are masked to the outline's radius

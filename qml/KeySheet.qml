@@ -54,7 +54,7 @@ FocusScope {
     ], [
         { id: "organize", title: qsTr("Organize"), keys: [
             ["space", qsTr("select")], ["shift+←→↑↓", qsTr("extend selection")], ["ctrl+a", qsTr("select all")],
-            ["s", qsTr("star / unstar")], ["h", qsTr("hide / unhide")], ["n", qsTr("new")], ["ctrl+e", qsTr("edit")],
+            ["s", qsTr("star / unstar")], ["h", qsTr("hide / unhide")], ["n", qsTr("new")], ["ctrl+↵", qsTr("edit")],
             ["del", qsTr("move to Trash")], ["shift+del", qsTr("delete permanently")], ["ctrl+z", qsTr("undo")],
             ["shift+f10", qsTr("menu (or Menu key)")], [",", qsTr("settings")]] },
         { id: "trash", title: qsTr("Trash"), keys: [
@@ -87,7 +87,7 @@ FocusScope {
             { id: "organize", title: qsTr("Organize"), keys: [
                 ["space", qsTr("select")], ["shift+←→↑↓", qsTr("extend selection")], ["ctrl+a", qsTr("select all")],
                 ["s", tab === 1 ? qsTr("unstar") : qsTr("star / unstar")], ["h", tab === 2 ? qsTr("unhide") : qsTr("hide / unhide")],
-                ["n", qsTr("new")], ["ctrl+e", qsTr("edit")],
+                ["n", qsTr("new")], ["ctrl+↵", qsTr("edit")],
                 ["del", qsTr("move to Trash")], ["shift+del", qsTr("delete permanently")], ["ctrl+z", qsTr("undo")],
                 ["shift+f10", qsTr("menu (or Menu key)")], [",", qsTr("settings")]] }]] }
     }

@@ -29,7 +29,8 @@ FocusScope {
     property bool errorsOpen: true   // the errors pane; starts collapsed when there's one error
     readonly property string errorSummary: {
         const n = errors.length, l = n ? errors[0].line : 0
-        if (n === 1) return l > 0 ? qsTr("1 error · line %1").arg(l) : qsTr("1 error")
+        const g = n && l === 0 && errors[0].likely && errors[0].likely.length ? errors[0].likely[0] : 0
+        if (n === 1) return l > 0 ? qsTr("1 error · line %1").arg(l) : g > 0 ? qsTr("1 error · likely line %1").arg(g) : qsTr("1 error")
         return l > 0 ? qsTr("%1 errors · first at line %2").arg(n).arg(l) : qsTr("%1 errors").arg(n)
     }
     function sourceLine(n) {
@@ -45,6 +46,9 @@ FocusScope {
     }
     readonly property string focusedError: errList.activeFocus && errors[errList.currentIndex] ? errors[errList.currentIndex].text : ""
     readonly property var errorLines: errors.map(x => x.line)
+    // No line from the compiler (bake errors): the lines Compiler::locateUnknown guessed.
+    readonly property var likelyLines: errors.reduce((a, x) => x.line > 0 || !x.likely ? a : a.concat(x.likely), [])
+    function lineOf(e) { return e.line > 0 ? e.line : e.likely && e.likely.length ? e.likely[0] : 0 }
     function gotoLine(n) {
         if (n <= 0) return
         let pos = 0
@@ -214,6 +218,19 @@ FocusScope {
                         Rectangle { width: 2; height: parent.height; color: theme.error }
                     }
                 }
+                // Likely line (no line from the compiler): a fainter tint, a half-strength bar, "likely here".
+                Repeater {
+                    model: ed.upToDate ? ed.likelyLines : []
+                    Rectangle {
+                        required property var modelData
+                        objectName: "likelyLineTint"
+                        y: code.y + ed.lineY(modelData); width: parent.width; height: code.lineH
+                        color: Qt.rgba(theme.error.r, theme.error.g, theme.error.b, 0.05)
+                        Rectangle { width: 2; height: parent.height; color: theme.error; opacity: 0.5 }
+                        Label { anchors { right: parent.right; rightMargin: 12; verticalCenter: parent.verticalCenter }
+                                text: qsTr("likely here"); color: theme.error; opacity: 0.8; font.pixelSize: 10 }
+                    }
+                }
                 Column {
                     id: gutter
                     x: 0; y: code.y; width: 34
@@ -221,7 +238,7 @@ FocusScope {
                         model: code.lineCount
                         Label { required property int index; width: gutter.width - 8; height: code.lineH
                                 horizontalAlignment: Text.AlignRight; text: index + 1; font.pixelSize: 11
-                                color: ed.upToDate && ed.errorLines.indexOf(index + 1) >= 0 ? theme.error : ui.muted }
+                                color: ed.upToDate && (ed.errorLines.indexOf(index + 1) >= 0 || ed.likelyLines.indexOf(index + 1) >= 0) ? theme.error : ui.muted }
                     }
                 }
                 TextEdit {
@@ -344,8 +361,8 @@ FocusScope {
                 currentIndex: 0
                 activeFocusOnTab: false
                 KeyNavigation.tab: slots.itemAt(0); KeyNavigation.backtab: errHead
-                Keys.onReturnPressed: if (ed.errors[currentIndex]) ed.gotoLine(ed.errors[currentIndex].line)
-                Keys.onEnterPressed: if (ed.errors[currentIndex]) ed.gotoLine(ed.errors[currentIndex].line)
+                Keys.onReturnPressed: if (ed.errors[currentIndex]) ed.gotoLine(ed.lineOf(ed.errors[currentIndex]))
+                Keys.onEnterPressed: if (ed.errors[currentIndex]) ed.gotoLine(ed.lineOf(ed.errors[currentIndex]))
                 // The focused row (and only it) expands in place: full message, wrapped
                 // (max 4 lines, tooltip for the rest), and the source line under it.
                 onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
@@ -390,13 +407,16 @@ FocusScope {
                     Label {
                         id: src
                         objectName: "errorSource"
-                        visible: errRow.focused && errRow.modelData.line > 0
+                        // No line: the guess (or "no line is known") and a short hint.
+                        visible: errRow.focused && (errRow.modelData.line > 0 || !!errRow.modelData.note)
                         x: 56; y: msg.y + msg.height + 6; width: parent.width - 56 - 12
-                        text: errRow.modelData.line + " │ " + errRow.source
+                        wrapMode: Text.WordWrap
+                        text: errRow.modelData.line > 0 ? errRow.modelData.line + " │ " + errRow.source
+                            : (errRow.modelData.note || "") + (errRow.modelData.hint ? "\n" + errRow.modelData.hint : "")
                         font.pixelSize: 11; dim: true
                     }
-                    MouseArea { anchors.fill: parent; cursorShape: errRow.modelData.line > 0 ? Qt.PointingHandCursor : Qt.ArrowCursor
-                                onClicked: { errList.currentIndex = errRow.index; ed.gotoLine(errRow.modelData.line) } }
+                    MouseArea { anchors.fill: parent; cursorShape: ed.lineOf(errRow.modelData) > 0 ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                onClicked: { errList.currentIndex = errRow.index; ed.gotoLine(ed.lineOf(errRow.modelData)) } }
                 }
             }
         }

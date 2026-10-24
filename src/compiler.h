@@ -31,6 +31,10 @@ public:
     static QString hashOf(const QString &user, const QString &types = QStringLiteral("2222"));
     static QString qsbTool();
     static CompileResult parseErrors(const QString &log, int prefixLines);
+    // Errors with no line (e.g. qsb's "Shader baking failed: ...", raised while
+    // converting already-compiled SPIR-V): guess the line(s) from the user's code.
+    // Adds to such an error: likely (list of 1-based lines), note, hint.
+    static void locateUnknown(CompileResult &r, const QString &user);
 
     QString cachedPath(const QString &user, const QString &types = QStringLiteral("2222")) const; // empty if not cached
     QString pathFor(const QString &user, const QString &types = QStringLiteral("2222")) const;
