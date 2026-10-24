@@ -169,10 +169,14 @@ FocusScope {
                 text: "Shady"; font.pixelSize: 17; font.bold: true
             }
             Label {
+                objectName: "headerCount"
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
+                visible: text !== ""
                 smallCaps: true; dim: true
                 text: {
                     const n = library.count
+                    // Count follows the tab; nothing at all when the tab is empty.
+                    if (n === 0) return library.preparing > 0 ? qsTr("preparing %1").arg(library.preparing) : ""
                     if (panel.selCount > 0) return qsTr("%1 of %2 selected").arg(panel.selCount).arg(n)
                     let s = library.filter === 1 ? qsTr("%n starred", "", n)
                           : library.filter === 2 ? qsTr("%n hidden", "", n)
@@ -316,12 +320,15 @@ FocusScope {
         }
     }
 
-    Label {
+    EmptyState {
+        objectName: "emptyState"
         anchors.centerIn: grid
         visible: library.count === 0 && library.filter !== 0
-        dim: true
-        text: library.filter === 1 ? qsTr("No starred shaders")
-            : library.filter === 2 ? qsTr("No hidden shaders") : qsTr("Trash is empty")
+        title: library.filter === 1 ? qsTr("nothing starred yet")
+             : library.filter === 2 ? qsTr("nothing hidden") : qsTr("trash is empty")
+        line: library.filter === 3 ? qsTr("just chillin'") : ""
+        keyHint: library.filter === 1 ? ["s", qsTr("star a shader")]
+               : library.filter === 2 ? ["h", qsTr("hide a shader")] : []
     }
 
     // Off-screen still-frame maker: renders one shader at a time to a small

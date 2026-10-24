@@ -24,7 +24,7 @@ iso() {
   local R; R=$(mktemp -d "$T/run.XXXX"); mkdir -p "$R"/{data,config,cache,home}
   # HOME too: Omarchy's palette lives at a fixed $HOME/.local/state path.
   env -u DISPLAY -u WAYLAND_DISPLAY -u HYPRLAND_INSTANCE_SIGNATURE -u OMARCHY_PATH -u QT_QPA_PLATFORMTHEME -u QT_STYLE_OVERRIDE -u GTK_THEME \
-    HOME="$R/home" XDG_DATA_HOME="$R/data" XDG_CONFIG_HOME="$R/config" XDG_CACHE_HOME="$R/cache" \
+    HOME="$R/home" XDG_DATA_HOME="$R/data" XDG_CONFIG_HOME="$R/config" XDG_CACHE_HOME="$R/cache" SHADY_NO_NETWORK=1 \
     QT_FORCE_STDERR_LOGGING=1 QSG_RHI_BACKEND="${QSG_RHI_BACKEND:-opengl}" "$@"
 }
 UI=(--ui-test); [[ -n $SHOT ]] && UI+=(--screenshot "$SHOT")

@@ -9,7 +9,7 @@ endif()
 
 # User shaders are compiled at runtime by Qt's `qsb` tool (qt6-shadertools),
 # run as a separate process, so the app never links glslang.
-find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Quick LinguistTools)
+find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Quick Network LinguistTools)
 # rhi/qshader.h and rhi/qrhi.h are semi-public API; Debian ships them in
 # qt6-base-private-dev. Qt >= 6.9 also needs GuiPrivate in find_package.
 if(Qt6_VERSION VERSION_GREATER_EQUAL 6.9)
@@ -27,6 +27,7 @@ qt_add_executable(shady
   src/selftest.h src/selftest.cpp
   src/textures.h src/textures.cpp
   src/glslhighlighter.h src/glslhighlighter.cpp
+  src/updates.h src/updates.cpp
   src/framemeter.h
 )
 target_compile_definitions(shady PRIVATE SHADY_VERSION="${PROJECT_VERSION}")
@@ -36,7 +37,7 @@ qt_add_qml_module(shady
   VERSION 1.0
   QML_FILES
     qml/Main.qml qml/ShaderList.qml qml/ShaderCard.qml qml/Viewer.qml
-    qml/ShaderView.qml qml/Label.qml qml/Hint.qml qml/Hatch.qml qml/Tip.qml
+    qml/ShaderView.qml qml/Label.qml qml/Hint.qml qml/EmptyState.qml qml/Hatch.qml qml/Tip.qml
     qml/Button.qml qml/Confirm.qml qml/Menu.qml qml/KeySheet.qml qml/SettingsSheet.qml
     qml/Editor.qml qml/Field.qml qml/Channel.qml qml/ChannelPicker.qml qml/Benchmark.qml qml/LivelyMaker.qml
 )
@@ -62,7 +63,7 @@ qt_add_resources(shady "appicon" PREFIX "/icons" BASE data/icons/hicolor FILES
     data/icons/hicolor/shady-256.png)
 qt_add_resources(shady "translations" PREFIX "/i18n" BASE "${CMAKE_CURRENT_BINARY_DIR}" FILES ${shady_qm})
 
-target_link_libraries(shady PRIVATE Qt6::Core Qt6::Gui Qt6::GuiPrivate Qt6::Quick)
+target_link_libraries(shady PRIVATE Qt6::Core Qt6::Gui Qt6::GuiPrivate Qt6::Quick Qt6::Network)
 target_include_directories(shady PRIVATE src)
 include(GNUInstallDirs)
 install(TARGETS shady RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

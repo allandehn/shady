@@ -17,6 +17,7 @@
 #include "theme.h"
 #include "textures.h"
 #include "framemeter.h"
+#include "updates.h"
 #include <QLocale>
 #include <QTranslator>
 
@@ -84,8 +85,12 @@ int main(int argc, char *argv[])
         library.viewerClosed(); // a normal quit isn't a crash
     });
 
+    // Before the engine, so it outlives the QML that binds to it.
+    // No network in any test mode; the about line's update check only runs for real use.
+    Updates updates(!(p.isSet(ui) || p.isSet(potato) || p.isSet(danish) || p.isSet(docs)));
     QQmlApplicationEngine engine;
     engine.addImageProvider(QStringLiteral("shady"), new TextureProvider);
+    engine.rootContext()->setContextProperty(QStringLiteral("updates"), &updates);
     engine.rootContext()->setContextProperty(QStringLiteral("library"), &library);
     engine.rootContext()->setContextProperty(QStringLiteral("theme"), &theme);
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app,

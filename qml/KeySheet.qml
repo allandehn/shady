@@ -24,6 +24,7 @@ FocusScope {
     function open(src) {
         if (!visible) prev = Window.activeFocusItem
         from = src || ""; visible = true; forceActiveFocus()
+        updates.ensureChecked()   // async, at most once a day; the line fills in when it answers
         glowAnim.stop(); glow = from && theme.animations ? 1 : 0
         if (glow > 0) glowAnim.start()
     }
@@ -59,16 +60,39 @@ FocusScope {
     Rectangle {
         anchors.centerIn: parent
         width: Math.min(parent.width - 32, 560)
-        height: Math.min(parent.height - 32, flow.implicitHeight + 64)
+        height: Math.min(parent.height - 32, flow.implicitHeight + 64 + 22)
         color: ui.bg2; radius: theme.rounding
         border.width: 1; border.color: Qt.rgba(ui.muted.r, ui.muted.g, ui.muted.b, 0.3)
         clip: true
         Label { x: 20; y: 16; text: qsTr("All keys"); font.bold: true; font.pixelSize: 15 }
         Label { anchors { right: parent.right; rightMargin: 20; top: parent.top; topMargin: 18 }
                 text: "esc " + qsTr("close"); dim: true; font.pixelSize: 11 }
+        // About line: version from the app, then the update status (nothing when unknown).
+        Row {
+            id: about
+            // #565f89 on the default palette, else the same weight between bg and text.
+            readonly property color dimColor: Qt.colorEqual(ui.bg, "#1a1b26") ? "#565f89"
+                : Qt.rgba(ui.bg.r + (ui.fg.r - ui.bg.r) * 0.4, ui.bg.g + (ui.fg.g - ui.bg.g) * 0.4, ui.bg.b + (ui.fg.b - ui.bg.b) * 0.4, 1)
+            objectName: "about"
+            readonly property string text: aboutMain.text + (aboutState.text ? " · " + aboutState.text : "")
+            anchors { right: parent.right; rightMargin: 20; bottom: parent.bottom; bottomMargin: 14 }
+            Label { id: aboutMain; text: "shady v" + updates.current + " · mit"; color: about.dimColor; font.pixelSize: 11 }
+            // " · latest" all dim; " · v1.2.3 available" with only "v1.2.3 available" in accent.
+            Label { text: " · "; color: about.dimColor; font.pixelSize: 11; visible: updates.state !== "" }
+            Label {
+                id: aboutState
+                objectName: "aboutState"
+                font.pixelSize: 11
+                visible: text !== ""
+                readonly property bool accent: updates.state === "available"
+                text: updates.state === "latest" ? qsTr("latest")
+                    : accent ? qsTr("v%1 available").arg(updates.latest) : ""
+                color: accent ? ui.accent : about.dimColor
+            }
+        }
         Flickable {
             id: scroller
-            x: 12; y: 40; width: parent.width - 24; height: parent.height - 48  // 8 px room for the highlight bleed
+            x: 12; y: 40; width: parent.width - 24; height: parent.height - 48 - 22  // 8 px room for the highlight bleed
             contentHeight: flow.implicitHeight + 24; clip: true
             boundsBehavior: Flickable.StopAtBounds
         // Two columns side by side; stacked into one when the window is narrow.

@@ -2,6 +2,7 @@
 #include <QCryptographicHash>
 #include <QRegularExpression>
 #include "selftest.h"
+#include "updates.h"
 #include "compiler.h"
 #include "library.h"
 #include "toml.h"
@@ -55,6 +56,13 @@ static void waitFor(const std::function<bool()> &cond, int ms)
 
 int runSelfTest()
 {
+    {   // update check: fake version, no network, version compare
+        qputenv("SHADY_FAKE_LATEST", "v99.0.0");
+        Updates u(true);
+        check(u.latest() == "99.0.0" && u.state() == "available", "SHADY_FAKE_LATEST injects the newest release");
+        qunsetenv("SHADY_FAKE_LATEST");
+        check(Updates::compare("v0.10.0", "0.9.1") > 0 && Updates::compare("0.2.0", "v0.2.0") == 0, "version compare");
+    }
     // TOML
     QVariantMap m{{"name", "Nord \"lys\""}, {"quality", 70}, {"starred", true}, {"channel0.wrap", "repeat"}};
     const QVariantMap back = Toml::parse(Toml::serialize(m));
@@ -966,6 +974,72 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
             check(list->property("currentRow").toInt() == r0, "grid keys work after the key list (?)");
         }
         QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+    }
+
+    {   // Empty Starred / Hidden / Trash tabs, the header count per tab, and the key sheet's about line.
+        auto *hc = win->findChild<QQuickItem *>("headerCount");
+        auto *es = win->findChild<QQuickItem *>("emptyState");
+        auto *about = keysSheet->findChild<QQuickItem *>("about");
+        auto *ast = keysSheet->findChild<QQuickItem *>("aboutState");
+        Updates *up = Updates::instance();
+        check(hc && es && about && ast && up, "empty state, header count and about line exist");
+        if (!hc || !es || !about || !ast || !up) { QCoreApplication::exit(1); return; }
+        auto settle = [] { waitFor([] { return false; }, 60); };
+        auto hcText = [&] { return hc->isVisible() ? hc->property("text").toString() : QString(); };
+        check(hcText() == QString("%1 shaders").arg(lib->count()), "All shows the shader count: " + hcText());
+        auto drain = [&](Library::Filter f, auto flip) { QStringList o; lib->setFilter(f);
+            while (lib->count() > 0) { o << lib->get(0).value("slug").toString(); flip(0); } settle(); return o; };
+        const QStringList starred = drain(Library::Starred, [&](int r) { lib->toggleStar(r); });
+        check(!hc->isVisible(), "no header count on an empty Starred tab");
+        check(es->isVisible() && es->property("title") == "nothing starred yet"
+              && es->property("keyHint").toStringList() == QStringList{"s", "star a shader"}, "Starred empty state with the s hint");
+        shotAs("empty-starred");
+        const QStringList hidden = drain(Library::Hidden, [&](int r) { lib->toggleHidden(r); });
+        check(!hc->isVisible() && es->isVisible() && es->property("title") == "nothing hidden"
+              && es->property("keyHint").toStringList() == QStringList{"h", "hide a shader"}, "Hidden empty state with the h hint");
+        shotAs("empty-hidden");
+        lib->setFilter(Library::Trash);
+        const QStringList trashed = lib->allSlugs();
+        lib->restoreMany(trashed); settle();
+        check(lib->count() == 0 && !hc->isVisible() && es->isVisible() && es->property("title") == "trash is empty"
+              && es->property("line") == "just chillin'", "Trash empty state: just chillin'");
+        shotAs("empty-trash");
+        lib->setFilter(Library::All);
+        const QString one = lib->get(0).value("slug").toString();
+        lib->toggleStar(0); lib->setFilter(Library::Starred); settle();
+        check(hcText() == "1 starred" && !es->isVisible(), "Starred shows its own count: " + hcText());
+        shotAs("header-count");
+        lib->toggleStar(0);
+        lib->setFilter(Library::All);  // put everything back
+        for (const QString &sl : starred) lib->toggleStar(lib->rowOf(sl));
+        for (const QString &sl : hidden) lib->toggleHidden(lib->rowOf(sl));
+        lib->trashMany(trashed);
+        lib->setFilter(Library::Trash); settle();
+        check(hcText() == QString("%1 in trash").arg(trashed.size()) || trashed.isEmpty(), "Trash shows its own count: " + hcText());
+        lib->setFilter(Library::Hidden); settle();
+        check(hcText() == (hidden.isEmpty() ? QString() : QString("%1 hidden").arg(hidden.size())), "Hidden count follows the tab: " + hcText());
+        lib->setFilter(Library::All); settle();
+        QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+
+        const QString base = "shady v" + QCoreApplication::applicationVersion() + " · mit";
+        check(QCoreApplication::applicationVersion() == SHADY_VERSION, "about version comes from the app");
+        key(win, Qt::Key_Question, "?");
+        up->setLatest(""); settle();
+        check(about->property("text") == base && !ast->isVisible(), "about line, unknown update state: " + about->property("text").toString());
+        up->setLatest("v" + up->current()); settle();
+        check(about->property("text") == base + " · latest" && ast->property("color").value<QColor>() != win->findChild<QObject *>("ui")->property("accent").value<QColor>(),
+              "about line says latest, dim: " + about->property("text").toString());
+        waitFor([&] { return keysSheet->property("glow").toReal() <= 0; }, 3000);
+        shotAs("keys-about-latest");
+        up->setLatest("99.1.0"); settle();
+        check(about->property("text") == base + " · v99.1.0 available" && ast->property("color").value<QColor>() == win->findChild<QObject *>("ui")->property("accent").value<QColor>(),
+              "about line names the newer release in accent: " + about->property("text").toString());
+        shotAs("keys-about-available");
+        up->setLatest("0.0.1"); settle();
+        check(up->state() == "latest", "an older release still reads latest");
+        up->setLatest("");
+        key(win, Qt::Key_Question, "?");
+        check(!keysSheet->isVisible(), "key sheet closes");
     }
 
     list->setProperty("currentRow", 1);
