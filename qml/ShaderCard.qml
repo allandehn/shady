@@ -6,6 +6,7 @@ import QtQuick
 // The last card in the All view is the quieter "+ New shader" card.
 Item {
     id: card
+    objectName: "card"
     required property int index
     required property string slug
     required property string name
@@ -81,7 +82,8 @@ Item {
                 visible: !view.ready || !view.visible
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
-                cache: false
+                cache: true // the URL carries the still's mtime, so a new still is a new key
+                retainWhileLoading: true // keep the last thumbnail until the new one is decoded
                 sourceSize: Qt.size(256, 256)
             }
             ShaderView {

@@ -344,8 +344,8 @@ FocusScope {
                 currentIndex: 0
                 activeFocusOnTab: false
                 KeyNavigation.tab: slots.itemAt(0); KeyNavigation.backtab: errHead
-                Keys.onReturnPressed: ed.gotoLine(ed.errors[currentIndex].line)
-                Keys.onEnterPressed: ed.gotoLine(ed.errors[currentIndex].line)
+                Keys.onReturnPressed: if (ed.errors[currentIndex]) ed.gotoLine(ed.errors[currentIndex].line)
+                Keys.onEnterPressed: if (ed.errors[currentIndex]) ed.gotoLine(ed.errors[currentIndex].line)
                 // The focused row (and only it) expands in place: full message, wrapped
                 // (max 4 lines, tooltip for the rest), and the source line under it.
                 onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
@@ -414,7 +414,9 @@ FocusScope {
             ShaderView {
                 id: preview
                 anchors.centerIn: parent
-                width: parent.width
+                // With the heatmap on, the preview keeps the heatmap's 16:9 so the
+                // overlay lines up at any window size.
+                width: ed.heatmap ? Math.min(parent.width, Math.round(parent.height * 16 / 9)) : parent.width
                 height: ed.heatmap ? Math.min(parent.height, Math.round(parent.width * 9 / 16)) : parent.height
                 source: ed.visible ? ed.previewUrl : ""
                 channels: ed.previewChannels
@@ -424,10 +426,26 @@ FocusScope {
             }
             Image {
                 objectName: "heatmap"
+                id: heat
                 anchors.fill: preview
                 visible: ed.heatmap && ed.previewUrl != ""
                 source: visible && ed.previewLively >= 0 ? library.heatmapOf(ed.previewCode) : ""
                 smooth: false; cache: false
+                retainWhileLoading: true // no blank frame while it re-renders
+                // Re-rendered at the overlay's size after a resize settles (debounced),
+                // so it never stays at a stale size. generation counts renders (tests).
+                property size renderSize: Qt.size(0, 0)
+                property int generation: 0
+                sourceSize: renderSize
+                onStatusChanged: if (status === Image.Ready) generation++
+                onWidthChanged: heatResize.restart()
+                onHeightChanged: heatResize.restart()
+                onVisibleChanged: if (visible) heatResize.restart()
+                Timer {
+                    id: heatResize
+                    interval: 120
+                    onTriggered: if (heat.width > 0 && heat.height > 0) heat.renderSize = Qt.size(Math.round(heat.width), Math.round(heat.height))
+                }
             }
             Label {
                 objectName: "heatmapLabel"

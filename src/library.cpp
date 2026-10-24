@@ -150,6 +150,7 @@ void Library::load()
     for (ShaderEntry &e : m_entries)
         if (e.readable) compile(e);
     rebuild();
+    m_shownKeys = rowKeys();
     endResetModel();
     emit countChanged();
 }
@@ -200,17 +201,72 @@ void Library::rebuild()
     });
 }
 
+QStringList Library::rowKeys() const
+{
+    QStringList k;
+    for (int i : m_rows) k << m_entries[i].slug;
+    if (m_filter == All) k << QString(); // the "New shader" card, last
+    return k;
+}
+
+// Rebuilds the visible rows and tells views only what changed: rows that
+// stay keep their delegates (no reset, so no card re-creation or blink).
 void Library::reset()
 {
-    beginResetModel();
+    const QStringList before = m_shownKeys;
+    const int oldFilter = m_filter;
     rebuild();
-    endResetModel();
+    const QVector<int> target = m_rows;
+    const QStringList after = rowKeys();
+    // Longest common subsequence: those rows survive in place.
+    const int n = before.size(), m = after.size();
+    QVector<QVector<int>> L(n + 1, QVector<int>(m + 1, 0));
+    for (int i = n - 1; i >= 0; --i)
+        for (int j = m - 1; j >= 0; --j)
+            L[i][j] = before[i] == after[j] ? L[i + 1][j + 1] + 1 : std::max(L[i + 1][j], L[i][j + 1]);
+    QVector<bool> keepOld(n, false), keepNew(m, false);
+    for (int i = 0, j = 0; i < n && j < m;) {
+        if (before[i] == after[j]) { keepOld[i] = keepNew[j] = true; ++i; ++j; }
+        else if (L[i + 1][j] >= L[i][j + 1]) ++i; else ++j;
+    }
+    // Walk an intermediate key list from before to after, keeping m_rows in
+    // step so the model is consistent inside every signal.
+    QStringList cur = before;
+    auto sync = [&] {
+        m_rows.clear();
+        bool newCard = false;
+        for (const QString &k : cur) {
+            if (k.isEmpty()) { newCard = true; continue; }
+            for (int e = 0; e < m_entries.size(); ++e) if (m_entries[e].slug == k) { m_rows << e; break; }
+        }
+        m_newCardShown = newCard;
+    };
+    m_incremental = true;
+    for (int i = n - 1; i >= 0; --i) {
+        if (keepOld[i]) continue;
+        beginRemoveRows({}, i, i);
+        cur.removeAt(i);
+        sync();
+        endRemoveRows();
+    }
+    for (int j = 0; j < m; ++j) {
+        if (keepNew[j]) continue;
+        beginInsertRows({}, j, j);
+        cur.insert(j, after[j]);
+        sync();
+        endInsertRows();
+    }
+    m_incremental = false;
+    m_rows = target;
+    m_shownKeys = after;
+    Q_UNUSED(oldFilter);
+    if (m > 0) emit dataChanged(index(0), index(m - 1));
     emit countChanged();
 }
 
 int Library::rowCount(const QModelIndex &) const
 {
-    return m_rows.size() + (m_filter == All ? 1 : 0); // + the "New shader" card
+    return m_rows.size() + ((m_incremental ? m_newCardShown : m_filter == All) ? 1 : 0); // + the "New shader" card
 }
 
 int Library::trashCount() const
@@ -221,10 +277,8 @@ int Library::trashCount() const
 void Library::setFilter(int f)
 {
     if (f == m_filter || f < All || f > Trash) return;
-    beginResetModel();
     m_filter = f;
-    rebuild();
-    endResetModel();
+    reset();
     emit filterChanged();
     emit countChanged();
 }
@@ -266,7 +320,12 @@ QVariant Library::data(const QModelIndex &idx, int role) const
     case ErrorLineRole: return e.errorLine;
     case ErrorTextRole: return e.errorText;
     case ShaderUrlRole: return e.qsbPath.isEmpty() ? QUrl() : QUrl::fromLocalFile(e.qsbPath);
-    case StillUrlRole: return e.stillPath.isEmpty() ? QUrl() : QUrl::fromLocalFile(e.stillPath);
+    case StillUrlRole: {
+        if (e.stillPath.isEmpty()) return QUrl();
+        QUrl u = QUrl::fromLocalFile(e.stillPath);
+        u.setQuery(QStringLiteral("v=") + QString::number(QFileInfo(e.stillPath).lastModified().toMSecsSinceEpoch()));
+        return u;
+    }
     case IsNewRole: return false;
     case TrashedRole: return e.trashed;
     case ChannelsRole: return channelsOf(e.slug);
@@ -356,10 +415,7 @@ int Library::toggleStar(int row)
         emit dataChanged(i, i, {StarredRole});
         return row;
     }
-    beginResetModel(); // unstarring in the Starred view removes the card
-    rebuild();
-    endResetModel();
-    emit countChanged();
+    reset(); // unstarring in the Starred view removes just that card
     const int nr = rowOf(slug);
     return nr >= 0 ? nr : std::min(row, int(m_rows.size()) - 1);
 }
@@ -449,12 +505,9 @@ QString Library::createShader(const QString &name, const QString &author, const 
     if (!g.open(QIODevice::WriteOnly) || g.write(code.toUtf8()) < 0 || !g.commit()) return {};
     e.code = code;
     if (!save(e)) return {};
-    beginResetModel();
     m_entries << e;
     compile(m_entries.last());
-    rebuild();
-    endResetModel();
-    emit countChanged();
+    reset();
     return slug;
 }
 

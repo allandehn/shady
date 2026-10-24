@@ -168,6 +168,10 @@ signals:
 private:
     struct Undo { enum Kind { Trashed, Restored, Hid, Unhid } kind; QStringList slugs; };
     void rebuild();
+    QStringList rowKeys() const;
+    QStringList m_shownKeys;
+    bool m_incremental = false;
+    bool m_newCardShown = false;
     void reset();
     bool save(ShaderEntry &e);
     void compile(ShaderEntry &e);

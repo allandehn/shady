@@ -415,7 +415,7 @@ FocusScope {
                     ? (panel.inTrash ? [["enter", qsTr("restore")], ["del", qsTr("delete forever")], ["shift+←→↑↓", qsTr("extend")], ["esc", qsTr("clear")]]
                                      : [["shift+←→↑↓", qsTr("extend")], ["space", qsTr("toggle")], ["s", qsTr("star")],
                                         ["h", library.filter === 2 ? qsTr("unhide") : qsTr("hide")], ["del", qsTr("trash")], ["esc", qsTr("clear")]])
-                    : panel.inTrash ? [["enter", qsTr("restore")], ["←→↑↓", qsTr("navigate")], ["del", qsTr("delete forever")], ["tab", qsTr("switch tabs")]]
+                    : panel.inTrash ? [["enter", qsTr("restore")], ["←→↑↓", qsTr("navigate")], ["del", qsTr("delete forever")], library.trashCount > 0 ? ["tab", qsTr("go to Empty Trash")] : ["tab", qsTr("switch tabs")]]
                     : [["enter", qsTr("run")], ["←→↑↓", qsTr("navigate")], ["tab", qsTr("switch tabs")]]
                 Hint { id: hintRow; width: parent.width - allKeys.width - 16; singleLine: true; keys: hints.keys }
                 MouseArea {

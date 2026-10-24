@@ -1,3 +1,4 @@
+#include <QPointer>
 #include <QCursor>
 #include <QCryptographicHash>
 #include <QRegularExpression>
@@ -963,6 +964,7 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         key(win, Qt::Key_Escape);
         check(hintText() == "run,navigate,switch tabs", "hints return after clearing the selection");
 
+        if (auto *up = Updates::instance()) up->setLatest(up->current()); // " · latest" in the shot
         key(win, Qt::Key_Question, "?");
         check(keysSheet->isVisible(), "? opens the key list");
         check(keysSheet->property("from").toString() == "browse" && keysSheet->property("glow").toReal() == 0, "grid key sheet: no context highlight");
@@ -978,6 +980,7 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         key(win, Qt::Key_Question, "?");
         check(keysSheet->isVisible() && keysSheet->property("title") == "Browse keys" && !keysSheet->property("shownGroups").toStringList().contains("Mouse"),
               "? once more goes back to the context keys");
+        if (auto *up = Updates::instance()) up->setLatest("");
         shotAs("keys-overlay");
         click(win, QPointF(win->width() / 2.0, 30), Qt::BackButton);
         check(!keysSheet->isVisible(), "back button closes the key list");
@@ -991,6 +994,43 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
             check(list->property("currentRow").toInt() == r0, "grid keys work after the key list (?)");
         }
         QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+    }
+
+    {   // No blink: starring, unstarring in Starred, and a tab round trip keep the
+        // surviving cards' delegates (no model reset, so nothing is re-created).
+        auto cards = [&] { QList<QPointer<QQuickItem>> o;
+            std::function<void(QQuickItem *)> walk = [&](QQuickItem *it) { for (auto *c : it->childItems()) {
+                if (c->objectName() == "card" && !c->property("isNew").toBool() && c->isVisible()) o << c; walk(c); } };
+            walk(win->contentItem()); return o; };
+        auto alive = [](const QList<QPointer<QQuickItem>> &l) { int n = 0; for (auto &p : l) n += !p.isNull(); return n; };
+        auto settle = [] { waitFor([] { return false; }, 80); };
+        lib->setFilter(Library::All); settle();
+        const auto a0 = cards();
+        int created = 0;
+        QObject::connect(lib, &QAbstractItemModel::rowsInserted, win, [&](const QModelIndex &, int f, int l) { created += l - f + 1; });
+        QObject::connect(lib, &QAbstractItemModel::modelReset, win, [&] { created += 1000; });
+        lib->toggleStar(0); settle(); lib->toggleStar(0); settle();
+        check(a0.size() > 1 && alive(a0) == a0.size() && created == 0, QString("star toggle re-creates no card (%1/%2 alive, %3 created)").arg(alive(a0)).arg(a0.size()).arg(created));
+        const QString s0 = lib->get(0).value("slug").toString(), s1 = lib->get(1).value("slug").toString();
+        const bool o0 = lib->get(0).value("starred").toBool(), o1 = lib->get(1).value("starred").toBool();
+        if (!o0) lib->toggleStar(0);
+        if (!o1) lib->toggleStar(1);
+        lib->setFilter(Library::Starred); settle();
+        const auto st = cards();
+        created = 0;
+        lib->toggleStar(lib->rowOf(s0)); settle();
+        check(st.size() >= 2 && alive(st) == st.size() - 1 && created == 0, QString("unstarring in Starred removes only that card (%1/%2 alive)").arg(alive(st)).arg(st.size()));
+        lib->setFilter(Library::All); settle();
+        if (o0) lib->toggleStar(lib->rowOf(s0));
+        if (!o1) lib->toggleStar(lib->rowOf(s1));
+        settle();
+        const auto a1 = cards();
+        created = 0;
+        lib->setFilter(Library::Starred); settle(); lib->setFilter(Library::All); settle();
+        check(created < 1000, "tab switch is incremental, not a model reset");
+        QObject::disconnect(lib, &QAbstractItemModel::rowsInserted, win, nullptr);
+        QObject::disconnect(lib, &QAbstractItemModel::modelReset, win, nullptr);
+        Q_UNUSED(a1);
     }
 
     {   // Empty Starred / Hidden / Trash tabs, the header count per tab, and the key sheet's about line.
@@ -1339,6 +1379,21 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         const int cr = measure(QString::fromUtf8(cf.readAll()), "crouwel-new-alphabet (editor)");
         waitFor([&] { return heat->property("status").toInt() == 1; }, 3000); // Image.Ready
         check(cr >= 0 && heat->property("status").toInt() == 1, "heatmap image shown over the preview");
+        {   // Resizing the window re-renders the heatmap at its new size.
+            const QSize ws = win->size();
+            waitFor([&] { return heat->property("renderSize").toSizeF().toSize() == QSize(qRound(heat->width()), qRound(heat->height())); }, 1500);
+            const int g0 = heat->property("generation").toInt();
+            const QSizeF h0(heat->width(), heat->height());
+            win->resize(ws.width() + 260, ws.height() + 120);
+            auto fits = [&] { return heat->property("renderSize").toSizeF().toSize() == QSize(qRound(heat->width()), qRound(heat->height())); };
+            waitFor([&] { return fits() && heat->property("generation").toInt() > g0 && heat->property("status").toInt() == 1; }, 3000);
+            check(QSizeF(heat->width(), heat->height()) != h0 && fits() && heat->property("generation").toInt() > g0,
+                  QString("heatmap re-rendered at the new size %1x%2 (gen %3 -> %4)").arg(heat->width()).arg(heat->height()).arg(g0).arg(heat->property("generation").toInt()));
+            auto *pv = heat->parentItem();
+            check(pv && qAbs(heat->width() * 9 / 16 - heat->height()) <= 2, "heatmap keeps 16:9 over the preview");
+            win->resize(ws);
+            waitFor(fits, 2000);
+        }
         key(win, Qt::Key_H, "", Qt::ControlModifier);
         check(!editor->property("heatmap").toBool() && !heat->isVisible(), "ctrl+h hides the heatmap again");
     }

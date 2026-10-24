@@ -35,7 +35,7 @@ FocusScope {
         running: viewer.burnGuard && viewer.visible
         onTriggered: viewer.drift = library.drift(Date.now() / 1000, viewer.lively)
     }
-    Connections { target: library; function onLivelyChanged() { if (viewer.row >= 0) viewer.lively = library.get(viewer.row).lively } }
+    Connections { target: library; function onLivelyChanged() { if (viewer.row >= 0) viewer.lively = library.get(viewer.row).lively ?? -1 } }
 
     function load(r, resumeAt) {
         row = r
