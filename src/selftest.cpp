@@ -1289,7 +1289,14 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         };
         check(setR(10), "UI follows hyprctl rounding (R=10)");
         QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+        std::printf("icon font: %s\n", qPrintable(th->property("iconFont").toString()));
+        // Show the standard glyphs: a starred card, a selected (checked) card, the hot card's pencil.
+        lib->toggleStar(1);
+        key(win, Qt::Key_Space);
         themeShot("grid-r10");
+        key(win, Qt::Key_Space);
+        lib->toggleStar(1);
+        QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
 
         // Non-destructive (Move to Trash): accent action, focus on it, arrows switch, scrim click cancels.
         const int inTrash = lib->trashCount();
@@ -1302,6 +1309,10 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
             check(can->mapToScene({0, 0}).x() < act->mapToScene({0, 0}).x()
                   && qAbs(can->mapToScene({0, 0}).y() - act->mapToScene({0, 0}).y()) < 1, "Cancel first, action last, one row");
             check(act->property("radius").toInt() == 4, "dialog buttons use min(R, 4)");
+            const QString n0 = lib->get(0).value("name").toString();
+            check(confirm->property("title").toString() == "Move to Trash?"
+                  && confirm->property("line").toString() == "“" + n0 + "” will be moved to the Trash."
+                  && confirm->property("detail").toString() == "You can restore it from there.", "Trash dialog copy, name in curly quotes");
             themeShot("confirm-nondestructive");
             key(win, Qt::Key_Left);  check(can->hasActiveFocus(), "Left moves to Cancel");
             key(win, Qt::Key_Right); check(act->hasActiveFocus(), "Right moves to the action");
@@ -1310,7 +1321,7 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
             click(win, QPointF(4, 4));
             check(!confirm->isVisible() && lib->trashCount() == inTrash, "a click outside cancels");
             // Destructive: red (urgent) action.
-            QMetaObject::invokeMethod(list, "askForever", Q_ARG(QVariant, QStringLiteral("“Northern Veil” will be deleted.")), Q_ARG(QVariant, QVariant()));
+            QMetaObject::invokeMethod(list, "askForever", Q_ARG(QVariant, QStringLiteral("Permanently delete “Northern Veil”?")), Q_ARG(QVariant, QVariant()));
             check(confirm->isVisible() && act->property("tone").toString() == "urgent" && act->hasActiveFocus(), "Delete forever: urgent (red) action");
             themeShot("confirm-destructive");
             key(win, Qt::Key_Escape);
