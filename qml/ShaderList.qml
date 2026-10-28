@@ -61,13 +61,15 @@ FocusScope {
         focusRow(grid.currentIndex)
     }
     // Every delete asks first, even the recoverable move to Trash.
-    function ask(title, line, detail, action, hint, run) {
+    // `action` is a short verb (never "OK"); `destructive` makes it red.
+    function ask(title, line, detail, action, hint, run, destructive) {
         confirm.title = title; confirm.line = line; confirm.detail = detail
+        confirm.destructive = destructive !== false
         confirm.actionText = action; confirm.hintAction = hint; confirm.run = run
         confirm.open()
     }
     function askForever(line, run) { ask(qsTr("Delete forever?"), line, qsTr("This can't be undone."), qsTr("Delete forever"), qsTr("delete"), run) }
-    function askTrash(line, run) { ask(qsTr("Move to Trash?"), line, qsTr("You can restore it from the Trash."), qsTr("Move to Trash"), qsTr("trash"), run) }
+    function askTrash(line, run) { ask(qsTr("Move to Trash?"), line, qsTr("You can restore it from the Trash."), qsTr("Move to Trash"), qsTr("trash"), run, false) } // recoverable: accent
     function trashSelected() {
         const list = selected()
         if (list.length === 0) return
