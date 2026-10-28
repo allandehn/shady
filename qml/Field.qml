@@ -11,7 +11,7 @@ FocusScope {
     Rectangle {
         y: lab.height + 6
         width: parent.width; height: 30
-        color: ui.bg2; radius: theme.rounding
+        color: ui.bg2; radius: theme.rButton
         border.width: 1; border.color: input.activeFocus ? ui.accent : "transparent"
         TextInput {
             id: input

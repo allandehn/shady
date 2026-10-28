@@ -53,7 +53,7 @@ FocusScope {
                     required property var modelData
                     required property int index
                     width: col.width; height: 26
-                    Rectangle { anchors.fill: parent; anchors.leftMargin: 4; anchors.rightMargin: 4; radius: theme.rounding
+                    Rectangle { anchors.fill: parent; anchors.leftMargin: 4; anchors.rightMargin: 4; radius: theme.rButton
                                 visible: pk.current === index; color: Qt.rgba(ui.accent.r, ui.accent.g, ui.accent.b, 0.16) }
                     Label { x: 14; anchors.verticalCenter: parent.verticalCenter; font.pixelSize: 12; text: modelData.label
                             font.bold: pk.value.source === modelData.source }
@@ -81,7 +81,7 @@ FocusScope {
                     required property int index
                     readonly property int row: pk.sources.length + index
                     width: col.width; height: 26
-                    Rectangle { anchors.fill: parent; anchors.leftMargin: 4; anchors.rightMargin: 4; radius: theme.rounding
+                    Rectangle { anchors.fill: parent; anchors.leftMargin: 4; anchors.rightMargin: 4; radius: theme.rButton
                                 visible: pk.current === row; color: Qt.rgba(ui.accent.r, ui.accent.g, ui.accent.b, 0.16) }
                     Label { x: 14; anchors.verticalCenter: parent.verticalCenter; text: modelData.label; smallCaps: true; dim: true }
                     Row {

@@ -277,7 +277,7 @@ FocusScope {
             readonly property real cursorY: flick.y + code.y + code.cursorRectangle.y - flick.contentY
             readonly property bool covers: code.activeFocus && cursorY + code.cursorRectangle.height > y && cursorY < y + height
             width: 12 + cbLabel.implicitWidth + 8 + cbHint.implicitWidth + 12
-            height: 28; radius: 0
+            height: 28; radius: theme.rButton // a button: min(R, 4)
             color: Qt.lighter(ui.bg2, 1.3)
             border.width: 1
             border.color: activeFocus || cbMouse.containsMouse ? ui.accent : Qt.rgba(ui.muted.r, ui.muted.g, ui.muted.b, 0.35)
@@ -332,7 +332,7 @@ FocusScope {
                 Keys.onReturnPressed: ed.errorsOpen = !ed.errorsOpen
                 Keys.onEnterPressed: ed.errorsOpen = !ed.errorsOpen
                 Keys.onSpacePressed: ed.errorsOpen = !ed.errorsOpen
-                Rectangle { anchors.fill: parent; anchors.leftMargin: -6; color: "transparent"; radius: theme.rounding
+                Rectangle { anchors.fill: parent; anchors.leftMargin: -6; color: "transparent"; radius: theme.rButton
                             border.width: errHead.activeFocus ? 1 : 0; border.color: ui.accent }
                 Row {
                     anchors.verticalCenter: parent.verticalCenter
@@ -590,6 +590,7 @@ FocusScope {
         actionText: qsTr("Discard")
         cancelText: qsTr("Keep editing")
         hintAction: qsTr("discard")
+        destructive: true // edits are lost
         onAccepted: ed.closed(ed.slug)
         onCanceled: code.forceActiveFocus()
     }

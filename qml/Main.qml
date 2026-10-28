@@ -8,6 +8,8 @@ Window {
     visible: true
     color: ui.bg
     title: qsTr("Shady")
+    // Re-read rounding and colours when we get focus (they are also polled every second).
+    onActiveChanged: if (active) theme.refresh()
 
     // Theme colors, crossfading over ~840 ms when the theme changes.
     QtObject {
@@ -20,11 +22,13 @@ Window {
         property color fg: theme.foreground
         property color muted: theme.muted
         property color accent: theme.accent
+        property color urgent: theme.urgent
         Behavior on bg { enabled: theme.animations; ColorAnimation { duration: 840 } }
         Behavior on bg2 { enabled: theme.animations; ColorAnimation { duration: 840 } }
         Behavior on fg { enabled: theme.animations; ColorAnimation { duration: 840 } }
         Behavior on muted { enabled: theme.animations; ColorAnimation { duration: 840 } }
         Behavior on accent { enabled: theme.animations; ColorAnimation { duration: 840 } }
+        Behavior on urgent { enabled: theme.animations; ColorAnimation { duration: 840 } }
     }
 
     readonly property bool hiddenOrOff: win.visibility === Window.Hidden || win.visibility === Window.Minimized

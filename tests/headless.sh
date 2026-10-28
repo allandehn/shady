@@ -27,6 +27,16 @@ iso() {
     HOME="$R/home" XDG_DATA_HOME="$R/data" XDG_CONFIG_HOME="$R/config" XDG_CACHE_HOME="$R/cache" SHADY_NO_NETWORK=1 \
     QT_FORCE_STDERR_LOGGING=1 QSG_RHI_BACKEND="${QSG_RHI_BACKEND:-opengl}" "$@"
 }
+# Fonts: the test HOME is empty, so point fontconfig at the system config plus
+# the real user's ~/.local/share/fonts (e.g. a Nerd Font for the icon glyphs).
+if [[ -d $HOME/.local/share/fonts && -z ${FONTCONFIG_FILE:-} ]]; then
+  cat > "$T/fonts.conf" <<FC
+<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+<fontconfig><include ignore_missing="yes">/etc/fonts/fonts.conf</include>
+<dir>$HOME/.local/share/fonts</dir><cachedir>$T/fc-cache</cachedir></fontconfig>
+FC
+  export FONTCONFIG_FILE="$T/fonts.conf"
+fi
 UI=(--ui-test); [[ -n $SHOT ]] && UI+=(--screenshot "$SHOT")
 
 # gui <timeout> <args...>: offscreen if it has GL, else xcb on a private Xvfb.

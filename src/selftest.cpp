@@ -233,7 +233,7 @@ int runSelfTest()
         check(L.rowCount() == 2 && L.rowOf(s3) == 0, QString("Trash view, newest removal first, no New card (%1 rows, s3 at %2)").arg(L.rowCount()).arg(L.rowOf(s3)));
         check(L.get(0).value("removed") == "Removed today", "Removed today");
         L.restore(L.rowOf(s1));
-        check(note == "Restored One · ctrl+z undo", "restore note: " + note);
+        check(note == "Restored “One” · ctrl+z undo", "restore note: " + note);
         check(L.undo() == s1 && L.trashCount() == 2, "Ctrl+Z undoes a restore");
         // A slug taken while in the Trash gets a suffix on restore.
         L.setFilter(Library::All);
@@ -485,6 +485,63 @@ int runSelfTest()
         write(home.path() + "/.local/state/omarchy/current/theme.name", "frost\n");
         waitFor([&] { return th.accent() == QColor("#00aaff") && th.property("name") == "frost"; }, 3000);
         check(th.accent() == QColor("#00aaff") && th.property("name") == "frost" && changes > 0, "theme change followed live");
+        {   // The 1 s poll re-reads colors.toml (even without the watcher) and only signals a real change.
+            const int before = changes;
+            th.poll();
+            check(changes == before, "poll: unchanged colors.toml emits nothing");
+            write(dir + "/colors.toml", "background = \"#202020\"\nforeground = \"#dddddd\"\naccent = \"#11cc66\"\ncolor1 = \"#ee2244\"\n");
+            th.poll();
+            check(th.accent() == QColor("#11cc66") && th.property("urgent").value<QColor>() == QColor("#ee2244") && changes > before,
+                  "poll: colours reload from colors.toml (accent, urgent)");
+        }
+        // Radius scale (design-system/theme-shapes.md): cards R, buttons min(R,4), icons min(round(R/4),2), inset max(R-p,0).
+        check(Theme::buttonRadius(0) == 0 && Theme::buttonRadius(3) == 3 && Theme::buttonRadius(6) == 4 && Theme::buttonRadius(10) == 4,
+              "radius: buttons are min(R, 4)");
+        check(Theme::iconRadius(0) == 0 && Theme::iconRadius(1) == 0 && Theme::iconRadius(2) == 1 && Theme::iconRadius(6) == 2
+              && Theme::iconRadius(10) == 2, "radius: icon details are min(round(R/4), 2)");
+        check(Theme::innerRadius(10, 4) == 6 && Theme::innerRadius(3, 4) == 0 && Theme::innerRadius(0, 1) == 0,
+              "radius: inset art is max(R - padding, 0)");
+        check(Theme::parseRounding("{\"option\":\"decoration:rounding\",\"int\":6,\"set\":true}") == 6
+              && Theme::parseRounding("garbage") == -1 && Theme::parseRounding("{\"int\":-3}") == -1
+              && Theme::parseRounding("{\"str\":\"6\"}") == -1, "hyprctl rounding parse (bad output is rejected)");
+        {   // Live rounding through a fake hyprctl on PATH: startup, poll, keep the last good value.
+            QTemporaryDir bin;
+            const QString out = bin.path() + "/out.json";
+            write(bin.path() + "/hyprctl", ("#!/bin/sh\ncat '" + out + "'\n").toUtf8());
+            QFile::setPermissions(bin.path() + "/hyprctl", QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
+            const QByteArray oldPath = qgetenv("PATH");
+            const bool hadSig = qEnvironmentVariableIsSet("HYPRLAND_INSTANCE_SIGNATURE");
+            const bool noHypr = qEnvironmentVariableIsSet("SHADY_NO_HYPRCTL");
+            qunsetenv("SHADY_NO_HYPRCTL");
+            qputenv("PATH", bin.path().toUtf8() + ":" + oldPath);
+            qputenv("HYPRLAND_INSTANCE_SIGNATURE", "shady-selftest");
+            write(out, "{\"int\": 10}");
+            Theme t2;
+            check(t2.rounding() == 10 && t2.rButton() == 4 && t2.rIcon() == 2, "rounding read at startup (R=10)");
+            int rc = 0;
+            QObject::connect(&t2, &Theme::roundingChanged, [&] { ++rc; });
+            write(out, "{\"int\": 0}");
+            waitFor([&] { return t2.rounding() == 0; }, 2500); // the 1 s timer
+            check(t2.rounding() == 0 && rc == 1, "rounding followed by the 1 s poll (R=0)");
+            write(out, "{\"int\": 6}");
+            t2.refresh(); // what the window does on focus
+            waitFor([&] { return t2.rounding() == 6; }, 1000);
+            check(t2.rounding() == 6 && t2.rButton() == 4 && t2.rIcon() == 2 && t2.rInner(4) == 2, "refresh (focus) re-reads rounding (R=6)");
+            write(out, "not json");
+            t2.poll();
+            waitFor([] { return false; }, 400);
+            QFile::remove(bin.path() + "/hyprctl");
+            t2.poll();
+            waitFor([] { return false; }, 400);
+            check(t2.rounding() == 6, "a failed or garbled hyprctl keeps the last good value");
+            qputenv("PATH", oldPath);
+            if (!hadSig) qunsetenv("HYPRLAND_INSTANCE_SIGNATURE");
+            if (noHypr) qputenv("SHADY_NO_HYPRCTL", "1");
+        }
+        {   // Without Hyprland it starts square.
+            Theme t3;
+            check(t3.rounding() == 0 || qEnvironmentVariableIsSet("HYPRLAND_INSTANCE_SIGNATURE"), "rounding starts at 0 without hyprctl");
+        }
         // GLSL highlighting: theme colours per token kind
         {
             write(dir + "/colors.toml", "background = \"#202020\"\nforeground = \"#dddddd\"\naccent = \"#00aaff\"\n"
@@ -1202,12 +1259,103 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
     key(win, Qt::Key_Escape);
     check(!confirm->isVisible() && lib->trashCount() == 2, "Esc cancels");
     key(win, Qt::Key_Return);
-    check(lib->trashCount() == 1 && list->property("note").toString().startsWith("Restored "), "Enter restores");
+    check(lib->trashCount() == 1 && list->property("note").toString().startsWith("Restored “"), "Enter restores");
     key(win, Qt::Key_Delete);
     key(win, Qt::Key_Return);
     check(!confirm->isVisible() && lib->trashCount() == 0, "Enter deletes forever (focus on Delete forever)");
     key(win, Qt::Key_Tab);
     check(lib->filter() == Library::All, "Tab from an empty Trash goes to All");
+
+    {   // Theme shapes: live rounding (fake hyprctl on PATH), confirm buttons, tip, editor.
+        QObject *th = qvariant_cast<QObject *>(qmlContext(list)->contextProperty("theme"));
+        QTemporaryDir bin;
+        const QString out = bin.path() + "/out.json";
+        auto put = [](const QString &p, const QByteArray &d) { QFile f(p); f.open(QIODevice::WriteOnly); f.write(d); };
+        put(bin.path() + "/hyprctl", ("#!/bin/sh\ncat '" + out + "'\n").toUtf8());
+        QFile::setPermissions(bin.path() + "/hyprctl", QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
+        const QByteArray oldPath = qgetenv("PATH");
+        qputenv("PATH", bin.path().toUtf8() + ":" + oldPath);
+        qputenv("HYPRLAND_INSTANCE_SIGNATURE", "shady-ui-test");
+        const QString shotDir = qEnvironmentVariable("SHADY_THEME_SHOTS");
+        auto themeShot = [&](const QString &name) {
+            waitFor([] { return false; }, 200);
+            if (!shotDir.isEmpty()) check(saveVaried(win->grabWindow(), shotDir + "/screenshot-theme-" + name + ".png"), "theme screenshot " + name);
+        };
+        auto setR = [&](int r) {
+            put(out, QByteArray("{\"int\": ") + QByteArray::number(r) + "}");
+            QMetaObject::invokeMethod(th, "refresh");
+            waitFor([&] { return th->property("rounding").toInt() == r; }, 2500);
+            return th->property("rounding").toInt() == r;
+        };
+        check(setR(10), "UI follows hyprctl rounding (R=10)");
+        QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+        std::printf("icon font: %s\n", qPrintable(th->property("iconFont").toString()));
+        // Show the standard glyphs: a starred card, a selected (checked) card, the hot card's pencil.
+        lib->toggleStar(1);
+        key(win, Qt::Key_Space);
+        themeShot("grid-r10");
+        key(win, Qt::Key_Space);
+        lib->toggleStar(1);
+        QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+
+        // Non-destructive (Move to Trash): accent action, focus on it, arrows switch, scrim click cancels.
+        const int inTrash = lib->trashCount();
+        key(win, Qt::Key_Delete);
+        auto *act = confirm->findChild<QQuickItem *>("confirmAction");
+        auto *can = confirm->findChild<QQuickItem *>("confirmCancel");
+        check(act && can && confirm->isVisible(), "confirm has Cancel and the action");
+        if (act && can) {
+            check(act->property("tone").toString() == "accent" && act->hasActiveFocus(), "Move to Trash: accent action, focused first");
+            check(can->mapToScene({0, 0}).x() < act->mapToScene({0, 0}).x()
+                  && qAbs(can->mapToScene({0, 0}).y() - act->mapToScene({0, 0}).y()) < 1, "Cancel first, action last, one row");
+            check(act->property("radius").toInt() == 4, "dialog buttons use min(R, 4)");
+            const QString n0 = lib->get(0).value("name").toString();
+            check(confirm->property("title").toString() == "Move to Trash?"
+                  && confirm->property("line").toString() == "“" + n0 + "” will be moved to the Trash."
+                  && confirm->property("detail").toString() == "You can restore it from there.", "Trash dialog copy, name in curly quotes");
+            themeShot("confirm-nondestructive");
+            key(win, Qt::Key_Left);  check(can->hasActiveFocus(), "Left moves to Cancel");
+            key(win, Qt::Key_Right); check(act->hasActiveFocus(), "Right moves to the action");
+            key(win, Qt::Key_Tab);   check(can->hasActiveFocus(), "Tab switches");
+            key(win, Qt::Key_Backtab); check(act->hasActiveFocus(), "Shift+Tab switches back");
+            click(win, QPointF(4, 4));
+            check(!confirm->isVisible() && lib->trashCount() == inTrash, "a click outside cancels");
+            // Destructive: red (urgent) action.
+            QMetaObject::invokeMethod(list, "askForever", Q_ARG(QVariant, QStringLiteral("Permanently delete “Northern Veil”?")), Q_ARG(QVariant, QVariant()));
+            check(confirm->isVisible() && act->property("tone").toString() == "urgent" && act->hasActiveFocus(), "Delete forever: urgent (red) action");
+            themeShot("confirm-destructive");
+            key(win, Qt::Key_Escape);
+            check(!confirm->isVisible(), "Esc cancels the destructive confirm");
+        }
+        QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+        // Tip: chip corners.
+        QQuickItem *tip = nullptr; // the visible card pencil's "Edit" tip
+        for (QQuickItem *t : allItems(win->contentItem()))
+            if (t->objectName() == "tip" && t->parentItem() && t->parentItem()->objectName() == "editPencil" && t->parentItem()->isVisible()) { tip = t; break; }
+        if (tip) {
+            tip->setProperty("shown", true);
+            check(tip->property("radius").toInt() == 4, "tip uses min(R, 4)");
+            themeShot("tip");
+            tip->setProperty("shown", false);
+        } else check(false, "edit pencil tip found");
+        // Editor: compile button corners.
+        key(win, Qt::Key_Return, "", Qt::ControlModifier);
+        waitFor([&] { return editor->isVisible(); }, 2000);
+        waitFor([] { return false; }, 300);
+        auto *cb = editor->findChild<QQuickItem *>("compileButton");
+        check(editor->isVisible() && cb && cb->property("radius").toInt() == 4, "editor compile button uses min(R, 4)");
+        themeShot("editor");
+        key(win, Qt::Key_Escape);
+        waitFor([&] { return !editor->isVisible(); }, 2000);
+        check(!editor->isVisible(), "editor closes");
+
+        check(setR(0), "UI follows hyprctl rounding (R=0)");
+        QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+        check(tip && tip->property("radius").toInt() == 0, "R=0: square tip");
+        themeShot("grid-r0");
+        qputenv("PATH", oldPath);
+        qunsetenv("HYPRLAND_INSTANCE_SIGNATURE");
+    }
 
     // Right-click menu via Shift+F10: Down to Edit, Enter
     QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
