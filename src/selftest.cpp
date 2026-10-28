@@ -233,7 +233,7 @@ int runSelfTest()
         check(L.rowCount() == 2 && L.rowOf(s3) == 0, QString("Trash view, newest removal first, no New card (%1 rows, s3 at %2)").arg(L.rowCount()).arg(L.rowOf(s3)));
         check(L.get(0).value("removed") == "Removed today", "Removed today");
         L.restore(L.rowOf(s1));
-        check(note == "Restored One · ctrl+z undo", "restore note: " + note);
+        check(note == "Restored “One” · ctrl+z undo", "restore note: " + note);
         check(L.undo() == s1 && L.trashCount() == 2, "Ctrl+Z undoes a restore");
         // A slug taken while in the Trash gets a suffix on restore.
         L.setFilter(Library::All);
@@ -1259,7 +1259,7 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
     key(win, Qt::Key_Escape);
     check(!confirm->isVisible() && lib->trashCount() == 2, "Esc cancels");
     key(win, Qt::Key_Return);
-    check(lib->trashCount() == 1 && list->property("note").toString().startsWith("Restored "), "Enter restores");
+    check(lib->trashCount() == 1 && list->property("note").toString().startsWith("Restored “"), "Enter restores");
     key(win, Qt::Key_Delete);
     key(win, Qt::Key_Return);
     check(!confirm->isVisible() && lib->trashCount() == 0, "Enter deletes forever (focus on Delete forever)");

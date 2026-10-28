@@ -630,11 +630,6 @@
         <translation>Kunne ikke gemme · %1</translation>
     </message>
     <message>
-        <location filename="../src/library.cpp" line="703" />
-        <source>Couldn't move · %1</source>
-        <translation>Kunne ikke flytte · %1</translation>
-    </message>
-    <message>
         <location filename="../src/library.cpp" line="739" />
         <location filename="../src/library.cpp" line="819" />
         <location filename="../src/selftest.cpp" line="444" />
@@ -642,10 +637,15 @@
         <translation>Flyttet til papirkurven · ctrl+z fortryd</translation>
     </message>
     <message>
+        <location filename="../src/library.cpp" line="703" />
+        <source>Couldn't move “%1”</source>
+        <translation>Kunne ikke flytte “%1”</translation>
+    </message>
+    <message>
         <location filename="../src/library.cpp" line="751" />
         <location filename="../src/library.cpp" line="831" />
-        <source>Restored %1 · ctrl+z undo</source>
-        <translation>Gendannede %1 · ctrl+z fortryd</translation>
+        <source>Restored “%1” · ctrl+z undo</source>
+        <translation>Gendannede “%1” · ctrl+z fortryd</translation>
     </message>
     <message numerus="yes">
         <location filename="../src/library.cpp" line="832" />
@@ -1183,7 +1183,7 @@
     </message>
     <message>
         <location filename="../qml/Viewer.qml" line="226" />
-        <location filename="../src/selftest.cpp" line="1910" />
+        <location filename="../src/selftest.cpp" line="1921" />
         <source>Quality</source>
         <translation>Kvalitet</translation>
     </message>
