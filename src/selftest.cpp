@@ -898,6 +898,52 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
             check(lib->rowOf(s1) == 1, "unstarring doesn't move it either");
             mouse(win, QPointF(2, 2), QEvent::MouseMove);
         }
+
+        {   // Grid motion try-out: gliding outline that retargets, and a lift skipped on auto-repeat.
+            QQuickItem *hl = nullptr;
+            for (QQuickItem *i : allItems(win->contentItem())) if (i->objectName() == "cardHighlight") hl = i;
+            auto cardAt = [&](int i) -> QQuickItem * { for (QQuickItem *c : allItems(win->contentItem()))
+                if (c->property("lift").isValid() && c->isVisible() && c->property("index").toInt() == i) return c; return nullptr; };
+            auto pause = [](int ms) { waitFor([] { return false; }, ms); };
+            const bool motion0 = lib->gridMotion(), lift0 = lib->gridLift();
+            lib->setGridMotion(true); lib->setGridLift(true);
+            QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+            pause(300);
+            check(hl && hl->isVisible(), "grid motion: one shared highlight outline");
+            if (hl && lib->count() >= 3) {
+                const double x0 = hl->x(), y0 = hl->y();
+                key(win, Qt::Key_Right);
+                pause(40);
+                QQuickItem *c2 = cardAt(2);
+                const double midX = hl->x(), midY = hl->y();
+                check(midX != x0 || midY != y0, "the highlight is already moving right after the key press");
+                key(win, Qt::Key_Right); // retarget mid-glide
+                pause(170);              // one ~120 ms glide, not two queued ones
+                c2 = cardAt(2);
+                check(c2 && qAbs(hl->x() - (c2->x() + 4)) < 1 && qAbs(hl->y() - (c2->y() + 4)) < 1,
+                      QString("a second key mid-glide retargets instead of queueing (hl %1,%2 card %3,%4)")
+                          .arg(hl->x()).arg(hl->y()).arg(c2 ? c2->x() + 4 : -1).arg(c2 ? c2->y() + 4 : -1));
+                check(c2 && c2->property("lift").toBool(), "the focused card lifts");
+                waitFor([&] { return c2 && qAbs(c2->scale() - 1.03) < 0.001; }, 500);
+                check(c2 && qAbs(c2->scale() - 1.03) < 0.001, "the lift settles at 1.03");
+                // Held key: auto-repeat presses skip the lift until the key comes up.
+                QKeyEvent rep(QEvent::KeyPress, Qt::Key_Left, Qt::NoModifier, {}, true);
+                QGuiApplication::sendEvent(win, &rep); QCoreApplication::processEvents();
+                QQuickItem *c1 = cardAt(1);
+                check(list->property("keyRepeating").toBool() && c1 && !c1->property("lift").toBool(), "no lift while a key auto-repeats");
+                QKeyEvent up(QEvent::KeyRelease, Qt::Key_Left, Qt::NoModifier);
+                QGuiApplication::sendEvent(win, &up); QCoreApplication::processEvents();
+                check(c1 && c1->property("lift").toBool(), "the lift settles once repeating stops");
+                // Toggles off: old per-card outline, no lift, no shared highlight.
+                lib->setGridMotion(false); lib->setGridLift(false);
+                QCoreApplication::processEvents();
+                waitFor([&] { return c1 && c1->scale() == 1.0; }, 500);
+                check(!hl->isVisible() && c1 && !c1->property("lift").toBool() && c1->scale() == 1.0 && c1->property("hot").toBool(),
+                      "grid_motion/grid_lift off restore the old highlight");
+            }
+            lib->setGridMotion(motion0); lib->setGridLift(lift0);
+            QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+        }
         QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
 
         // Hover the first card's star chip: outlined star + "Star" tooltip after ~400 ms.

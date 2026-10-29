@@ -29,10 +29,18 @@ Library::Library(const QString &dataDir, const QString &cacheDir, int maxFps, QO
             m_autoAdapt = m.value("auto_adapt", true).toBool();
             m_learned = m.value("learned_viewer_keys", false).toBool();
             m_antiBurnIn = m.value("anti_burn_in", true).toBool();
+            m_gridMotion = m.value("grid_motion", true).toBool();
+            m_gridLift = m.value("grid_lift", true).toBool();
             m_benchMs = m.value("benchmark_ms", 0).toDouble();
             m_defQuality = std::clamp(m.value("default_quality", 50).toInt(), 10, 100);
             m_defFps = std::clamp(m.value("default_fps", 30).toInt(), 10, std::max(10, maxFps));
         }
+    }
+    {
+        // SHADY_GRID_MOTION / SHADY_GRID_LIFT = 0|1 override the config for this run.
+        const QString gm = qEnvironmentVariable("SHADY_GRID_MOTION"), gl = qEnvironmentVariable("SHADY_GRID_LIFT");
+        if (!gm.isEmpty()) m_gridMotion = gm != QLatin1String("0");
+        if (!gl.isEmpty()) m_gridLift = gl != QLatin1String("0");
     }
     {
         // A shader that froze or crashed the app last time opens at minimum.
@@ -1043,7 +1051,8 @@ void Library::saveSettings()
     QDir().mkpath(m_configDir);
     QSaveFile f(configFile());
     QVariantMap m{{"screensaver_on", m_screensaverOn}, {"auto_adapt", m_autoAdapt}, {"learned_viewer_keys", m_learned},
-                  {"default_quality", m_defQuality}, {"default_fps", m_defFps}, {"anti_burn_in", m_antiBurnIn}};
+                  {"default_quality", m_defQuality}, {"default_fps", m_defFps}, {"anti_burn_in", m_antiBurnIn},
+                  {"grid_motion", m_gridMotion}, {"grid_lift", m_gridLift}};
     if (m_benchMs > 0) m.insert(QStringLiteral("benchmark_ms"), m_benchMs);
     if (f.open(QIODevice::WriteOnly)) {
         f.write(Toml::serialize(m).toUtf8());
