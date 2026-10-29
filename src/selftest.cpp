@@ -917,8 +917,13 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
                 QQuickItem *c2 = cardAt(2);
                 const double midX = hl->x(), midY = hl->y();
                 check(midX != x0 || midY != y0, "the highlight is already moving right after the key press");
-                key(win, Qt::Key_Right); // retarget mid-glide
-                pause(170);              // one ~120 ms glide, not two queued ones
+                check(hl->property("gliding").toBool() && !hl->property("retarget").toBool(), "a glide from rest eases both ends (InOutCubic)");
+                key(win, Qt::Key_Right); // course change mid-glide
+                check(hl->property("retarget").toBool(), "a course change mid-glide continues with OutCubic");
+                const double atTurn = hl->x();
+                pause(30);
+                check(qAbs(hl->x() - atTurn) > 4, QString("no stall after the course change (moved %1 px in 30 ms)").arg(qAbs(hl->x() - atTurn)));
+                pause(140);              // one ~120 ms glide, not two queued ones
                 c2 = cardAt(2);
                 check(c2 && qAbs(hl->x() - (c2->x() + 4)) < 1 && qAbs(hl->y() - (c2->y() + 4)) < 1,
                       QString("a second key mid-glide retargets instead of queueing (hl %1,%2 card %3,%4)")
