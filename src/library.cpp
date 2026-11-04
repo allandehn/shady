@@ -556,7 +556,7 @@ const ShippedExample kShipped[] = {
     {"warp-tunnel", "8de50e947fd6cf2318d2b7d78ca4a2ebe5adee4b", true},
     {"crouwel-new-alphabet", "2547359042e1e681b2f8a0d25a8912bfdb668e40", true},
 };
-const char *const kExamples[] = {"northern-veil", "plasma-drift", "cell-garden", "warp-tunnel", "crouwel-new-alphabet"};
+const char *const kExamples[] = {"northern-veil", "plasma-drift", "cell-garden", "warp-tunnel", "crouwel-new-alphabet", "pixel-arcade"};
 const char *const kOriginalExamples[] = {"northern-veil", "plasma-drift", "cell-garden", "warp-tunnel"};
 
 QString sha1(const QString &code)

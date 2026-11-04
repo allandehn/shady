@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Records the CRT finish toggled live (off -> on -> off) on a private Xvfb (never the desktop):
-# throwaway HOME/XDG dirs, private D-Bus, only the tests/fixtures/crt/pixel-arcade.glsl shader.
+# throwaway HOME/XDG dirs, private D-Bus, only the shipped examples/pixel-arcade.glsl shader.
 # The switch is driven by the test-only SHADY_TEST_CRT_FILE hook; captions are burnt in by ffmpeg
 # at the times this script wrote the file. Needs Xvfb, xdotool and ffmpeg (already installed).
 # Usage: tests/record-crt.sh ./build/shady [out-dir]
@@ -17,7 +17,7 @@ run() { FONTCONFIG_FILE="$R/fonts.conf" HOME="$R/home" XDG_DATA_HOME="$R/data" X
   SHADY_NO_NETWORK=1 SHADY_TEST_CRT_FILE="$R/crt" QT_QPA_PLATFORM=xcb ${T:+timeout $T} dbus-run-session -- "$BIN" >>"$R/app.log" 2>&1; }
 T=6 run || true
 rm -rf "$R"/data/shady/shaders/*            # only the fixture, so it is the first card
-d="$R/data/shady/shaders/test-pixel-arcade"; mkdir -p "$d"; cp "$HERE/fixtures/crt/pixel-arcade.glsl" "$d/shader.glsl"
+d="$R/data/shady/shaders/test-pixel-arcade"; mkdir -p "$d"; cp "$HERE/../examples/pixel-arcade.glsl" "$d/shader.glsl"
 printf 'name = "Pixel Arcade"\nauthor = "Shady tests"\n' > "$d/shader.toml"
 run & AP=$!
 sleep 8

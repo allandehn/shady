@@ -1,7 +1,8 @@
 // @name Pixel Arcade
-// @author Shady tests
-// @description Moving pixel-art fixture for the CRT recording (not shipped)
+// @author Shady
+// @description A bouncing invader over a pixel sunset (try the CRT finish)
 // @license MIT
+// Written for Shady: chunky 48-row pixel art, scrolling stars and ground.
 void mainImage(out vec4 fragColor, in vec2 fragCoord)
 {
     float px = iResolution.y / 48.0;                      // 48 chunky rows

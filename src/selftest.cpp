@@ -1923,7 +1923,7 @@ void runPotatoTest(QQuickWindow *win, Library *lib, const QString &shot)
         auto *view = win->findChild<QQuickItem *>("viewerView");
         auto *meter = viewer->property("meter").value<QObject *>();
         const QString crtShots = qEnvironmentVariable("SHADY_CRT_SHOTS");
-        auto fixture = [](const QString &n) { QFile f(":/selftest/crt/" + n + ".glsl"); f.open(QIODevice::ReadOnly); return QString::fromUtf8(f.readAll()); };
+        auto fixture = [](const QString &n) { QFile f(n == QLatin1String("pixel-arcade") ? ":/examples/pixel-arcade.glsl" : ":/selftest/crt/" + n + ".glsl"); f.open(QIODevice::ReadOnly); return QString::fromUtf8(f.readAll()); };
         // Achieved frame time over 3 s at 100% quality and the top fps step.
         // Returns {achieved ms per frame, mean render-start-to-swap ms}.
         auto measure = [&]() {
@@ -1944,7 +1944,7 @@ void runPotatoTest(QQuickWindow *win, Library *lib, const QString &shot)
             for (QQuickItem *i : allItems(win->contentItem())) if (i->objectName() == "crtPass") return i;
             return nullptr;
         };
-        for (const QString &n : {QStringLiteral("pixel-sprite"), QStringLiteral("smooth-gradient")}) {
+        for (const QString &n : {QStringLiteral("pixel-sprite"), QStringLiteral("smooth-gradient"), QStringLiteral("pixel-arcade")}) {
             const QString slug = lib->saveShader("", {{"name", "CRT " + n}}, fixture(n));
             lib->setQuality(lib->rowOf(slug), qEnvironmentVariableIntValue("SHADY_CRT_QUALITY") ?: 50);
             lib->setFps(lib->rowOf(slug), lib->stepFps(1000, 1));

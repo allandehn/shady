@@ -11,7 +11,7 @@ Designed together by [Allan](https://github.com/allandehn) and [Grok](https://x.
 ## Features
 
 - Paste Shadertoy code (`mainImage`, `iTime`, `iResolution`, `iMouse`, `iChannel0–3`) and it runs. A `// @name` / `@author` / `@description` / `@license` header fills in the details.
-- Five examples, including Crouwel's New Alphabet: glyphs after Wim Crouwel drawing themselves on a grid.
+- Six examples, including Crouwel's New Alphabet (glyphs after Wim Crouwel drawing themselves on a grid) and Pixel Arcade (a bouncing invader, made for the CRT finish).
 - Click a shader to run it. Hover a card to star it or trash it, with tooltips.
 - The viewer shows a centred badge when a shader starts (name, author, keys) and again when you change quality, fps or auto-adapt.
 - Key hints along the bottom of every screen, written as `key:action`, and `?` for the full list. The mouse back button works like `esc`.

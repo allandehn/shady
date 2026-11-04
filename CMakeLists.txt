@@ -47,7 +47,7 @@ qt_add_resources(shady "examples"
   FILES
     examples/northern-veil.glsl examples/plasma-drift.glsl
     examples/cell-garden.glsl examples/warp-tunnel.glsl
-    examples/crouwel-new-alphabet.glsl
+    examples/crouwel-new-alphabet.glsl examples/pixel-arcade.glsl
 )
 # The 0.2.0 Crouwel source, for the example-update self-test.
 qt_add_resources(shady "selftest_fixtures"
