@@ -49,6 +49,8 @@ class Library : public QAbstractListModel
     // env SHADY_GRID_MOTION / SHADY_GRID_LIFT = 0|1 override for the session).
     Q_PROPERTY(bool gridMotion READ gridMotion WRITE setGridMotion NOTIFY settingsChanged)
     Q_PROPERTY(bool gridLift READ gridLift WRITE setGridLift NOTIFY settingsChanged)
+    // Optional CRT finishing pass in the viewer (config crt, env SHADY_CRT = 0|1). Off by default.
+    Q_PROPERTY(bool crt READ crt WRITE setCrt NOTIFY settingsChanged)
     Q_PROPERTY(bool antiBurnIn READ antiBurnIn WRITE setAntiBurnIn NOTIFY settingsChanged)
     Q_PROPERTY(bool slowMachine READ slowMachine WRITE setSlowMachine NOTIFY slowMachineChanged)
 public:
@@ -122,6 +124,8 @@ public:
     bool autoAdapt() const { return m_autoAdapt; }
     bool gridMotion() const { return m_gridMotion; }
     bool gridLift() const { return m_gridLift; }
+    bool crt() const { return m_crt; }
+    void setCrt(bool on) { if (on != m_crt) { m_crt = on; saveSettings(); emit settingsChanged(); } }
     void setGridMotion(bool on) { if (on != m_gridMotion) { m_gridMotion = on; saveSettings(); emit settingsChanged(); } }
     void setGridLift(bool on) { if (on != m_gridLift) { m_gridLift = on; saveSettings(); emit settingsChanged(); } }
     bool learnedViewerKeys() const { return m_learned; }
@@ -203,7 +207,7 @@ private:
     Compiler m_compiler;
     QTimer m_saveTimer;
     QDateTime m_lastTrashed;
-    bool m_gridMotion = true, m_gridLift = true;
+    bool m_gridMotion = true, m_gridLift = true, m_crt = false;
     bool m_autoAdapt = true, m_slow = false, m_learned = false;
     double m_benchMs = 0;
     int m_defQuality = 50, m_defFps = 30;

@@ -1912,6 +1912,78 @@ void runPotatoTest(QQuickWindow *win, Library *lib, const QString &shot)
     key(win, Qt::Key_Escape);
     if (viewer->isVisible()) key(win, Qt::Key_Escape);
 
+    {   // CRT finishing pass (config crt, env SHADY_CRT): off by default, one toggle,
+        // one extra pass. SHADY_CRT_SHOTS=<dir> saves before/after shots; frame
+        // times are printed (offscreen/llvmpipe numbers, a rough guide only).
+        check(!lib->crt() || qEnvironmentVariableIsSet("SHADY_CRT"), "CRT pass is off by default");
+        lib->setCrt(true);
+        check(readToml(lib->configFile()).value("crt").toBool(), "crt = true is saved in the config");
+        lib->setCrt(false);
+        check(!readToml(lib->configFile()).value("crt").toBool(), "crt = false is saved in the config");
+        auto *view = win->findChild<QQuickItem *>("viewerView");
+        auto *meter = viewer->property("meter").value<QObject *>();
+        const QString crtShots = qEnvironmentVariable("SHADY_CRT_SHOTS");
+        auto fixture = [](const QString &n) { QFile f(":/selftest/crt/" + n + ".glsl"); f.open(QIODevice::ReadOnly); return QString::fromUtf8(f.readAll()); };
+        // Achieved frame time over 3 s at 100% quality and the top fps step.
+        // Returns {achieved ms per frame, mean render-start-to-swap ms}.
+        auto measure = [&]() {
+            waitFor([] { return false; }, 800);
+            int f0 = 0, f1 = 0, last = -1, n = 0; double sum = 0;
+            QMetaObject::invokeMethod(meter, "frames", Q_RETURN_ARG(int, f0));
+            QElapsedTimer t; t.start();
+            while (t.elapsed() < 3000) {
+                waitFor([] { return false; }, 4);
+                int f = 0, ms = 0;
+                QMetaObject::invokeMethod(meter, "frames", Q_RETURN_ARG(int, f));
+                if (f != last) { QMetaObject::invokeMethod(meter, "lastFrameMs", Q_RETURN_ARG(int, ms)); sum += ms; ++n; last = f; }
+            }
+            QMetaObject::invokeMethod(meter, "frames", Q_RETURN_ARG(int, f1));
+            return std::make_pair(f1 > f0 ? double(t.elapsed()) / (f1 - f0) : -1.0, n ? sum / n : -1.0);
+        };
+        auto crtPass = [&]() -> QQuickItem * {
+            for (QQuickItem *i : allItems(win->contentItem())) if (i->objectName() == "crtPass") return i;
+            return nullptr;
+        };
+        for (const QString &n : {QStringLiteral("pixel-sprite"), QStringLiteral("smooth-gradient")}) {
+            const QString slug = lib->saveShader("", {{"name", "CRT " + n}}, fixture(n));
+            lib->setQuality(lib->rowOf(slug), qEnvironmentVariableIntValue("SHADY_CRT_QUALITY") ?: 50);
+            lib->setFps(lib->rowOf(slug), lib->stepFps(1000, 1));
+            lib->flush();
+            const bool autoAdapt = lib->autoAdapt();
+            lib->setAutoAdapt(false); // keep the quality fixed while measuring
+            open(slug);
+            waitFor([] { return false; }, 1500);
+            if (auto *b = win->findChild<QQuickItem *>("badge")) waitFor([b] { return !b->isVisible(); }, 6000);
+            if (auto *c = win->findChild<QQuickItem *>("caption")) c->setProperty("shown", false);
+            const bool wasPaused = viewer->property("paused").toBool();
+            waitFor([] { return false; }, 600);
+            const auto offMs = measure();
+            const QImage off = win->grabWindow();
+            check(!crtPass(), "crt off: no extra pass in the scene");
+            lib->setCrt(true);
+            view->setProperty("crtGlow", true);
+            const auto onMs = measure();
+            const QImage on = win->grabWindow();
+            auto *pass = crtPass();
+            check(pass && pass->isVisible(), "crt on: the finishing pass is in the viewer");
+            check(on != off, "crt on changes the picture (" + n + ")");
+            view->setProperty("crtGlow", false);
+            const auto cheapMs = measure();
+            std::printf("CRT frame time %s (q%d%%, %dx%d, paused %d): frame interval / render ms: off %.2f / %.2f, on %.2f / %.2f, on-no-glow %.2f / %.2f\n",
+                        qPrintable(n), lib->get(lib->rowOf(slug)).value("quality").toInt(), win->width(), win->height(),
+                        int(wasPaused), offMs.first, offMs.second, onMs.first, onMs.second, cheapMs.first, cheapMs.second);
+            if (!crtShots.isEmpty()) {
+                QDir().mkpath(crtShots);
+                check(off.save(crtShots + "/" + n + "-before.png") && on.save(crtShots + "/" + n + "-after.png"), "CRT shots saved for " + n);
+            }
+            lib->setCrt(false);
+            view->setProperty("crtGlow", true);
+            lib->setAutoAdapt(autoAdapt);
+            key(win, Qt::Key_Escape);
+            waitFor([] { return false; }, 300);
+        }
+    }
+
     std::printf(g_fails ? "POTATO TEST FAILED (%d)\n" : "ALL PASS\n", g_fails);
     QCoreApplication::exit(g_fails ? 1 : 0);
 }

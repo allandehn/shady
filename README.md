@@ -92,3 +92,7 @@ To also remove the Shady package source, delete the `[shady]` section from `/etc
 ## License
 
 MIT. See [LICENSE](LICENSE). The example shaders are MIT too.
+
+## Credits
+
+- The optional CRT finish (Settings → CRT finish, or `crt = true` in the config, `SHADY_CRT=1` for one run) is inspired by Timothy Lottes's public-domain CRT scan-line shader ("Please take and use, change, or whatever."). Shady's `shaders/crt.frag` is a small rewrite of its ideas, credited in the file.

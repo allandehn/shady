@@ -22,6 +22,7 @@ FocusScope {
     function pick() {
         if (current < 3) { if (!options[current].later) library.screensaverOn = options[current].value }
         else if (current === 4) library.antiBurnIn = !library.antiBurnIn
+        else if (current === 5) library.crt = !library.crt
         else { library.clearCache(); cacheMb = library.cacheBytes() / 1048576 }
     }
 
@@ -94,6 +95,23 @@ FocusScope {
                 }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { sheet.current = 4; sheet.pick() } }
             }
+            Label { text: qsTr("CRT finish"); smallCaps: true; dim: true }
+            Rectangle {
+                objectName: "crtToggle"
+                width: col.width; height: 26
+                color: "transparent"; radius: theme.rButton
+                border.width: sheet.current === 5 ? 1 : 0; border.color: ui.accent
+                Row {
+                    x: 6; anchors.verticalCenter: parent.verticalCenter; spacing: 10
+                    Rectangle {
+                        width: 12; height: 12; radius: 2; anchors.verticalCenter: parent.verticalCenter
+                        color: "transparent"; border.width: 1; border.color: ui.fg
+                        Rectangle { anchors.centerIn: parent; width: 6; height: 6; radius: 1; color: ui.accent; visible: library.crt }
+                    }
+                    Label { text: qsTr("Soft scanlines in the viewer"); font.pixelSize: 12 }
+                }
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { sheet.current = 5; sheet.pick() } }
+            }
             Item { width: 1; height: 4 }
         }
         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: hint.height; color: Qt.darker(ui.bg2, 1.08)
@@ -102,7 +120,7 @@ FocusScope {
     }
     Keys.onPressed: (e) => {
         if (e.key === Qt.Key_Up) current = Math.max(0, current - 1)
-        else if (e.key === Qt.Key_Down) current = Math.min(4, current + 1)
+        else if (e.key === Qt.Key_Down) current = Math.min(5, current + 1)
         else if (e.key === Qt.Key_Space || e.key === Qt.Key_Return || e.key === Qt.Key_Enter) pick()
         else if (e.key === Qt.Key_Escape || e.key === Qt.Key_Comma) close()
         e.accepted = true

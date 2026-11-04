@@ -14,6 +14,10 @@ Item {
     property int frame: 0
     property real delta: 0
     property point mouse: Qt.point(0, 0)
+    // Optional CRT finishing pass (library.crt): one extra cheap pass over the
+    // render texture. crtGlow: false takes the cheap path (no glow taps).
+    property bool crt: false
+    property bool crtGlow: true
     property var channels: []   // 4 x {url, filter, wrap, resolution} from library.channelsOf()
     readonly property bool ready: fxLoader.item !== null && fxLoader.item.status === ShaderEffect.Compiled
     readonly property real dpr: Screen.devicePixelRatio > 0 ? Screen.devicePixelRatio : 1
@@ -30,7 +34,8 @@ Item {
                 height: Math.max(1, Math.round(root.height * root.quality))
                 transformOrigin: Item.TopLeft
                 scale: root.width / Math.max(1, width)
-                layer.enabled: root.quality < 1.0 || !root.running // when stopped, reuse the last frame instead of re-running the shader on every repaint; at 100% while running, no extra copy
+                visible: !root.crt
+                layer.enabled: !root.crt && (root.quality < 1.0 || !root.running) // when stopped, reuse the last frame instead of re-running the shader on every repaint; at 100% while running, no extra copy
                 layer.smooth: true
                 blending: false
                 fragmentShader: root.source
@@ -50,6 +55,30 @@ Item {
                 property vector3d shady_chres1: ch1.resolution
                 property vector3d shady_chres2: ch2.resolution
                 property vector3d shady_chres3: ch3.resolution
+            }
+        }
+    }
+
+    // CRT pass: the shader renders into a texture at its own (quality) size and
+    // the finishing shader draws it to the full item, one scanline per row.
+    ShaderEffectSource {
+        id: crtSrc
+        visible: false
+        sourceItem: root.crt ? fxLoader.item : null
+        textureSize: fxLoader.item ? Qt.size(Math.round(fxLoader.item.width * root.dpr), Math.round(fxLoader.item.height * root.dpr)) : Qt.size(1, 1)
+        smooth: true
+    }
+    Loader {
+        active: root.crt && fxLoader.active
+        anchors.fill: parent
+        sourceComponent: Component {
+            ShaderEffect {
+                objectName: "crtPass"
+                blending: false
+                property var src: crtSrc
+                property size srcSize: crtSrc.textureSize
+                property real glow: root.crtGlow ? 0.6 : 0.0
+                fragmentShader: "qrc:/shaders/crt.frag.qsb"
             }
         }
     }

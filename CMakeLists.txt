@@ -9,7 +9,7 @@ endif()
 
 # User shaders are compiled at runtime by Qt's `qsb` tool (qt6-shadertools),
 # run as a separate process, so the app never links glslang.
-find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Quick Network LinguistTools)
+find_package(Qt6 6.6 REQUIRED COMPONENTS Core Gui Quick Network LinguistTools ShaderTools)
 # rhi/qshader.h and rhi/qrhi.h are semi-public API; Debian ships them in
 # qt6-base-private-dev. Qt >= 6.9 also needs GuiPrivate in find_package.
 if(Qt6_VERSION VERSION_GREATER_EQUAL 6.9)
@@ -53,11 +53,14 @@ qt_add_resources(shady "examples"
 qt_add_resources(shady "selftest_fixtures"
   PREFIX "/selftest" BASE "tests/fixtures"
   FILES tests/fixtures/crouwel-0.2.0.glsl
+        tests/fixtures/crt/pixel-sprite.glsl tests/fixtures/crt/smooth-gradient.glsl
 )
 
 # English is in the source; Danish ships from the start (i18n/update.sh).
 qt_add_lrelease(shady TS_FILES i18n/shady_da.ts QM_FILES_OUTPUT_VARIABLE shady_qm)
 # Pre-baked soft shadow for the grid's card lift (only its opacity animates).
+# Optional CRT finishing pass (config `crt`), built to .qsb at build time.
+qt_add_shaders(shady "crt_shader" PREFIX "/" FILES shaders/crt.frag)
 qt_add_resources(shady "img" PREFIX "/img" BASE data/img FILES data/img/card-shadow.png)
 qt_add_resources(shady "appicon" PREFIX "/icons" BASE data/icons/hicolor FILES
     data/icons/hicolor/shady-16.png data/icons/hicolor/shady-24.png data/icons/hicolor/shady-32.png

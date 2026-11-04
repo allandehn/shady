@@ -1,0 +1,73 @@
+#version 440
+// Shady's optional CRT finishing pass (config `crt`, env SHADY_CRT). One cheap
+// pass over the shader's own render texture; off by default.
+//
+// Inspired by Timothy Lottes's "PUBLIC DOMAIN CRT STYLED SCAN-LINE SHADER"
+// ("Please take and use, change, or whatever."; see the libretro glsl-shaders
+// port crt/shaders/crt-lottes.glsl). Borrowed ideas, rewritten small: the
+// exp2 Gaussian weights for the horizontal kernel and the scanline, the
+// distance-to-texel-centre trick, and the RGB aperture-grille mask on output
+// pixels. Not used: curvature (warp), the multi-tap bloom, the shadow masks.
+//
+// Calm on purpose: soft scanlines, a faint grille, a little glow on bright
+// areas, gentle horizontal softening. No curvature, flicker, rolling bars or
+// noise, nothing animated, no tint beyond the grille's own (it averages to grey).
+// Scanlines are the source texture's rows, so their density follows the
+// shader's render resolution (quality), never the window or screen size.
+layout(location = 0) in vec2 qt_TexCoord0;
+layout(location = 0) out vec4 fragColor;
+layout(std140, binding = 0) uniform buf {
+    mat4 qt_Matrix;
+    float qt_Opacity;
+    vec2 srcSize;   // render texture size in pixels (one scanline per row)
+    float glow;     // 0 = cheap path (no glow taps), else glow strength
+};
+layout(binding = 1) uniform sampler2D src;
+
+const float hardPix  = -1.6;  // horizontal softening (Lottes default -3.0 is sharper)
+const float hardScan = -12.0; // scanline shape (Lottes default -8.0; ours has a floor, so a narrower peak)
+const float scanFloor = 0.6;  // dark gap brightness: soft, never black
+const float maskDark = 0.96, maskLight = 1.04;
+
+float gaus(float x, float s) { return exp2(s * x * x); }
+vec3 lin(vec3 c) { return c * c; }   // cheap gamma 2.0 approximation
+
+void main()
+{
+    vec2 p = qt_TexCoord0 * srcSize;
+    vec2 d = fract(p) - 0.5;                  // distance to the texel centre
+    // The scanline is measured a quarter row off-centre so that at 2 output px
+    // per row (quality 50%) the two pixels differ: one bright, one in the gap.
+    float sy = fract(p.y + 0.25) - 0.5;
+    float y = (floor(p.y) + 0.5) / srcSize.y; // stay on this scanline
+    float x0 = (floor(p.x) + 0.5) / srcSize.x, dx = 1.0 / srcSize.x;
+
+    // 3-tap horizontal Gaussian along the scanline.
+    float wa = gaus(d.x + 1.0, hardPix), wb = gaus(d.x, hardPix), wc = gaus(d.x - 1.0, hardPix);
+    vec3 c = (lin(texture(src, vec2(x0 - dx, y)).rgb) * wa
+            + lin(texture(src, vec2(x0, y)).rgb) * wb
+            + lin(texture(src, vec2(x0 + dx, y)).rgb) * wc) / (wa + wb + wc);
+
+    // Soft scanline, brightness-compensated so the picture keeps its level.
+    // Divided by the profile's mean over a row (~0.84) so the level stays put.
+    float scan = mix(scanFloor, 1.0, gaus(sy, hardScan));
+    c *= scan / 0.84;
+
+    // Slight glow on bright areas: four wide linear taps, skipped on the cheap path.
+    if (glow > 0.0) {
+        vec2 t = 1.0 / srcSize;
+        vec3 g = lin(texture(src, qt_TexCoord0 + vec2(-2.5, -1.0) * t).rgb)
+               + lin(texture(src, qt_TexCoord0 + vec2( 2.5, -1.0) * t).rgb)
+               + lin(texture(src, qt_TexCoord0 + vec2(-2.5,  1.0) * t).rgb)
+               + lin(texture(src, qt_TexCoord0 + vec2( 2.5,  1.0) * t).rgb);
+        c += max(g * 0.25 - 0.35, 0.0) * glow;
+    }
+
+    // Faint aperture grille on output pixels (vertical RGB stripes).
+    float m = fract(gl_FragCoord.x / 3.0);
+    vec3 mask = vec3(maskDark);
+    if (m < 0.333) mask.r = maskLight; else if (m < 0.666) mask.g = maskLight; else mask.b = maskLight;
+    c *= mask;
+
+    fragColor = vec4(sqrt(max(c, 0.0)), 1.0) * qt_Opacity;
+}
