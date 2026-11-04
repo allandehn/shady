@@ -12,14 +12,16 @@
 // Calm on purpose: soft scanlines, a faint grille, a little glow on bright
 // areas, gentle horizontal softening. No curvature, flicker, rolling bars or
 // noise, nothing animated, no tint beyond the grille's own (it averages to grey).
-// Scanlines are the source texture's rows, so their density follows the
-// shader's render resolution (quality), never the window or screen size.
+// Scanlines sit at a fixed 3 screen px per line (coarser only when the render
+// texture itself is), so the look doesn't change with quality.
 layout(location = 0) in vec2 qt_TexCoord0;
 layout(location = 0) out vec4 fragColor;
 layout(std140, binding = 0) uniform buf {
     mat4 qt_Matrix;
     float qt_Opacity;
-    vec2 srcSize;   // render texture size in pixels (one scanline per row)
+    vec2 srcSize;   // render texture size in pixels
+    vec2 outSize;   // output size in screen pixels
+    float maskAmount; // 1 = the faint grille, 0 = off (diagnostics)
     float glow;     // 0 = cheap path (no glow taps), else glow strength
 };
 layout(binding = 1) uniform sampler2D src;
@@ -36,10 +38,13 @@ void main()
 {
     vec2 p = qt_TexCoord0 * srcSize;
     vec2 d = fract(p) - 0.5;                  // distance to the texel centre
-    // The scanline is measured a quarter row off-centre so that at 2 output px
-    // per row (quality 50%) the two pixels differ: one bright, one in the gap.
-    float sy = fract(p.y + 0.25) - 0.5;
-    float y = (floor(p.y) + 0.5) / srcSize.y; // stay on this scanline
+    // Scanlines are tied to the screen: exactly 3 screen px per line, unless the
+    // render texture's rows are coarser (very low quality), then one per row.
+    // So auto-adapt changing quality (down to ~33%) doesn't change the look.
+    float period = max(3.0, outSize.y / srcSize.y);
+    float ly = qt_TexCoord0.y * outSize.y / period;
+    float sy = fract(ly) - 0.5;
+    float y = (floor(ly) + 0.5) * period / outSize.y; // sample this line's centre
     float x0 = (floor(p.x) + 0.5) / srcSize.x, dx = 1.0 / srcSize.x;
 
     // 3-tap horizontal Gaussian along the scanline.
@@ -64,10 +69,12 @@ void main()
     }
 
     // Faint aperture grille on output pixels (vertical RGB stripes).
-    float m = fract(gl_FragCoord.x / 3.0);
+    // Snapped to whole screen pixels (gl_FragCoord.x is k + 0.5), so the
+    // stripe index is exact and never beats against the picture.
+    float k = mod(floor(gl_FragCoord.x), 3.0);
     vec3 mask = vec3(maskDark);
-    if (m < 0.333) mask.r = maskLight; else if (m < 0.666) mask.g = maskLight; else mask.b = maskLight;
-    c *= mask;
+    if (k < 0.5) mask.r = maskLight; else if (k < 1.5) mask.g = maskLight; else mask.b = maskLight;
+    c *= mix(vec3(1.0), mask, maskAmount);
 
     fragColor = vec4(sqrt(max(c, 0.0)), 1.0) * qt_Opacity;
 }

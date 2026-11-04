@@ -77,6 +77,8 @@ Item {
                 blending: false
                 property var src: crtSrc
                 property size srcSize: crtSrc.textureSize
+                property size outSize: Qt.size(width * root.dpr, height * root.dpr)
+                property real maskAmount: 0.5
                 property real glow: root.crtGlow ? 0.6 : 0.0
                 fragmentShader: "qrc:/shaders/crt.frag.qsb"
             }

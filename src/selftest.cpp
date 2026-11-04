@@ -1967,6 +1967,13 @@ void runPotatoTest(QQuickWindow *win, Library *lib, const QString &shot)
             auto *pass = crtPass();
             check(pass && pass->isVisible(), "crt on: the finishing pass is in the viewer");
             check(on != off, "crt on changes the picture (" + n + ")");
+            QImage noMask;
+            if (pass) { // diagnostic: the same frame with the grille off
+                pass->setProperty("maskAmount", 0.0);
+                waitFor([] { return false; }, 300);
+                noMask = win->grabWindow();
+                pass->setProperty("maskAmount", 0.5);
+            }
             view->setProperty("crtGlow", false);
             const auto cheapMs = measure();
             std::printf("CRT frame time %s (q%d%%, %dx%d, paused %d): frame interval / render ms: off %.2f / %.2f, on %.2f / %.2f, on-no-glow %.2f / %.2f\n",
@@ -1974,7 +1981,8 @@ void runPotatoTest(QQuickWindow *win, Library *lib, const QString &shot)
                         int(wasPaused), offMs.first, offMs.second, onMs.first, onMs.second, cheapMs.first, cheapMs.second);
             if (!crtShots.isEmpty()) {
                 QDir().mkpath(crtShots);
-                check(off.save(crtShots + "/" + n + "-before.png") && on.save(crtShots + "/" + n + "-after.png"), "CRT shots saved for " + n);
+                check(off.save(crtShots + "/" + n + "-before.png") && on.save(crtShots + "/" + n + "-after.png")
+                      && (noMask.isNull() || noMask.save(crtShots + "/" + n + "-after-mask-off.png")), "CRT shots saved for " + n);
             }
             lib->setCrt(false);
             view->setProperty("crtGlow", true);
