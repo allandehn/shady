@@ -5,6 +5,7 @@
 #include "textures.h"
 #include <QDir>
 #include <QFile>
+#include <QTimer>
 #include <QFileInfo>
 #include <QSaveFile>
 #include <QUrl>
@@ -45,6 +46,20 @@ Library::Library(const QString &dataDir, const QString &cacheDir, int maxFps, QO
         // SHADY_CRT = 0|1 overrides the CRT finishing pass for this run.
         const QString crt = qEnvironmentVariable("SHADY_CRT");
         if (!crt.isEmpty()) m_crt = crt != QLatin1String("0");
+        // Test-only (tests/record-crt.sh): SHADY_TEST_CRT_FILE=path polls a file holding 0|1
+        // and flips the CRT pass live, so a recording can show off/on switches.
+        const QString crtFile = qEnvironmentVariable("SHADY_TEST_CRT_FILE");
+        if (!crtFile.isEmpty()) {
+            auto *t = new QTimer(this);
+            connect(t, &QTimer::timeout, this, [this, crtFile] {
+                QFile f(crtFile);
+                if (f.open(QIODevice::ReadOnly)) {
+                    const QByteArray v = f.readAll().trimmed();
+                    if (!v.isEmpty()) setCrt(v != "0");
+                }
+            });
+            t->start(50);
+        }
     }
     {
         // A shader that froze or crashed the app last time opens at minimum.
