@@ -11,7 +11,7 @@ Designed together by [Allan](https://github.com/allandehn) and [Grok](https://x.
 ## Features
 
 - Paste Shadertoy code (`mainImage`, `iTime`, `iResolution`, `iMouse`, `iChannel0–3`) and it runs. A `// @name` / `@author` / `@description` / `@license` header fills in the details.
-- Five examples, including Crouwel's New Alphabet: glyphs after Wim Crouwel drawing themselves on a grid.
+- Six examples, including Crouwel's New Alphabet (glyphs after Wim Crouwel drawing themselves on a grid) and Pixel Arcade (a bouncing invader, made for the CRT finish).
 - Click a shader to run it. Hover a card to star it or trash it, with tooltips.
 - The viewer shows a centred badge when a shader starts (name, author, keys) and again when you change quality, fps or auto-adapt.
 - Key hints along the bottom of every screen, written as `key:action`, and `?` for the full list. The mouse back button works like `esc`.
@@ -92,3 +92,7 @@ To also remove the Shady package source, delete the `[shady]` section from `/etc
 ## License
 
 MIT. See [LICENSE](LICENSE). The example shaders are MIT too.
+
+## Credits
+
+- The optional CRT finish (Settings → CRT finish, or `crt = true` in the config, `SHADY_CRT=1` for one run) is inspired by Timothy Lottes's public-domain CRT scan-line shader ("Please take and use, change, or whatever."). Shady's `shaders/crt.frag` is a small rewrite of its ideas, credited in the file.

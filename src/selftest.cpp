@@ -898,6 +898,57 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
             check(lib->rowOf(s1) == 1, "unstarring doesn't move it either");
             mouse(win, QPointF(2, 2), QEvent::MouseMove);
         }
+
+        {   // Grid motion try-out: gliding outline that retargets, and a lift skipped on auto-repeat.
+            QQuickItem *hl = nullptr;
+            for (QQuickItem *i : allItems(win->contentItem())) if (i->objectName() == "cardHighlight") hl = i;
+            auto cardAt = [&](int i) -> QQuickItem * { for (QQuickItem *c : allItems(win->contentItem()))
+                if (c->property("lift").isValid() && c->isVisible() && c->property("index").toInt() == i) return c; return nullptr; };
+            auto pause = [](int ms) { waitFor([] { return false; }, ms); };
+            const bool motion0 = lib->gridMotion(), lift0 = lib->gridLift();
+            lib->setGridMotion(true); lib->setGridLift(true);
+            QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+            pause(300);
+            check(hl && hl->isVisible(), "grid motion: one shared highlight outline");
+            if (hl && lib->count() >= 3) {
+                const double x0 = hl->x(), y0 = hl->y();
+                key(win, Qt::Key_Right);
+                pause(40);
+                QQuickItem *c2 = cardAt(2);
+                const double midX = hl->x(), midY = hl->y();
+                check(midX != x0 || midY != y0, "the highlight is already moving right after the key press");
+                check(hl->property("gliding").toBool() && !hl->property("retarget").toBool(), "a glide from rest eases both ends (InOutCubic)");
+                key(win, Qt::Key_Right); // course change mid-glide
+                check(hl->property("retarget").toBool(), "a course change mid-glide continues with OutCubic");
+                const double atTurn = hl->x();
+                pause(30);
+                check(qAbs(hl->x() - atTurn) > 4, QString("no stall after the course change (moved %1 px in 30 ms)").arg(qAbs(hl->x() - atTurn)));
+                pause(140);              // one ~120 ms glide, not two queued ones
+                c2 = cardAt(2);
+                check(c2 && qAbs(hl->x() - (c2->x() + 4)) < 1 && qAbs(hl->y() - (c2->y() + 4)) < 1,
+                      QString("a second key mid-glide retargets instead of queueing (hl %1,%2 card %3,%4)")
+                          .arg(hl->x()).arg(hl->y()).arg(c2 ? c2->x() + 4 : -1).arg(c2 ? c2->y() + 4 : -1));
+                check(c2 && c2->property("lift").toBool(), "the focused card lifts");
+                waitFor([&] { return c2 && qAbs(c2->scale() - 1.03) < 0.001; }, 500);
+                check(c2 && qAbs(c2->scale() - 1.03) < 0.001, "the lift settles at 1.03");
+                // Held key: auto-repeat presses skip the lift until the key comes up.
+                QKeyEvent rep(QEvent::KeyPress, Qt::Key_Left, Qt::NoModifier, {}, true);
+                QGuiApplication::sendEvent(win, &rep); QCoreApplication::processEvents();
+                QQuickItem *c1 = cardAt(1);
+                check(list->property("keyRepeating").toBool() && c1 && !c1->property("lift").toBool(), "no lift while a key auto-repeats");
+                QKeyEvent up(QEvent::KeyRelease, Qt::Key_Left, Qt::NoModifier);
+                QGuiApplication::sendEvent(win, &up); QCoreApplication::processEvents();
+                check(c1 && c1->property("lift").toBool(), "the lift settles once repeating stops");
+                // Toggles off: old per-card outline, no lift, no shared highlight.
+                lib->setGridMotion(false); lib->setGridLift(false);
+                QCoreApplication::processEvents();
+                waitFor([&] { return c1 && c1->scale() == 1.0; }, 500);
+                check(!hl->isVisible() && c1 && !c1->property("lift").toBool() && c1->scale() == 1.0 && c1->property("hot").toBool(),
+                      "grid_motion/grid_lift off restore the old highlight");
+            }
+            lib->setGridMotion(motion0); lib->setGridLift(lift0);
+            QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
+        }
         QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
 
         // Hover the first card's star chip: outlined star + "Star" tooltip after ~400 ms.
@@ -1877,6 +1928,107 @@ void runPotatoTest(QQuickWindow *win, Library *lib, const QString &shot)
               .arg(viewer->property("quality").toInt()).arg(viewer->property("paused").toBool()));
     key(win, Qt::Key_Escape);
     if (viewer->isVisible()) key(win, Qt::Key_Escape);
+
+    {   // CRT finishing pass (config crt, env SHADY_CRT): off by default, one toggle,
+        // one extra pass. SHADY_CRT_SHOTS=<dir> saves before/after shots; frame
+        // times are printed (offscreen/llvmpipe numbers, a rough guide only).
+        check(!lib->crt() || qEnvironmentVariableIsSet("SHADY_CRT"), "CRT pass is off by default");
+        lib->setCrt(true);
+        check(lib->crtAmount() == 50 && readToml(lib->configFile()).value("crt").toInt() == 50, "crt on = 50, saved as crt = 50");
+        lib->setCrtAmount(100);
+        check(readToml(lib->configFile()).value("crt").toInt() == 100, "crt = 100 is saved in the config");
+        lib->setCrtAmount(140);
+        check(lib->crtAmount() == 100, "crt strength is clamped to 100");
+        lib->setCrt(false);
+        check(lib->crtAmount() == 0 && readToml(lib->configFile()).value("crt").toInt() == 0, "crt = 0 is saved in the config");
+        check(Library::parseCrtAmount(true, 0) == 50 && Library::parseCrtAmount(false, 70) == 0
+              && Library::parseCrtAmount(QStringLiteral("1"), 0) == 50 && Library::parseCrtAmount(QStringLiteral("0"), 50) == 0
+              && Library::parseCrtAmount(QStringLiteral("35"), 0) == 35 && Library::parseCrtAmount(QStringLiteral("true"), 0) == 50
+              && Library::parseCrtAmount(QVariant(), 0) == 0 && Library::parseCrtAmount(QStringLiteral("x"), 20) == 20,
+              "old crt = true/false and SHADY_CRT=1 load as 50/0; numbers load as strength");
+        auto *view = win->findChild<QQuickItem *>("viewerView");
+        auto *meter = viewer->property("meter").value<QObject *>();
+        const QString crtShots = qEnvironmentVariable("SHADY_CRT_SHOTS");
+        auto fixture = [](const QString &n) { QFile f(n == QLatin1String("pixel-arcade") ? ":/examples/pixel-arcade.glsl" : ":/selftest/crt/" + n + ".glsl"); if (!f.open(QIODevice::ReadOnly)) return QString(); return QString::fromUtf8(f.readAll()); };
+        // Achieved frame time over 3 s at 100% quality and the top fps step.
+        // Returns {achieved ms per frame, mean render-start-to-swap ms}.
+        auto measure = [&]() {
+            waitFor([] { return false; }, 800);
+            int f0 = 0, f1 = 0, last = -1, n = 0; double sum = 0;
+            QMetaObject::invokeMethod(meter, "frames", Q_RETURN_ARG(int, f0));
+            QElapsedTimer t; t.start();
+            while (t.elapsed() < 3000) {
+                waitFor([] { return false; }, 4);
+                int f = 0, ms = 0;
+                QMetaObject::invokeMethod(meter, "frames", Q_RETURN_ARG(int, f));
+                if (f != last) { QMetaObject::invokeMethod(meter, "lastFrameMs", Q_RETURN_ARG(int, ms)); sum += ms; ++n; last = f; }
+            }
+            QMetaObject::invokeMethod(meter, "frames", Q_RETURN_ARG(int, f1));
+            return std::make_pair(f1 > f0 ? double(t.elapsed()) / (f1 - f0) : -1.0, n ? sum / n : -1.0);
+        };
+        auto crtPass = [&]() -> QQuickItem * {
+            for (QQuickItem *i : allItems(win->contentItem())) if (i->objectName() == "crtPass") return i;
+            return nullptr;
+        };
+        for (const QString &n : {QStringLiteral("pixel-sprite"), QStringLiteral("smooth-gradient"), QStringLiteral("pixel-arcade")}) {
+            const QString slug = lib->saveShader("", {{"name", "CRT " + n}}, fixture(n));
+            lib->setQuality(lib->rowOf(slug), qEnvironmentVariableIntValue("SHADY_CRT_QUALITY") ?: 50);
+            lib->setFps(lib->rowOf(slug), lib->stepFps(1000, 1));
+            lib->flush();
+            const bool autoAdapt = lib->autoAdapt();
+            lib->setAutoAdapt(false); // keep the quality fixed while measuring
+            open(slug);
+            waitFor([] { return false; }, 1500);
+            if (auto *b = win->findChild<QQuickItem *>("badge")) waitFor([b] { return !b->isVisible(); }, 6000);
+            if (auto *c = win->findChild<QQuickItem *>("caption")) c->setProperty("shown", false);
+            const bool wasPaused = viewer->property("paused").toBool();
+            waitFor([] { return false; }, 600);
+            const auto offMs = measure();
+            const QImage off = win->grabWindow();
+            check(!crtPass(), "crt off: no extra pass in the scene");
+            lib->setCrt(true);
+            view->setProperty("crtGlow", true);
+            const auto onMs = measure();
+            const QImage on = win->grabWindow();
+            auto *pass = crtPass();
+            check(pass && pass->isVisible(), "crt on: the finishing pass is in the viewer");
+            check(on != off, "crt on changes the picture (" + n + ")");
+            QImage noMask;
+            if (pass) { // diagnostic: the same frame with the grille off
+                pass->setProperty("maskAmount", 0.0);
+                waitFor([] { return false; }, 300);
+                noMask = win->grabWindow();
+                pass->setProperty("maskAmount", 1.0);
+            }
+            view->setProperty("crtGlow", false);
+            const auto cheapMs = measure();
+            std::printf("CRT frame time %s (q%d%%, %dx%d, paused %d): frame interval / render ms: off %.2f / %.2f, on %.2f / %.2f, on-no-glow %.2f / %.2f\n",
+                        qPrintable(n), lib->get(lib->rowOf(slug)).value("quality").toInt(), win->width(), win->height(),
+                        int(wasPaused), offMs.first, offMs.second, onMs.first, onMs.second, cheapMs.first, cheapMs.second);
+            {   // strength sweep: the picture differs at each step
+                QImage prev = off; bool differs = true;
+                view->setProperty("crtGlow", true);
+                for (int a : {20, 50, 100}) {
+                    lib->setCrtAmount(a);
+                    waitFor([] { return false; }, 500);
+                    const QImage img = win->grabWindow();
+                    differs = differs && img != prev; prev = img;
+                    if (!crtShots.isEmpty()) { QDir().mkpath(crtShots); img.save(crtShots + "/" + n + "-crt" + QString::number(a) + ".png"); }
+                }
+                check(differs, "crt strength 20/50/100 each change the picture (" + n + ")");
+            }
+            if (!crtShots.isEmpty()) {
+                QDir().mkpath(crtShots);
+                check(off.save(crtShots + "/" + n + "-before.png") && on.save(crtShots + "/" + n + "-after.png")
+                      && (noMask.isNull() || noMask.save(crtShots + "/" + n + "-after-mask-off.png")), "CRT shots saved for " + n);
+            }
+            lib->setCrt(false);
+            view->setProperty("crtGlow", true);
+            lib->setAutoAdapt(autoAdapt);
+            key(win, Qt::Key_Escape);
+            waitFor([] { return false; }, 300);
+        }
+    }
 
     std::printf(g_fails ? "POTATO TEST FAILED (%d)\n" : "ALL PASS\n", g_fails);
     QCoreApplication::exit(g_fails ? 1 : 0);
