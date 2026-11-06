@@ -278,7 +278,7 @@ FocusScope {
             readonly property bool covers: code.activeFocus && cursorY + code.cursorRectangle.height > y && cursorY < y + height
             width: 12 + cbLabel.implicitWidth + 8 + cbHint.implicitWidth + 12
             height: 28; radius: 0
-            color: Qt.lighter(ui.bg2, 1.3)
+            color: theme.raisedBackground
             border.width: 1
             border.color: activeFocus || cbMouse.containsMouse ? ui.accent : Qt.rgba(ui.muted.r, ui.muted.g, ui.muted.b, 0.35)
             opacity: (enabled_ ? 1 : 0.6) * (covers && !activeFocus ? 0.6 : 1)
