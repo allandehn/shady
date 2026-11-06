@@ -39,7 +39,7 @@ Prefer to do it by hand? Read [install.sh](install.sh). It's a handful of lines.
 Download the script, check its checksum, then run it:
 
 ```
-curl -fsSLo /tmp/shady-dev-install.sh https://raw.githubusercontent.com/allandehn/shady/v0.2.1/scripts/dev-install.sh
+curl -fsSLo /tmp/shady-dev-install.sh https://raw.githubusercontent.com/allandehn/shady/v0.3.0/scripts/dev-install.sh
 echo "ff1158c1a61358e46019ae7dce6db904462f864b042556918b37495a7e0a437e  /tmp/shady-dev-install.sh" | sha256sum -c
 bash /tmp/shady-dev-install.sh
 ```
@@ -95,4 +95,4 @@ MIT. See [LICENSE](LICENSE). The example shaders are MIT too.
 
 ## Credits
 
-- The optional CRT finish (Settings → CRT finish, or `crt = true` in the config, `SHADY_CRT=1` for one run) is inspired by Timothy Lottes's public-domain CRT scan-line shader ("Please take and use, change, or whatever."). Shady's `shaders/crt.frag` is a small rewrite of its ideas, credited in the file.
+- The optional CRT finish (Settings → CRT finish, a 0–100% slider; or `crt = 50` in the config, `SHADY_CRT=0–100` for one run) is inspired by Timothy Lottes's public-domain CRT scan-line shader ("Please take and use, change, or whatever."). Shady's `shaders/crt.frag` is a small rewrite of its ideas, credited in the file.

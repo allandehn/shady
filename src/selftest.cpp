@@ -880,14 +880,15 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
             auto playing = [&] { int n = 0; for (QQuickItem *c : cards()) if (c->property("live").toBool()) ++n; return n; };
             const bool canPlay = !lib->slowMachine();
             auto center = [&](int i) { QQuickItem *c = cardAt(i); return c ? c->mapToScene(QPointF(c->width() / 2, c->height() / 3)) : QPointF(); };
-            mouse(win, center(2), QEvent::MouseMove); mouse(win, center(2) + QPointF(2, 2), QEvent::MouseMove);
+            const QPointF still = center(2) + QPointF(2, 2); // the cursor spot; fixed, since the focused card lifts and moves
+            mouse(win, center(2), QEvent::MouseMove); mouse(win, still, QEvent::MouseMove);
             check(hotRows() == QList<int>{2} && list->property("currentRow").toInt() == 2, QString("hover takes the highlight (hot %1)").arg(hotRows().size()));
             if (canPlay) check(playing() <= 1, "only the hovered card plays");
             key(win, Qt::Key_Right);
             check(hotRows() == QList<int>{3}, QString("keys move it off the hovered card (hot %1)").arg(hotRows().size()));
             if (canPlay) check(playing() <= 1, "only the key-selected card plays");
             // A synthetic hover at the same spot (as when cards scroll under a still cursor) must not steal it.
-            mouse(win, center(2) + QPointF(2, 2), QEvent::MouseMove);
+            mouse(win, still, QEvent::MouseMove);
             check(hotRows() == QList<int>{3}, "a still cursor doesn't take the highlight back");
             mouse(win, center(1), QEvent::MouseMove);
             check(hotRows() == QList<int>{1} && list->property("currentRow").toInt() == 1, "moving the mouse takes it back");
@@ -1321,7 +1322,7 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         QObject *th = qvariant_cast<QObject *>(qmlContext(list)->contextProperty("theme"));
         QTemporaryDir bin;
         const QString out = bin.path() + "/out.json";
-        auto put = [](const QString &p, const QByteArray &d) { QFile f(p); f.open(QIODevice::WriteOnly); f.write(d); };
+        auto put = [](const QString &p, const QByteArray &d) { QFile f(p); if (!f.open(QIODevice::WriteOnly)) qWarning("selftest: could not open a test file"); f.write(d); };
         put(bin.path() + "/hyprctl", ("#!/bin/sh\ncat '" + out + "'\n").toUtf8());
         QFile::setPermissions(bin.path() + "/hyprctl", QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
         const QByteArray oldPath = qgetenv("PATH");

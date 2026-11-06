@@ -1,7 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
 
+- CRT finish: a 0–100% slider in Settings (`,` → CRT finish, ←/→ to adjust) instead of on/off. Scanlines, a pixel-snapped aperture grille and glow, viewer only, no extra cost at 0%; 100% is loud on purpose. An old `crt = true` becomes 50%; `SHADY_CRT=0–100` overrides it for one run.
+- Theme shapes: corners follow Hyprland's live rounding (card previews too), theme colours are re-read every second, and confirm dialogs follow Omarchy's style (Cancel first, a short red or accent verb, Enter/arrows/Esc).
+- Theme tints are now worked out in OKLCH from your live colours, so lighter and darker surfaces keep their hue (blues stay blue, yellows don't glow).
+- Grid motion: the keyboard highlight glides between cards and the focused card lifts with a soft shadow.
+- Empty state: the sunglasses get rounded when Hyprland corners are rounded.
+- Dialogs and status lines put shader names in curly quotes; the Trash dialog mirrors Delete.
+- Builds cleanly on newer Qt (no more -Wunused-result warnings); a failed write in the compiler now says "Could not write <path>".
 - New example: Pixel Arcade, a bouncing pixel-art invader over a banded sunset; looks good with the CRT finish.
 - dev-install.sh builds incrementally (kept build tree plus ccache when installed); `--clean` forces a full rebuild.
 - Live view: the caption now fades in quickly (180 ms) and fades out slowly (1.8 s, ease-out).
