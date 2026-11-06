@@ -119,9 +119,10 @@ if (( DRY )); then
   t 120 git archive --format=tar.gz --prefix="shady-$VER/" -o "$WORK/shady-$VER.tar.gz" "$SNAP"
 else
   step "Commit, tag v$VER, push"
-  git diff --quiet HEAD || t 60 git commit -qam "Release $VER"
+  # main only takes PRs: the version bump and changelog land through a release PR
+  # that Allan merges, so there is nothing to commit here, only a tag to push.
+  git diff --quiet HEAD || die "version bump for $VER is not on main yet (merge the release PR first)"
   t 60 git tag -a "v$VER" -m "Shady $VER"
-  t 180 git push -q origin main
   t 180 git push -q origin "v$VER"
 fi
 
