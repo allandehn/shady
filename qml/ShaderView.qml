@@ -79,17 +79,19 @@ Item {
                 property var src: crtSrc
                 property size srcSize: crtSrc.textureSize
                 property size outSize: Qt.size(width * root.dpr, height * root.dpr)
-                // Strength 0..1 eased so the middle is plainly visible and 100 is loud.
-                // The old on/off look sits around 20.
+                // Strength 0..1. The previous 100% look now sits at 30%; above that
+                // everything keeps going (darker gaps, bolder grille, heavier glow).
                 readonly property real s: Math.max(0, Math.min(1, root.crtAmount / 100))
+                readonly property real k: Math.min(1, s / 0.3)          // 0..1 up to 30%
+                readonly property real e: Math.max(0, (s - 0.3) / 0.7)  // 0..1 from 30% to 100%
                 property real maskAmount: 1.0
-                property real glow: root.crtGlow ? 0.3 + 1.7 * s * s : 0.0
-                property real hardPix: -2.2 + 1.4 * s
-                property real scanFloor: 0.9 - 0.82 * Math.pow(s, 0.8)
+                property real glow: root.crtGlow ? 0.3 + 1.7 * k * k + 1.5 * e : 0.0
+                property real hardPix: -2.2 + 1.4 * k + 0.5 * e
+                property real scanFloor: Math.max(0.0, 0.9 - 0.82 * Math.pow(k, 0.8) - 0.08 * e)
                 // Mean of the scanline profile over a line is floor + (1 - floor) * 0.589;
-                // compensate fully at low strength, only partly at the top so gaps stay dark.
-                property real scanNorm: { const m = scanFloor + (1 - scanFloor) * 0.589; return 1 - (1 - m) * (1 - 0.35 * s) }
-                property real maskDepth: 0.02 + 0.33 * Math.pow(s, 1.5)
+                // compensate fully at low strength, less and less toward the top so gaps stay dark.
+                property real scanNorm: { const m = scanFloor + (1 - scanFloor) * 0.589; return 1 - (1 - m) * Math.max(0, 1 - 0.35 * k - 0.3 * e) }
+                property real maskDepth: 0.02 + 0.33 * Math.pow(k, 1.5) + 0.3 * e
                 fragmentShader: "qrc:/shaders/crt.frag.qsb"
             }
         }
