@@ -61,22 +61,24 @@ FocusScope {
         focusRow(grid.currentIndex)
     }
     // Every delete asks first, even the recoverable move to Trash.
-    function ask(title, line, detail, action, hint, run) {
+    // `action` is a short verb (never "OK"); `destructive` makes it red.
+    function ask(title, line, detail, action, hint, run, destructive) {
         confirm.title = title; confirm.line = line; confirm.detail = detail
+        confirm.destructive = destructive !== false
         confirm.actionText = action; confirm.hintAction = hint; confirm.run = run
         confirm.open()
     }
     function askForever(line, run) { ask(qsTr("Delete forever?"), line, qsTr("This can't be undone."), qsTr("Delete forever"), qsTr("delete"), run) }
-    function askTrash(line, run) { ask(qsTr("Move to Trash?"), line, qsTr("You can restore it from the Trash."), qsTr("Move to Trash"), qsTr("trash"), run) }
+    function askTrash(line, run) { ask(qsTr("Move to Trash?"), line, qsTr("You can restore it from there."), qsTr("Move to Trash"), qsTr("trash"), run, false) } // recoverable: accent
     function trashSelected() {
         const list = selected()
         if (list.length === 0) return
-        askTrash(qsTr("Move %n shaders to the Trash?", "", list.length),
+        askTrash(qsTr("%n shaders will be moved to the Trash.", "", list.length),
                  () => { library.trashMany(list); clearSel(); focusRow(grid.currentIndex) })
     }
     function confirmTrash(r) {
         const m = library.get(r)
-        askTrash(qsTr("Move %1 to the Trash?").arg(m.name), () => { const row = library.rowOf(m.slug); if (row >= 0) focusRow(library.moveToTrash(row)) })
+        askTrash(qsTr("“%1” will be moved to the Trash.").arg(m.name), () => { const row = library.rowOf(m.slug); if (row >= 0) focusRow(library.moveToTrash(row)) })
     }
     function hideSelected() { library.hideMany(selected(), library.filter !== 2); clearSel(); focusRow(grid.currentIndex) }
     function restoreSelected() { library.restoreMany(selected()); clearSel(); focusRow(0) }
@@ -102,7 +104,7 @@ FocusScope {
     function cycle(d) { clearSel(); library.filter = (library.filter + d + 4) % 4; focusRow(0) }
     function confirmDelete(r) {
         const m = library.get(r)
-        askForever(qsTr("Permanently delete %1?").arg(m.name), () => { library.deleteForever(library.rowOf(m.slug)); focusRow(r - 1) })
+        askForever(qsTr("Permanently delete “%1”?").arg(m.name), () => { library.deleteForever(library.rowOf(m.slug)); focusRow(r - 1) })
     }
     function confirmEmpty() {
         if (library.trashCount === 0) return

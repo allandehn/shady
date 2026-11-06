@@ -1,6 +1,6 @@
 import QtQuick
 
-// Hover tooltip: shows after ~400 ms, square corners, theme colours.
+// Hover tooltip: shows after ~400 ms, theme colours, chip corners (min(R, 4)).
 // Put it inside the hovered item and set `hovered`.
 Rectangle {
     id: tip
@@ -12,7 +12,7 @@ Rectangle {
     Timer { id: delay; interval: 400; onTriggered: tip.shown = true }
     visible: shown
     z: 100
-    radius: 0
+    radius: theme.rButton
     width: label.implicitWidth + 14; height: label.implicitHeight + 8
     color: ui.bg
     border.width: 1; border.color: Qt.rgba(ui.accent.r, ui.accent.g, ui.accent.b, 0.6)

@@ -124,7 +124,7 @@ Item {
                 color: card.selected ? ui.accent : ui.bg
                 border.width: card.selected ? 0 : 1
                 border.color: ui.muted
-                Label { anchors.centerIn: parent; visible: card.selected; text: "✓"; color: ui.bg; font.pixelSize: 12; font.bold: true }
+                Icon { anchors.centerIn: parent; visible: card.selected; glyph: "\u{F012C}"; fallback: "✓"; color: ui.bg; size: 12; font.bold: !nerd }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: card.toggled() }
             }
             // Star and × sit on small background chips, in the foreground color, with
@@ -142,7 +142,7 @@ Item {
                     opacity: hover.hovered ? 1 : 0
                     enabled: hover.hovered
                     width: 18; height: 18; color: ui.bg; radius: Math.min(theme.rounding, 4)
-                    Label { anchors.centerIn: parent; text: "×"; font.pixelSize: 13 }
+                    Icon { anchors.centerIn: parent; glyph: "\u{F0156}"; fallback: "×"; size: 13 }
                     MouseArea { id: xMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: card.trashRequested() }
                     Tip { anchors { top: parent.bottom; right: parent.right; topMargin: 4 } text: xChip.tipText; hovered: xMouse.containsMouse }
                 }
@@ -153,7 +153,7 @@ Item {
                     // Starred: filled star, always. Unstarred: an outlined star on hover.
                     visible: !card.trashed && (card.starred || hover.hovered)
                     width: 18; height: 18; color: ui.bg; radius: Math.min(theme.rounding, 4)
-                    Label { anchors.centerIn: parent; text: card.starred ? "★" : "☆"; font.pixelSize: 12
+                    Icon { anchors.centerIn: parent; glyph: card.starred ? "\u{F04CE}" : "\u{F04D2}"; fallback: card.starred ? "★" : "☆"; size: 12
                             color: starMouse.containsMouse ? ui.accent : ui.fg }
                     MouseArea { id: starMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: card.starRequested() }
                     Tip { anchors { top: parent.bottom; right: parent.right; topMargin: 4 } text: starChip.tipText; hovered: starMouse.containsMouse }
@@ -194,15 +194,26 @@ Item {
         width: 16; height: 16
         x: frame.x + frame.width - 12 - width
         y: frame.y + info.y + byLine.y + byLine.baselineOffset - height - 1
-        Canvas {
+        Icon {
+            id: pencilGlyph
+            anchors.centerIn: parent
+            visible: nerd
+            glyph: "\u{F0CB6}" // mdi pencil-outline
+            size: 14
+            color: pencil.hot ? ui.accent : ui.muted
+        }
+        Canvas {   // fallback without a Nerd Font; joins follow rIcon (0 = miter)
             anchors.fill: parent
+            visible: !pencilGlyph.nerd
             property color ink: pencil.hot ? ui.accent : ui.muted
+            readonly property int rIcon: theme.rIcon
             onInkChanged: requestPaint()
+            onRIconChanged: requestPaint()
             onPaint: {
                 // Outlined pencil, ~14 px on the diagonal, 1.5 px stroke, tip bottom-left.
                 const c = getContext("2d")
                 c.reset()
-                c.strokeStyle = ink; c.lineWidth = 1.5; c.lineJoin = "round"; c.lineCap = "round"
+                c.strokeStyle = ink; c.lineWidth = 1.5; c.lineJoin = rIcon > 0 ? "round" : "miter"; c.lineCap = rIcon > 0 ? "round" : "square"
                 c.translate(8, 8); c.rotate(-Math.PI / 4)
                 c.beginPath()
                 c.moveTo(-8, 0); c.lineTo(-4.5, -2); c.lineTo(7, -2); c.lineTo(7, 2); c.lineTo(-4.5, 2); c.closePath()
@@ -220,14 +231,19 @@ Item {
         Tip { anchors { top: parent.bottom; right: parent.right; topMargin: 4 } text: qsTr("Edit"); hovered: pencilMouse.containsMouse }
     }
 
-    // Rounded corners: square previews are masked to the outline's radius
-    // (Hyprland's decoration:rounding), so nothing pokes out of the corners.
+    // Rounded corners: the preview (still or live shader) runs to the card's
+    // top edge (1 px inset for the outline, which covers that pixel), so it is
+    // clipped to R, the card's own radius, and the two share their corners.
+    // An inset preview would use theme.rInner(padding). R = 0: no clipping.
+    // Two tiny painted corner masks instead of a MultiEffect mask: no extra
+    // offscreen layer per card, which keeps weak GPUs fast.
     Repeater {
         model: card.isNew ? 0 : 2
         Canvas {
             required property int index
             readonly property int r: theme.rounding
             visible: r > 0
+            onRChanged: requestPaint()
             x: index === 0 ? frame.x : frame.x + frame.width - r; y: frame.y
             width: r; height: r
             transform: Scale { origin.x: width / 2; xScale: index === 0 ? 1 : -1 }

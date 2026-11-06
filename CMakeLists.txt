@@ -39,7 +39,7 @@ qt_add_qml_module(shady
     qml/Main.qml qml/ShaderList.qml qml/ShaderCard.qml qml/Viewer.qml
     qml/ShaderView.qml qml/Label.qml qml/Hint.qml qml/EmptyState.qml qml/Hatch.qml qml/Tip.qml
     qml/Button.qml qml/Confirm.qml qml/Menu.qml qml/KeySheet.qml qml/SettingsSheet.qml
-    qml/Editor.qml qml/Field.qml qml/Channel.qml qml/ChannelPicker.qml qml/Benchmark.qml qml/LivelyMaker.qml
+    qml/Editor.qml qml/Field.qml qml/Channel.qml qml/ChannelPicker.qml qml/Benchmark.qml qml/LivelyMaker.qml qml/Icon.qml
 )
 
 qt_add_resources(shady "examples"
@@ -57,6 +57,9 @@ qt_add_resources(shady "selftest_fixtures"
 
 # English is in the source; Danish ships from the start (i18n/update.sh).
 qt_add_lrelease(shady TS_FILES i18n/shady_da.ts QM_FILES_OUTPUT_VARIABLE shady_qm)
+# Empty-state sunglasses (square at R = 0, rounded at R > 0); the QML draws
+# the same paths so the theme colour applies, the SVGs are the source.
+qt_add_resources(shady "shades" PREFIX "/shades" BASE data FILES data/empty-shades-t8.svg data/empty-shades-rounded-t8.svg)
 qt_add_resources(shady "appicon" PREFIX "/icons" BASE data/icons/hicolor FILES
     data/icons/hicolor/shady-16.png data/icons/hicolor/shady-24.png data/icons/hicolor/shady-32.png
     data/icons/hicolor/shady-48.png data/icons/hicolor/shady-64.png data/icons/hicolor/shady-128.png

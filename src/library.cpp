@@ -700,7 +700,7 @@ bool Library::moveEntry(ShaderEntry &e, bool toTrash)
     }
     const QString dst = target + u'/' + slug;
     if (!QDir().rename(e.dir, dst)) {
-        m_status = tr("Couldn't move · %1").arg(nameOf(e));
+        m_status = tr("Couldn't move “%1”").arg(nameOf(e));
         emit statusChanged();
         return false;
     }
@@ -748,7 +748,7 @@ int Library::restore(int row)
     pushUndo(Undo::Restored, {e.slug});
     const QString name = nameOf(e);
     reset();
-    emit noted(tr("Restored %1 · ctrl+z undo").arg(name));
+    emit noted(tr("Restored “%1” · ctrl+z undo").arg(name));
     return std::clamp(row, m_rows.isEmpty() ? -1 : 0, int(m_rows.size()) - 1);
 }
 
@@ -828,7 +828,7 @@ int Library::restoreMany(const QStringList &slugs)
         if (ShaderEntry *e = entry(s); e && e->trashed && moveEntry(*e, false)) { done << e->slug; name = nameOf(*e); }
     pushUndo(Undo::Restored, done);
     reset();
-    if (done.size() == 1) emit noted(tr("Restored %1 · ctrl+z undo").arg(name));
+    if (done.size() == 1) emit noted(tr("Restored “%1” · ctrl+z undo").arg(name));
     else if (!done.isEmpty()) emit noted(tr("Restored %n shaders · ctrl+z undo", "", int(done.size())));
     return done.size();
 }
