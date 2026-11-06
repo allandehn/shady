@@ -1404,6 +1404,23 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         QMetaObject::invokeMethod(list, "focusRow", Q_ARG(QVariant, 0));
         check(tip && tip->property("radius").toInt() == 0, "R=0: square tip");
         themeShot("grid-r0");
+        {   // Empty-state sunglasses follow R live: square at 0, rounded above.
+            auto *es = win->findChild<QQuickItem *>("emptyState");
+            QQuickItem *sq = nullptr, *rd = nullptr;
+            if (es) for (QQuickItem *i : allItems(es)) { if (i->objectName() == "shadesSquare") sq = i; if (i->objectName() == "shadesRounded") rd = i; }
+            const int f0 = lib->filter();
+            lib->setFilter(Library::Starred);
+            const QStringList st = [&] { QStringList o; while (lib->count() > 0) { o << lib->get(0).value("slug").toString(); lib->toggleStar(0); } return o; }();
+            waitFor([&] { return es && es->isVisible(); }, 1000);
+            check(sq && rd && sq->isVisible() && !rd->isVisible(), "R=0: square empty-state shades");
+            if (!shotDir.isEmpty()) win->grabWindow().save(shotDir + "/screenshot-empty-r0.png");
+            check(setR(8) && rd && rd->isVisible() && !sq->isVisible(), "R=8: rounded shades, switched live");
+            if (!shotDir.isEmpty()) { waitFor([] { return false; }, 200); win->grabWindow().save(shotDir + "/screenshot-empty-r8.png"); }
+            check(setR(0) && sq->isVisible() && !rd->isVisible(), "back to R=0: square shades again");
+            lib->setFilter(Library::All);
+            for (const QString &slug : st) lib->toggleStar(lib->rowOf(slug));
+            lib->setFilter(Library::Filter(f0));
+        }
         qputenv("PATH", oldPath);
         qunsetenv("HYPRLAND_INSTANCE_SIGNATURE");
     }
