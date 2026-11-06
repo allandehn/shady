@@ -1321,7 +1321,7 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         QObject *th = qvariant_cast<QObject *>(qmlContext(list)->contextProperty("theme"));
         QTemporaryDir bin;
         const QString out = bin.path() + "/out.json";
-        auto put = [](const QString &p, const QByteArray &d) { QFile f(p); f.open(QIODevice::WriteOnly); f.write(d); };
+        auto put = [](const QString &p, const QByteArray &d) { QFile f(p); if (!f.open(QIODevice::WriteOnly)) qWarning("selftest: could not open a test file"); f.write(d); };
         put(bin.path() + "/hyprctl", ("#!/bin/sh\ncat '" + out + "'\n").toUtf8());
         QFile::setPermissions(bin.path() + "/hyprctl", QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
         const QByteArray oldPath = qgetenv("PATH");
