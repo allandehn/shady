@@ -45,7 +45,7 @@ static void check(bool ok, const QString &what)
 static QVariantMap readToml(const QString &path)
 {
     QFile f(path);
-    f.open(QIODevice::ReadOnly);
+    check(f.open(QIODevice::ReadOnly), "test can open " + f.fileName());
     return Toml::parse(QString::fromUtf8(f.readAll()));
 }
 
@@ -98,7 +98,7 @@ int runSelfTest()
     check(c.cachedPath(goodNoTex) == r.qsbPath, "compiled shader is cached by source hash");
     if (r.ok) {
         QFile f(r.qsbPath);
-        f.open(QIODevice::ReadOnly);
+        check(f.open(QIODevice::ReadOnly), "test can open " + f.fileName());
         const QShader s = QShader::fromSerialized(f.readAll());
         bool spirv = false, glsl = false, t = false, res = false;
         for (const QShaderKey &k : s.availableShaders()) {
@@ -159,7 +159,7 @@ int runSelfTest()
     check(a == "northern-veil" && b == "northern-veil-2", "taken slug gets a -2 suffix");
     const QString dir = lib.shadersDir() + "/" + a;
     check(QFile::exists(dir + "/shader.glsl") && QFile::exists(dir + "/shader.toml"), "shader folder has shader.glsl and shader.toml");
-    QFile g(dir + "/shader.glsl"); g.open(QIODevice::ReadOnly);
+    QFile g(dir + "/shader.glsl"); check(g.open(QIODevice::ReadOnly), "test can open " + g.fileName());
     check(QString::fromUtf8(g.readAll()) == goodNoTex, "shader.glsl holds the code exactly as written");
     QVariantMap t = readToml(dir + "/shader.toml");
     check(t.value("quality").toInt() == 50 && t.value("fps").toInt() == 30, "new shaders default to 50% and 30 fps");
@@ -373,8 +373,8 @@ int runSelfTest()
     }
     // Example updates for existing libraries
     {
-        auto readF = [](const QString &p) { QFile f(p); f.open(QIODevice::ReadOnly); return QString::fromUtf8(f.readAll()); };
-        auto writeF = [](const QString &p, const QString &s) { QFile f(p); f.open(QIODevice::WriteOnly | QIODevice::Truncate); f.write(s.toUtf8()); };
+        auto readF = [](const QString &p) { QFile f(p); check(f.open(QIODevice::ReadOnly), "test can open " + f.fileName()); return QString::fromUtf8(f.readAll()); };
+        auto writeF = [](const QString &p, const QString &s) { QFile f(p); check(f.open(QIODevice::WriteOnly | QIODevice::Truncate), "test can open " + f.fileName()); f.write(s.toUtf8()); };
         const QString bundled = readF(":/examples/crouwel-new-alphabet.glsl");
         const QString oldCrouwel = readF(":/selftest/crouwel-0.2.0.glsl");
         check(!oldCrouwel.isEmpty() && oldCrouwel != bundled, "0.2.0 Crouwel source is bundled for the test");
@@ -416,8 +416,8 @@ int runSelfTest()
     }
     // Legacy 0.2.0 library (no ids or hashes stored) gets the new Crouwel
     {
-        auto readF = [](const QString &p) { QFile f(p); f.open(QIODevice::ReadOnly); return QString::fromUtf8(f.readAll()); };
-        auto writeF = [](const QString &p, const QString &s) { QFile f(p); f.open(QIODevice::WriteOnly | QIODevice::Truncate); f.write(s.toUtf8()); };
+        auto readF = [](const QString &p) { QFile f(p); check(f.open(QIODevice::ReadOnly), "test can open " + f.fileName()); return QString::fromUtf8(f.readAll()); };
+        auto writeF = [](const QString &p, const QString &s) { QFile f(p); check(f.open(QIODevice::WriteOnly | QIODevice::Truncate), "test can open " + f.fileName()); f.write(s.toUtf8()); };
         QTemporaryDir t6;
         const QString data = t6.path() + "/data", sh = data + "/shaders/";
         { Library L(data, t6.path() + "/cache", 60); L.syncExamples(); }
@@ -471,7 +471,7 @@ int runSelfTest()
         qputenv("HOME", home.path().toUtf8());
         const QString dir = home.path() + "/.local/state/omarchy/current/theme";
         QDir().mkpath(dir);
-        auto write = [](const QString &p, const QByteArray &d) { QFile f(p); f.open(QIODevice::WriteOnly); f.write(d); };
+        auto write = [](const QString &p, const QByteArray &d) { QFile f(p); check(f.open(QIODevice::WriteOnly), "test can open " + f.fileName()); f.write(d); };
         write(dir + "/colors.toml", "background = \"#101010\"\nforeground = \"#eeeeee\"\naccent = \"#ff8800\"\n");
         write(home.path() + "/.local/state/omarchy/current/theme.name", "ember\n");
         Theme th;
@@ -1594,7 +1594,7 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         auto *hl = editor->findChild<QObject *>("highlighter");
         QObject *th = qvariant_cast<QObject *>(qmlContext(editor)->contextProperty("theme"));
         QFile cf(":/examples/crouwel-new-alphabet.glsl");
-        cf.open(QIODevice::ReadOnly);
+        check(cf.open(QIODevice::ReadOnly), "test can open " + cf.fileName());
         const QString crouwel = QString::fromUtf8(cf.readAll());
         auto compileNow = [&] {
             QMetaObject::invokeMethod(code, "forceActiveFocus");
@@ -1635,7 +1635,7 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         compileNow();
         const QString tdir = QDir::homePath() + "/.local/state/omarchy/current/theme";
         QDir().mkpath(tdir);
-        auto writeTheme = [&](const QByteArray &d) { QFile f(tdir + "/colors.toml"); f.open(QIODevice::WriteOnly | QIODevice::Truncate); f.write(d); };
+        auto writeTheme = [&](const QByteArray &d) { QFile f(tdir + "/colors.toml"); check(f.open(QIODevice::WriteOnly | QIODevice::Truncate), "test can open " + f.fileName()); f.write(d); };
         writeTheme("background = \"#fbf1c7\"\nforeground = \"#3c3836\"\naccent = \"#076678\"\ncolor1 = \"#cc241d\"\ncolor3 = \"#b57614\"\n"
                    "color4 = \"#076678\"\ncolor5 = \"#8f3f71\"\ncolor6 = \"#427b58\"\n");
         QMetaObject::invokeMethod(th, "refresh");
@@ -1668,7 +1668,7 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
         const int anim = measure("void mainImage(out vec4 o, in vec2 p)\n{\n    o = vec4(vec3(0.5 + 0.5 * sin(iTime * 0.9 + p.x * 0.07)), 1.0);\n}\n", "animated test shader");
         check(anim >= 90, QString("an animated shader scores high (%1)").arg(anim));
         QFile cf(":/examples/crouwel-new-alphabet.glsl");
-        cf.open(QIODevice::ReadOnly);
+        check(cf.open(QIODevice::ReadOnly), "test can open " + cf.fileName());
         const int cr = measure(QString::fromUtf8(cf.readAll()), "crouwel-new-alphabet (editor)");
         waitFor([&] { return heat->property("status").toInt() == 1; }, 3000); // Image.Ready
         check(cr >= 0 && heat->property("status").toInt() == 1, "heatmap image shown over the preview");
@@ -1853,7 +1853,7 @@ void runPotatoTest(QQuickWindow *win, Library *lib, const QString &shot)
     auto pixel = [&](const QImage &img, double fx, double fy) { return img.pixelColor(int(img.width() * fx), int(img.height() * fy)); };
 
     waitFor([&] { return lib->benchmarked(); }, 30000);
-    QFile sf(lib->configFile()); sf.open(QIODevice::ReadOnly);
+    QFile sf(lib->configFile()); check(sf.open(QIODevice::ReadOnly), "test can open " + sf.fileName());
     const QVariantMap st = Toml::parse(QString::fromUtf8(sf.readAll()));
     check(lib->benchmarked() && st.contains("benchmark_ms"),
           QString("first-run benchmark ran silently: %1 ms/frame -> new shaders %2% · %3 fps")

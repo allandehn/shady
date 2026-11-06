@@ -251,13 +251,32 @@ static QStringList qsbArgs(const QString &in, const QString &out)
     return {QStringLiteral("--glsl"), QStringLiteral("100 es,120,150"), QStringLiteral("-o"), out, in};
 }
 
+static bool writeSource(const QString &path, const QString &src)
+{
+    QSaveFile f(path);
+    return f.open(QIODevice::WriteOnly) && f.write(src.toUtf8()) >= 0 && f.commit();
+}
+
+static CompileResult writeFailed(const QString &path)
+{
+    CompileResult r;
+    r.errorText = QStringLiteral("Could not write %1").arg(path);
+    r.errors = {QVariantMap{{QStringLiteral("line"), 0}, {QStringLiteral("text"), r.errorText}}};
+    return r;
+}
+
 CompileResult Compiler::compileSync(const QString &user, const QString &types)
 {
     int prefix = 0;
     const QString src = wrap(user, &prefix, types);
     const QString out = pathFor(user, types);
     const QString in = out + QStringLiteral(".frag");
-    { QSaveFile f(in); f.open(QIODevice::WriteOnly); f.write(src.toUtf8()); f.commit(); }
+    if (!writeSource(in, src)) {
+        CompileResult r = writeFailed(in);
+        r.user = user;
+        r.types = types;
+        return r;
+    }
     QProcess p;
     p.setProcessChannelMode(QProcess::MergedChannels);
     p.start(qsbTool(), qsbArgs(in, out + QStringLiteral(".tmp")));
@@ -292,7 +311,14 @@ void Compiler::next()
     const QString src = wrap(m_current.user, &prefix, m_current.types);
     const QString out = pathFor(m_current.user, m_current.types);
     const QString in = out + QStringLiteral(".frag");
-    { QSaveFile f(in); f.open(QIODevice::WriteOnly); f.write(src.toUtf8()); f.commit(); }
+    if (!writeSource(in, src)) {
+        CompileResult r = writeFailed(in);
+        r.user = m_current.user;
+        r.types = m_current.types;
+        emit finished(m_current.id, r);
+        next();
+        return;
+    }
     m_proc = new QProcess(this);
     m_proc->setProcessChannelMode(QProcess::MergedChannels);
     auto done = [this, in, out, prefix](bool ok) {
