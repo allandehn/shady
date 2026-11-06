@@ -86,6 +86,11 @@ FocusScope {
         fps: viewer.fps
         running: viewer.visible && !viewer.paused
         opacity: viewer.paused ? 0.35 : 1
+        crt: library.crt
+        crtAmount: library.crtAmount
+        // Potato rule: once the machine shows it's slow (auto-adapt kicked in),
+        // the CRT pass drops its glow taps and keeps only the cheap path.
+        crtGlow: !library.slowMachine && viewer.adapted === 0
     }
     Rectangle { // hue wobble: a faint, slowly turning tint
         objectName: "driftTint"

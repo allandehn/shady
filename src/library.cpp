@@ -5,6 +5,7 @@
 #include "textures.h"
 #include <QDir>
 #include <QFile>
+#include <QTimer>
 #include <QFileInfo>
 #include <QSaveFile>
 #include <QUrl>
@@ -31,6 +32,7 @@ Library::Library(const QString &dataDir, const QString &cacheDir, int maxFps, QO
             m_antiBurnIn = m.value("anti_burn_in", true).toBool();
             m_gridMotion = m.value("grid_motion", true).toBool();
             m_gridLift = m.value("grid_lift", true).toBool();
+            m_crtAmount = parseCrtAmount(m.value("crt"), 0);
             m_benchMs = m.value("benchmark_ms", 0).toDouble();
             m_defQuality = std::clamp(m.value("default_quality", 50).toInt(), 10, 100);
             m_defFps = std::clamp(m.value("default_fps", 30).toInt(), 10, std::max(10, maxFps));
@@ -41,6 +43,23 @@ Library::Library(const QString &dataDir, const QString &cacheDir, int maxFps, QO
         const QString gm = qEnvironmentVariable("SHADY_GRID_MOTION"), gl = qEnvironmentVariable("SHADY_GRID_LIFT");
         if (!gm.isEmpty()) m_gridMotion = gm != QLatin1String("0");
         if (!gl.isEmpty()) m_gridLift = gl != QLatin1String("0");
+        // SHADY_CRT = 0..100 overrides the CRT strength for this run (1 = on at the default 50).
+        const QString crt = qEnvironmentVariable("SHADY_CRT");
+        if (!crt.isEmpty()) m_crtAmount = parseCrtAmount(crt, m_crtAmount);
+        // Test-only (tests/record-crt.sh): SHADY_TEST_CRT_FILE=path polls a file holding 0..100
+        // (1 = default strength) and sets the CRT strength live, so a recording can show switches.
+        const QString crtFile = qEnvironmentVariable("SHADY_TEST_CRT_FILE");
+        if (!crtFile.isEmpty()) {
+            auto *t = new QTimer(this);
+            connect(t, &QTimer::timeout, this, [this, crtFile] {
+                QFile f(crtFile);
+                if (f.open(QIODevice::ReadOnly)) {
+                    const QByteArray v = f.readAll().trimmed();
+                    if (!v.isEmpty()) setCrtAmount(parseCrtAmount(QString::fromUtf8(v), m_crtAmount));
+                }
+            });
+            t->start(50);
+        }
     }
     {
         // A shader that froze or crashed the app last time opens at minimum.
@@ -537,7 +556,7 @@ const ShippedExample kShipped[] = {
     {"warp-tunnel", "8de50e947fd6cf2318d2b7d78ca4a2ebe5adee4b", true},
     {"crouwel-new-alphabet", "2547359042e1e681b2f8a0d25a8912bfdb668e40", true},
 };
-const char *const kExamples[] = {"northern-veil", "plasma-drift", "cell-garden", "warp-tunnel", "crouwel-new-alphabet"};
+const char *const kExamples[] = {"northern-veil", "plasma-drift", "cell-garden", "warp-tunnel", "crouwel-new-alphabet", "pixel-arcade"};
 const char *const kOriginalExamples[] = {"northern-veil", "plasma-drift", "cell-garden", "warp-tunnel"};
 
 QString sha1(const QString &code)
@@ -1046,13 +1065,26 @@ void Library::setScreensaverOn(const QString &v)
     emit settingsChanged();
 }
 
+int Library::parseCrtAmount(const QVariant &v, int fallback)
+{
+    if (!v.isValid()) return fallback;
+    if (v.typeId() == QMetaType::Bool) return v.toBool() ? crtDefaultAmount : 0;
+    const QString s = v.toString().trimmed().toLower();
+    if (s == QLatin1String("true") || s == QLatin1String("on")) return crtDefaultAmount;
+    if (s == QLatin1String("false") || s == QLatin1String("off")) return 0;
+    bool ok = false;
+    const int n = s.toInt(&ok);
+    if (!ok) return fallback;
+    return n == 1 ? crtDefaultAmount : std::clamp(n, 0, 100);
+}
+
 void Library::saveSettings()
 {
     QDir().mkpath(m_configDir);
     QSaveFile f(configFile());
     QVariantMap m{{"screensaver_on", m_screensaverOn}, {"auto_adapt", m_autoAdapt}, {"learned_viewer_keys", m_learned},
                   {"default_quality", m_defQuality}, {"default_fps", m_defFps}, {"anti_burn_in", m_antiBurnIn},
-                  {"grid_motion", m_gridMotion}, {"grid_lift", m_gridLift}};
+                  {"grid_motion", m_gridMotion}, {"grid_lift", m_gridLift}, {"crt", m_crtAmount}};
     if (m_benchMs > 0) m.insert(QStringLiteral("benchmark_ms"), m_benchMs);
     if (f.open(QIODevice::WriteOnly)) {
         f.write(Toml::serialize(m).toUtf8());
