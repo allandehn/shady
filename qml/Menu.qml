@@ -47,7 +47,7 @@ FocusScope {
                     Rectangle { visible: !!modelData.divider; anchors.centerIn: parent; width: parent.width - 16; height: 1
                                 color: Qt.rgba(ui.muted.r, ui.muted.g, ui.muted.b, 0.3) }
                     Rectangle { visible: !modelData.divider && index === menu.current; anchors.fill: parent; anchors.leftMargin: 4; anchors.rightMargin: 4
-                                radius: theme.rounding; color: Qt.rgba(ui.accent.r, ui.accent.g, ui.accent.b, 0.16) }
+                                radius: theme.rButton; color: Qt.rgba(ui.accent.r, ui.accent.g, ui.accent.b, 0.16) }
                     Label { visible: !modelData.divider; x: 14; anchors.verticalCenter: parent.verticalCenter; text: modelData.text || ""; font.pixelSize: 12 }
                     Label { visible: !modelData.divider; anchors { right: parent.right; rightMargin: 14; verticalCenter: parent.verticalCenter }
                             text: modelData.key || ""; dim: true; font.pixelSize: 11 }

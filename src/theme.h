@@ -5,6 +5,10 @@
 #include <QColor>
 #include <QFileSystemWatcher>
 #include <QObject>
+#include <QPointer>
+#include <QProcess>
+#include <QTimer>
+#include <algorithm>
 
 class Theme : public QObject
 {
@@ -23,9 +27,16 @@ class Theme : public QObject
     Q_PROPERTY(QColor cyan MEMBER m_cyan NOTIFY changed)
     Q_PROPERTY(QColor orange MEMBER m_orange NOTIFY changed)
     Q_PROPERTY(QString name MEMBER m_name NOTIFY changed)
-    Q_PROPERTY(int rounding MEMBER m_rounding CONSTANT)
+    // Hyprland decoration:rounding (R), polled every second and on focus;
+    // the last good value stays when hyprctl fails. Starts square (0).
+    Q_PROPERTY(int rounding READ rounding NOTIFY roundingChanged)
+    Q_PROPERTY(int rButton READ rButton NOTIFY roundingChanged)   // min(R, 4)
+    Q_PROPERTY(int rIcon READ rIcon NOTIFY roundingChanged)       // min(round(R/4), 2)
+    Q_PROPERTY(QColor urgent READ error NOTIFY changed)
     Q_PROPERTY(bool animations MEMBER m_animations CONSTANT)
     Q_PROPERTY(QString mono MEMBER m_mono CONSTANT)
+    // A Nerd Font family for standard icons (empty: plain Unicode fallbacks).
+    Q_PROPERTY(QString iconFont MEMBER m_iconFont CONSTANT)
     Q_PROPERTY(int maxFps MEMBER m_maxFps CONSTANT)
     Q_PROPERTY(bool software READ software NOTIFY softwareChanged)
 public:
@@ -42,7 +53,19 @@ public:
     QColor cyan() const { return m_cyan; }
     QColor orange() const { return m_orange; }
     // Re-read colors.toml now (tests: the folder may not have existed at startup).
-    Q_INVOKABLE void refresh() { reload(); rewatch(); }
+    Q_INVOKABLE void refresh() { reload(); rewatch(); readRounding(); }
+    int rounding() const { return m_rounding; }
+    int rButton() const { return buttonRadius(m_rounding); }
+    int rIcon() const { return iconRadius(m_rounding); }
+    // Radius scale (design-system/theme-shapes.md, section 2).
+    static int buttonRadius(int r) { return std::min(r, 4); }
+    static int iconRadius(int r) { return std::min(int(std::lround(r / 4.0)), 2); }
+    static int innerRadius(int r, int pad) { return std::max(r - pad, 0); }
+    Q_INVOKABLE int rInner(int pad) const { return innerRadius(m_rounding, pad); }
+    // Parses `hyprctl -j getoption decoration:rounding`; -1 when unusable.
+    static int parseRounding(const QByteArray &json);
+    // One poll: colors.toml (only emits when the text changed) and an async hyprctl read.
+    Q_INVOKABLE void poll();
     int maxFps() const { return m_maxFps; }
     QString colorsPath() const { return m_path; }
     bool software() const { return m_software; }
@@ -51,17 +74,22 @@ public:
 signals:
     void changed();
     void softwareChanged();
+    void roundingChanged();
 
 private:
-    void reload();
+    void reload(bool force = true);
+    void readRounding();
     void rewatch();
     QString m_path, m_dir, m_namePath, m_name;
     QFileSystemWatcher m_watch;
     QColor m_bg{"#1a1b26"}, m_bg2{"#24283b"}, m_fg{"#c0caf5"}, m_accent{"#7aa2f7"}, m_error{"#f7768e"};
     QColor m_yellow{"#e0af68"}, m_blue{"#7aa2f7"}, m_magenta{"#bb9af7"}, m_cyan{"#7dcfff"}, m_orange{"#ff9e64"};
-    int m_rounding = 10; // fallback when hyprctl is missing or quiet
+    int m_rounding = 0; // square until hyprctl answers (Omarchy's default)
+    QByteArray m_lastColors;
+    QTimer m_poll;
+    QPointer<QProcess> m_hypr;
     bool m_animations = true;
-    QString m_mono;
+    QString m_mono, m_iconFont;
     int m_maxFps = 60;
     bool m_software = false;
 };

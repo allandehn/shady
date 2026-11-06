@@ -47,7 +47,7 @@ FocusScope {
                     required property var modelData
                     required property int index
                     width: col.width; height: 26
-                    color: "transparent"; radius: theme.rounding
+                    color: "transparent"; radius: theme.rButton
                     border.width: sheet.current === index ? 1 : 0; border.color: ui.accent
                     Row {
                         x: 6; anchors.verticalCenter: parent.verticalCenter; spacing: 10
@@ -81,7 +81,7 @@ FocusScope {
             Rectangle {
                 objectName: "antiBurnIn"
                 width: col.width; height: 26
-                color: "transparent"; radius: theme.rounding
+                color: "transparent"; radius: theme.rButton
                 border.width: sheet.current === 4 ? 1 : 0; border.color: ui.accent
                 Row {
                     x: 6; anchors.verticalCenter: parent.verticalCenter; spacing: 10

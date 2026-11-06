@@ -13,15 +13,56 @@
 #include <QStandardPaths>
 #include <cmath>
 
+static bool useHyprctl();
 static QByteArray hyprctl(const QStringList &args)
 {
     // Only ask Hyprland when we're inside it; tests and other desktops skip this.
-    if (qEnvironmentVariableIsEmpty("HYPRLAND_INSTANCE_SIGNATURE") || qEnvironmentVariableIsSet("SHADY_NO_HYPRCTL"))
-        return {};
+    if (!useHyprctl()) return {};
     QProcess p;
     p.start(QStringLiteral("hyprctl"), QStringList{QStringLiteral("-j")} + args);
     if (!p.waitForFinished(500)) { p.kill(); return {}; }
     return p.readAllStandardOutput();
+}
+
+static bool useHyprctl()
+{
+    return !qEnvironmentVariableIsEmpty("HYPRLAND_INSTANCE_SIGNATURE") && !qEnvironmentVariableIsSet("SHADY_NO_HYPRCTL");
+}
+
+int Theme::parseRounding(const QByteArray &json)
+{
+    QJsonParseError err;
+    const QJsonDocument d = QJsonDocument::fromJson(json, &err);
+    if (err.error != QJsonParseError::NoError || !d.isObject()) return -1;
+    const QJsonValue v = d.object().value(QStringLiteral("int"));
+    if (!v.isDouble()) return -1;
+    const double n = v.toDouble();
+    if (!std::isfinite(n) || n < 0) return -1;
+    return std::min(int(n), 40);
+}
+
+void Theme::poll()
+{
+    reload(false);
+    rewatch();
+    readRounding();
+}
+
+void Theme::readRounding()
+{
+    if (!useHyprctl() || m_hypr) return; // one read in flight at most
+    auto *p = new QProcess(this);
+    m_hypr = p;
+    connect(p, &QProcess::finished, this, [this, p](int code, QProcess::ExitStatus st) {
+        const int r = st == QProcess::NormalExit && code == 0 ? parseRounding(p->readAllStandardOutput()) : -1;
+        if (r >= 0 && r != m_rounding) { m_rounding = r; emit roundingChanged(); }
+        p->deleteLater();
+    });
+    connect(p, &QProcess::errorOccurred, this, [p](QProcess::ProcessError e) {
+        if (e == QProcess::FailedToStart) p->deleteLater();
+    });
+    QTimer::singleShot(900, p, [p] { if (p->state() != QProcess::NotRunning) p->kill(); });
+    p->start(QStringLiteral("hyprctl"), {QStringLiteral("-j"), QStringLiteral("getoption"), QStringLiteral("decoration:rounding")});
 }
 
 Theme::Theme(QObject *parent) : QObject(parent)
@@ -36,12 +77,19 @@ Theme::Theme(QObject *parent) : QObject(parent)
     m_namePath = state + QStringLiteral("/theme.name");
     reload();
     rewatch();
-    auto again = [this] { reload(); rewatch(); };
+    auto again = [this] { reload(false); rewatch(); };
     connect(&m_watch, &QFileSystemWatcher::fileChanged, this, again);
     connect(&m_watch, &QFileSystemWatcher::directoryChanged, this, again);
 
-    const auto r = QJsonDocument::fromJson(hyprctl({QStringLiteral("getoption"), QStringLiteral("decoration:rounding")})).object();
-    if (r.contains(QStringLiteral("int"))) m_rounding = std::clamp(r.value(QStringLiteral("int")).toInt(), 0, 40);
+    {   // First read is synchronous so the first frame already has the right corners.
+        const int r = parseRounding(hyprctl({QStringLiteral("getoption"), QStringLiteral("decoration:rounding")}));
+        if (r >= 0) m_rounding = r;
+    }
+    // Theme switches don't reach us (the shell hears them over its own IPC),
+    // so a cheap 1 s poll: one small file read and one async hyprctl.
+    m_poll.setInterval(1000);
+    connect(&m_poll, &QTimer::timeout, this, &Theme::poll);
+    m_poll.start();
     const auto a = QJsonDocument::fromJson(hyprctl({QStringLiteral("getoption"), QStringLiteral("animations:enabled")})).object();
     if (a.contains(QStringLiteral("int"))) m_animations = a.value(QStringLiteral("int")).toInt() != 0;
 
@@ -55,6 +103,13 @@ Theme::Theme(QObject *parent) : QObject(parent)
     const QStringList fams = QFontDatabase::families();
     for (const char *f : {"iA Writer Mono S", "iA Writer Mono V", "iA Writer Mono"})
         if (fams.contains(QLatin1String(f))) { m_mono = QLatin1String(f); break; }
+    // Omarchy ships "JetBrainsMono Nerd Font"; any Nerd Font has the MDI set.
+    for (const char *f : {"JetBrainsMono Nerd Font", "JetBrainsMono Nerd Font Mono"})
+        if (fams.contains(QLatin1String(f))) { m_iconFont = QLatin1String(f); break; }
+    if (m_iconFont.isEmpty())
+        for (const QString &f : fams)
+            if (f.contains(QLatin1String("Nerd Font"))) { m_iconFont = f; break; }
+    if (qEnvironmentVariableIsSet("SHADY_NO_NERD_FONT")) m_iconFont.clear();
     if (m_mono.isEmpty()) m_mono = QFontDatabase::systemFont(QFontDatabase::FixedFont).family();
 }
 
@@ -72,11 +127,18 @@ void Theme::rewatch()
             m_watch.addPath(p);
 }
 
-void Theme::reload()
+void Theme::reload(bool force)
 {
     QFile f(m_path);
     if (!f.open(QIODevice::ReadOnly)) return;
-    const QVariantMap m = Toml::parse(QString::fromUtf8(f.readAll()));
+    const QByteArray colors = f.readAll();
+    QByteArray seen = colors;
+    QFile n0(m_namePath);
+    if (n0.open(QIODevice::ReadOnly)) seen += '\0' + n0.readAll();
+    // Polls only act on a change, so an idle second costs two small reads.
+    if (!force && seen == m_lastColors) return;
+    m_lastColors = seen;
+    const QVariantMap m = Toml::parse(QString::fromUtf8(colors));
     auto pick = [&](const char *key, QColor &out) {
         const QColor c(m.value(QLatin1String(key)).toString());
         if (c.isValid()) out = c;
