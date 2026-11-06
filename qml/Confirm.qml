@@ -55,7 +55,7 @@ FocusScope {
                          KeyNavigation.right: cancel; KeyNavigation.left: cancel }
             }
         }
-        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: hint.height; color: Qt.darker(ui.bg2, 1.08)
+        Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: hint.height; color: theme.sunkenBackground
             Hint { id: hint; x: 20; width: parent.width - 40; topPadding: 9; bottomPadding: 9
                    keys: [["enter", dlg.hintAction], ["←→", qsTr("switch")], ["esc", qsTr("cancel")]] } }
     }
