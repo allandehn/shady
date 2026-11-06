@@ -15,6 +15,10 @@ class Theme : public QObject
     Q_OBJECT
     Q_PROPERTY(QColor background READ background NOTIFY changed)
     Q_PROPERTY(QColor lighterBackground READ lighterBackground NOTIFY changed)
+    // Tints derived in OKLCH from the live colours (same perceived lightness
+    // shift on every hue). Computed on read, so they follow theme changes.
+    Q_PROPERTY(QColor raisedBackground READ raisedBackground NOTIFY changed)
+    Q_PROPERTY(QColor sunkenBackground READ sunkenBackground NOTIFY changed)
     Q_PROPERTY(QColor foreground READ foreground NOTIFY changed)
     Q_PROPERTY(QColor muted READ muted NOTIFY changed)
     Q_PROPERTY(QColor accent READ accent NOTIFY changed)
@@ -44,6 +48,10 @@ public:
     QColor background() const { return m_bg; }
     QColor lighterBackground() const { return m_bg2; }
     QColor foreground() const { return m_fg; }
+    QColor raisedBackground() const { return oklchAdjust(m_bg2, 0.06); }
+    QColor sunkenBackground() const { return oklchAdjust(m_bg2, -0.02); }
+    // Shift a colour's OKLCH lightness by dL (0..1) and chroma by dC; hue kept.
+    Q_INVOKABLE static QColor oklchAdjust(const QColor &c, double dL, double dC = 0);
     QColor muted() const;
     QColor accent() const { return m_accent; }
     QColor error() const { return m_error; }

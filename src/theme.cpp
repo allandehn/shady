@@ -11,6 +11,7 @@
 #include <QProcess>
 #include <QScreen>
 #include <QStandardPaths>
+#include <algorithm>
 #include <cmath>
 
 static bool useHyprctl();
@@ -113,6 +114,38 @@ Theme::Theme(QObject *parent) : QObject(parent)
     if (m_mono.isEmpty()) m_mono = QFontDatabase::systemFont(QFontDatabase::FixedFont).family();
 }
 
+// OKLab (Björn Ottosson): sRGB -> linear -> LMS (cube root) -> Lab. Adjust L/C,
+// then back. Runs only when a binding re-reads after a theme change.
+static double toLin(double c) { return c <= 0.04045 ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4); }
+static double toSrgb(double c)
+{
+    c = std::clamp(c, 0.0, 1.0);
+    return c <= 0.0031308 ? c * 12.92 : 1.055 * std::pow(c, 1 / 2.4) - 0.055;
+}
+
+QColor Theme::oklchAdjust(const QColor &in, double dL, double dC)
+{
+    const QColor c = in.toRgb();
+    const double r = toLin(c.redF()), g = toLin(c.greenF()), b = toLin(c.blueF());
+    const double l = std::cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    const double m = std::cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    const double s = std::cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    double L = 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s;
+    const double A = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s;
+    const double B = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s;
+    double C = std::hypot(A, B);
+    const double h = std::atan2(B, A);
+    L = std::clamp(L + dL, 0.0, 1.0);
+    C = std::max(0.0, C + dC);
+    const double a2 = C * std::cos(h), b2 = C * std::sin(h);
+    const double l2 = std::pow(L + 0.3963377774 * a2 + 0.2158037573 * b2, 3);
+    const double m2 = std::pow(L - 0.1055613458 * a2 - 0.0638541728 * b2, 3);
+    const double s2 = std::pow(L - 0.0894841775 * a2 - 1.2914855480 * b2, 3);
+    return QColor::fromRgbF(toSrgb(4.0767416621 * l2 - 3.3077115913 * m2 + 0.2309699292 * s2),
+                            toSrgb(-1.2684380046 * l2 + 2.6097574011 * m2 - 0.3413193965 * s2),
+                            toSrgb(-0.0041960863 * l2 - 0.7034186147 * m2 + 1.7076147010 * s2), c.alphaF());
+}
+
 QColor Theme::muted() const
 {
     return QColor::fromRgbF(m_fg.redF() * 0.55 + m_bg.redF() * 0.45, m_fg.greenF() * 0.55 + m_bg.greenF() * 0.45,
@@ -148,7 +181,7 @@ void Theme::reload(bool force)
     pick("foreground", m_fg);
     pick("accent", m_accent);
     pick("color1", m_error);
-    if (!m.contains(QStringLiteral("lighter_background"))) m_bg2 = m_bg.lighter(130);
+    if (!m.contains(QStringLiteral("lighter_background"))) m_bg2 = oklchAdjust(m_bg, 0.06);
     // Syntax colours: colorN, else its bright twin colorN+8, else Tokyo Night's
     // (the built-in palette), reset on every reload so a theme without the key
     // doesn't keep the last theme's colour.
