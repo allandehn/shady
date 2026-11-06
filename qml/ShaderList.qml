@@ -12,6 +12,7 @@ FocusScope {
     property string swNote: ""
     property string note: ""
     readonly property int currentRow: grid.currentIndex
+    readonly property bool keyRepeating: grid.keyRepeating
     readonly property int columns: grid.columns
     readonly property bool inTrash: library.filter === 3
     readonly property bool overlayOpen: menu.visible || confirm.visible || keys.visible || settings.visible
@@ -233,13 +234,16 @@ FocusScope {
     GridView {
         id: grid
         anchors { left: parent.left; right: parent.right; top: emptyAll.visible ? emptyAll.bottom : header.bottom
-                  bottom: footer.top; leftMargin: 12; rightMargin: 12; topMargin: 8 }
+                  bottom: footer.top }
         clip: true
+        // Flickable margins (not anchor margins) so the lift shadow on edge cards
+        // has room inside the clip: card frame inset 4 + shadow 16 - 8 spare = 12.
+        leftMargin: 12; rightMargin: 12; topMargin: 12; bottomMargin: 12
         focus: true
         model: library
         // Square previews: as many ~200 px columns as fit, never fewer than two.
-        readonly property int columns: Math.max(2, Math.floor((width + 10) / 200))
-        cellWidth: Math.floor(width / columns)
+        readonly property int columns: Math.max(2, Math.floor((width - 24 + 10) / 200))
+        cellWidth: Math.floor((width - 24) / columns)
         cellHeight: (cellWidth - 10) + 58
         keyNavigationEnabled: true
         highlightFollowsCurrentItem: false
@@ -247,6 +251,30 @@ FocusScope {
         property bool mouseDriven: false // last input was the mouse
         property point lastMouse: Qt.point(-1, -1)
         onActiveFocusChanged: if (activeFocus) mouseDriven = false
+        property bool keyRepeating: false // an arrow is held and auto-repeating: no lift
+        Keys.onReleased: (e) => { if (!e.isAutoRepeat) grid.keyRepeating = false }
+        // Grid motion try-out (library.gridMotion): one shared accent outline that
+        // glides to the current card. Only x/y/scale/opacity animate. A Behavior
+        // restarts from where the outline is, so a new key retargets, never queues.
+        // Mouse moves snap it (the pointer is already there).
+        highlight: Rectangle {
+            id: hlRect; objectName: "cardHighlight"
+            z: 3
+            visible: library.gridMotion && !!grid.currentItem
+            opacity: grid.activeFocus || grid.mouseDriven ? 1 : 0
+            readonly property Item target: grid.currentItem
+            x: target ? target.x + 4 : 0; y: target ? target.y + 4 : 0
+            width: grid.cellWidth - 8; height: grid.cellHeight - 8
+            scale: target ? target.scale : 1
+            color: "transparent"; radius: theme.rounding
+            border.width: 1; border.color: ui.accent
+            property bool retarget: false
+            readonly property bool gliding: ax.running || ay.running
+            Behavior on x { enabled: library.gridMotion && !grid.mouseDriven
+                NumberAnimation { id: ax; duration: 120; easing.type: hlRect.retarget ? Easing.OutCubic : Easing.InOutCubic } }
+            Behavior on y { enabled: library.gridMotion && !grid.mouseDriven
+                NumberAnimation { id: ay; duration: 120; easing.type: hlRect.retarget ? Easing.OutCubic : Easing.InOutCubic } }
+        }
         delegate: ShaderCard {
             width: grid.cellWidth; height: grid.cellHeight
             current: GridView.isCurrentItem && (grid.activeFocus || grid.mouseDriven)
@@ -258,6 +286,8 @@ FocusScope {
                 grid.mouseDriven = true
                 if (grid.currentIndex !== index) grid.currentIndex = index
             }
+            lift: current && library.gridLift && !grid.keyRepeating
+            glide: library.gridMotion
             live: current && !theme.software && !library.slowMachine
             selected: !!panel.sel[slug]
             selecting: panel.selecting
@@ -273,6 +303,10 @@ FocusScope {
 
         Keys.onPressed: (e) => {
             grid.mouseDriven = false
+            // Course change mid-glide: continue from here with OutCubic (no stall);
+            // from rest the glide eases both ends.
+            if (grid.highlightItem) grid.highlightItem.retarget = grid.highlightItem.gliding
+            grid.keyRepeating = e.isAutoRepeat
             const r = grid.currentIndex
             const ctrl = e.modifiers & Qt.ControlModifier, shift = e.modifiers & Qt.ShiftModifier
             const isNewCard = r === library.count && library.filter === 0

@@ -29,6 +29,21 @@ Item {
     signal toggled()
     property bool current: false
     property bool live: false
+    property bool lift: false  // grid try-out: focused card rises a touch (scale + baked shadow)
+    property bool glide: false // the grid draws the accent outline itself (it glides)
+    scale: lift ? 1.03 : 1
+    z: lift ? 2 : 1
+    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+    BorderImage {
+        objectName: "liftShadow"
+        z: -2
+        anchors.fill: parent; anchors.margins: -16
+        source: "qrc:/img/card-shadow.png"
+        border { left: 32; right: 32; top: 32; bottom: 32 }
+        opacity: card.lift ? 1 : 0
+        visible: opacity > 0
+        Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+    }
     property var resume  // session map slug -> playback time
     signal activated()
     signal picked()
@@ -264,8 +279,8 @@ Item {
         anchors.fill: frame
         color: "transparent"
         radius: theme.rounding
-        border.width: card.hot || card.isNew || card.selected ? 1 : 0
-        border.color: card.hot ? ui.accent : card.selected ? ui.muted : Qt.rgba(ui.muted.r, ui.muted.g, ui.muted.b, 0.35)
+        border.width: (card.hot && !card.glide) || card.isNew || card.selected ? 1 : 0
+        border.color: card.hot && !card.glide ? ui.accent : card.selected ? ui.muted : Qt.rgba(ui.muted.r, ui.muted.g, ui.muted.b, 0.35)
     }
 
     MouseArea {

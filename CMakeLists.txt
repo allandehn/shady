@@ -57,6 +57,8 @@ qt_add_resources(shady "selftest_fixtures"
 
 # English is in the source; Danish ships from the start (i18n/update.sh).
 qt_add_lrelease(shady TS_FILES i18n/shady_da.ts QM_FILES_OUTPUT_VARIABLE shady_qm)
+# Pre-baked soft shadow for the grid's card lift (only its opacity animates).
+qt_add_resources(shady "img" PREFIX "/img" BASE data/img FILES data/img/card-shadow.png)
 qt_add_resources(shady "appicon" PREFIX "/icons" BASE data/icons/hicolor FILES
     data/icons/hicolor/shady-16.png data/icons/hicolor/shady-24.png data/icons/hicolor/shady-32.png
     data/icons/hicolor/shady-48.png data/icons/hicolor/shady-64.png data/icons/hicolor/shady-128.png
