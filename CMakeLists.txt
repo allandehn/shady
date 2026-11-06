@@ -62,6 +62,9 @@ qt_add_lrelease(shady TS_FILES i18n/shady_da.ts QM_FILES_OUTPUT_VARIABLE shady_q
 # Optional CRT finishing pass (config `crt`), built to .qsb at build time.
 qt_add_shaders(shady "crt_shader" PREFIX "/" FILES shaders/crt.frag)
 qt_add_resources(shady "img" PREFIX "/img" BASE data/img FILES data/img/card-shadow.png)
+# Empty-state sunglasses (square at R = 0, rounded at R > 0); the QML draws
+# the same paths so the theme colour applies, the SVGs are the source.
+qt_add_resources(shady "shades" PREFIX "/shades" BASE data FILES data/empty-shades-t8.svg data/empty-shades-rounded-t8.svg)
 qt_add_resources(shady "appicon" PREFIX "/icons" BASE data/icons/hicolor FILES
     data/icons/hicolor/shady-16.png data/icons/hicolor/shady-24.png data/icons/hicolor/shady-32.png
     data/icons/hicolor/shady-48.png data/icons/hicolor/shady-64.png data/icons/hicolor/shady-128.png
