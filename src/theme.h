@@ -4,6 +4,7 @@
 // only when running inside Hyprland), and the system monospace font.
 #include <QColor>
 #include <QFileSystemWatcher>
+#include <QLocalSocket>
 #include <QObject>
 #include <QPointer>
 #include <QProcess>
@@ -96,6 +97,8 @@ private:
     QByteArray m_lastColors;
     QTimer m_poll;
     QPointer<QProcess> m_hypr;
+    QLocalSocket m_events; // Hyprland socket2: re-read rounding on config reloads instead of polling hyprctl
+    QByteArray m_eventBuf;
     bool m_animations = true;
     QString m_mono, m_iconFont;
     int m_maxFps = 60;
