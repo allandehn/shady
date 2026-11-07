@@ -9,6 +9,10 @@ FocusScope {
     signal edit(string slug)
     signal close()
     property var resume: ({})
+    // Session playback positions live here; cards call these instead of writing
+    // into their own `resume` property, which Qt can hand them as a copy.
+    function resumeAt(slug) { return panel.resume[slug] || 0 }
+    function saveResume(slug, t) { const m = panel.resume; m[slug] = t; panel.resume = m }
     property string swNote: ""
     property string note: ""
     readonly property int currentRow: grid.currentIndex
@@ -292,7 +296,7 @@ FocusScope {
             selected: !!panel.sel[slug]
             selecting: panel.selecting
             onToggled: panel.toggle(index)
-            resume: panel.resume
+            store: panel
             onPicked: { grid.currentIndex = index; grid.forceActiveFocus() }
             onActivated: isNew ? panel.edit("") : panel.inTrash ? panel.act("restore", index) : panel.open(index)
             onMenuRequested: (mx, my) => { const p = mapToItem(panel, mx, my); panel.openMenu(index, p.x, p.y) }

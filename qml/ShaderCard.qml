@@ -44,7 +44,7 @@ Item {
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
     }
-    property var resume  // session map slug -> playback time
+    property var store  // the list; keeps session playback times per slug
     signal activated()
     signal picked()
     signal menuRequested(real x, real y)
@@ -113,9 +113,11 @@ Item {
                 fps: Math.min(30, card.fps)
                 // Resume where this card left off during this session.
                 onVisibleChanged: {
-                    if (visible) time = card.resume[card.slug] || 2.0
-                    else card.resume[card.slug] = time
+                    if (visible) time = (card.store ? card.store.resumeAt(card.slug) : 0) || 2.0
+                    else if (card.store) card.store.saveResume(card.slug, time)
                 }
+                // A card the grid recycles while it plays keeps its place too.
+                Component.onDestruction: if (visible && card.store) card.store.saveResume(card.slug, time)
             }
             Label {
                 anchors.centerIn: parent
