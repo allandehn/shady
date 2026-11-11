@@ -17,3 +17,9 @@ __pycache__/
 
 # Test screenshots (the README's are in docs/)
 /screenshot*.png
+
+# Local secrets and per-user agent settings (never commit)
+.env
+.env.*
+.envrc
+.claude/settings.local.json
