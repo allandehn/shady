@@ -900,6 +900,68 @@ void runUiTest(QQuickWindow *win, Library *lib, const QString &shot)
             mouse(win, QPointF(2, 2), QEvent::MouseMove);
         }
 
+        {   // Leave-frame still: after hover, the card freezes on the last frame (this session only).
+            auto *th = qobject_cast<Theme *>(qvariant_cast<QObject *>(qmlContext(list)->contextProperty("theme")));
+            const bool software0 = th && th->software();
+            const bool slow0 = lib->slowMachine();
+            // Live previews are off on a software renderer; turn that off just for this check.
+            // software has no WRITE, so setProperty() would be a no-op.
+            if (th) th->setSoftware(false);
+            lib->setSlowMachine(false);
+            QCoreApplication::processEvents();
+            check(th && !th->software() && !lib->slowMachine(), "leave-frame still: live previews enabled for the check");
+            auto cardAt = [&](int i) -> QQuickItem * {
+                for (QQuickItem *c : allItems(win->contentItem()))
+                    if (c->objectName() == "card" && c->isVisible() && !c->property("isNew").toBool()
+                        && c->property("index").toInt() == i) return c;
+                return nullptr;
+            };
+            QQuickItem *c0 = cardAt(0);
+            check(c0, "first card is on screen for the leave-frame still check");
+            if (c0) {
+                const QUrl still0 = c0->property("stillUrl").toUrl();
+                const QString slug = c0->property("slug").toString();
+                const QPointF mid = c0->mapToScene(QPointF(c0->width() / 2, c0->height() / 3));
+                const QString shotDir = qEnvironmentVariable("SHADY_SHOTS", QStringLiteral("/tmp/shady-shots"));
+                QDir().mkpath(shotDir);
+                saveVaried(win->grabWindow(), shotDir + "/leave-still-before.png");
+                mouse(win, mid, QEvent::MouseMove);
+                waitFor([&] { QQuickItem *c = cardAt(0); return c && c->property("live").toBool(); }, 3000);
+                check(cardAt(0) && cardAt(0)->property("live").toBool(), "hover starts the live preview for the leave-frame still");
+                waitFor([] { return false; }, 1200); // play long enough that the leave time is past the default 2 s
+                // The highlighted card keeps playing even if the pointer is on empty
+                // chrome, so leave by moving onto another card.
+                QQuickItem *c1 = cardAt(1);
+                check(c1, "second card is on screen to leave the first");
+                if (c1) {
+                    const QPointF mid1 = c1->mapToScene(QPointF(c1->width() / 2, c1->height() / 3));
+                    mouse(win, mid1, QEvent::MouseMove);
+                }
+                waitFor([&] {
+                    QQuickItem *c = cardAt(0);
+                    return c && !c->property("live").toBool() && c->property("hasSessionStill").toBool();
+                }, 10000);
+                c0 = cardAt(0);
+                const bool gotStill = c0 && c0->property("hasSessionStill").toBool();
+                const QUrl preview = c0 ? c0->property("previewSource").toUrl() : QUrl();
+                QVariant t;
+                QMetaObject::invokeMethod(list, "resumeAt", Q_RETURN_ARG(QVariant, t), Q_ARG(QVariant, slug));
+                QVariant nStills;
+                QMetaObject::invokeMethod(list, "stillCount", Q_RETURN_ARG(QVariant, nStills));
+                check(gotStill && preview != still0,
+                      QString("leaving a hovered card freezes its still on the last frame (session still %1, store %2, preview %3, orig %4)")
+                          .arg(gotStill ? "yes" : "no")
+                          .arg(nStills.toInt())
+                          .arg(preview.toString().left(80), still0.toString().left(80)));
+                check(t.toDouble() > 2.0, QString("leave also keeps the resume time (%1)").arg(t.toDouble(), 0, 'f', 2));
+                saveVaried(win->grabWindow(), shotDir + "/leave-still-after.png");
+            }
+            if (th) th->setSoftware(software0);
+            lib->setSlowMachine(slow0);
+            QCoreApplication::processEvents();
+            mouse(win, QPointF(2, 2), QEvent::MouseMove);
+        }
+
         {   // Grid motion try-out: gliding outline that retargets, and a lift skipped on auto-repeat.
             QQuickItem *hl = nullptr;
             for (QQuickItem *i : allItems(win->contentItem())) if (i->objectName() == "cardHighlight") hl = i;

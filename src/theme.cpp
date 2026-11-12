@@ -8,6 +8,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QLocalSocket>
 #include <QProcess>
 #include <QScreen>
 #include <QStandardPaths>
@@ -46,7 +47,7 @@ void Theme::poll()
 {
     reload(false);
     rewatch();
-    readRounding();
+    if (m_events.state() != QLocalSocket::ConnectedState) readRounding(); // no event socket: fall back to polling
 }
 
 void Theme::readRounding()
@@ -86,9 +87,28 @@ Theme::Theme(QObject *parent) : QObject(parent)
         const int r = parseRounding(hyprctl({QStringLiteral("getoption"), QStringLiteral("decoration:rounding")}));
         if (r >= 0) m_rounding = r;
     }
-    // Theme switches don't reach us (the shell hears them over its own IPC),
-    // so a cheap 1 s poll: one small file read and one async hyprctl.
-    m_poll.setInterval(1000);
+    // Rounding changes arrive as Hyprland "configreloaded" events on socket2, so
+    // no hyprctl process every second. Theme files are watched; a slow poll
+    // still catches a watcher lost to a replaced file (and polls hyprctl if
+    // the event socket isn't there).
+    const QString sig = qEnvironmentVariable("HYPRLAND_INSTANCE_SIGNATURE");
+    if (useHyprctl() && !sig.isEmpty()) {
+        connect(&m_events, &QLocalSocket::readyRead, this, [this] {
+            m_eventBuf += m_events.readAll();
+            bool reloadNeeded = false;
+            int nl;
+            while ((nl = m_eventBuf.indexOf('\n')) >= 0) {
+                if (m_eventBuf.startsWith("configreloaded")) reloadNeeded = true;
+                m_eventBuf.remove(0, nl + 1);
+            }
+            if (m_eventBuf.size() > 65536) m_eventBuf.clear();
+            if (reloadNeeded) { readRounding(); reload(false); rewatch(); }
+        });
+        const QString rt = qEnvironmentVariable("XDG_RUNTIME_DIR");
+        m_events.connectToServer(rt + QStringLiteral("/hypr/") + sig + QStringLiteral("/.socket2.sock"));
+    }
+    m_poll.setInterval(m_events.state() == QLocalSocket::ConnectedState || m_events.state() == QLocalSocket::ConnectingState ? 3000 : 1000);
+    m_poll.setTimerType(Qt::VeryCoarseTimer);
     connect(&m_poll, &QTimer::timeout, this, &Theme::poll);
     m_poll.start();
     const auto a = QJsonDocument::fromJson(hyprctl({QStringLiteral("getoption"), QStringLiteral("animations:enabled")})).object();

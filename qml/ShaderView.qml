@@ -108,7 +108,9 @@ Item {
     Timer {
         interval: Math.round(1000 / Math.max(1, root.fps))
         repeat: true
+        // Window.visibility: stop ticking entirely while the window is minimised or hidden.
         running: root.running && root.visible && root.source != ""
+                 && root.Window.visibility !== Window.Minimized && root.Window.visibility !== Window.Hidden
         property double last: 0
         onRunningChanged: last = Date.now()
         onTriggered: {

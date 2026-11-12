@@ -53,7 +53,7 @@ Window {
         focus: win.mode === "list"
         swNote: theme.software ? qsTr("Software rendering · shaders start at minimum settings") : ""
         onOpen: (r) => {
-            viewer.load(r, list.resume[library.get(r).slug] || 0)
+            viewer.load(r, list.resumeAt(library.get(r).slug))
             win.mode = "viewer"
             viewer.forceActiveFocus()
         }
