@@ -44,7 +44,13 @@ Item {
         visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
     }
-    property var store  // the list; keeps session playback times per slug
+    property var store  // the list; session playback times and leave-frame stills per slug
+    // The still the card shows: a session grab of the last hovered frame, else the original thumbnail.
+    readonly property bool hasSessionStill: !!(store && store.stills && store.stills[slug])
+    readonly property url previewSource: {
+        const r = store && store.stills && store.stills[slug]
+        return (r && r.url) ? r.url : stillUrl
+    }
     signal activated()
     signal picked()
     signal menuRequested(real x, real y)
@@ -92,36 +98,134 @@ Item {
             height: width // square
 
             Rectangle { anchors.fill: parent; color: ui.bg2 }
+            // Two stills so the session grab never gets a sourceSize (Qt warns and
+            // ignores it on grabToImage URLs). Both sit under the live view, so
+            // the new frame is already there when the live view hides.
             Image {
+                id: fileStill
+                objectName: "cardStill"
                 anchors.fill: parent
-                source: card.stillUrl
-                visible: !view.ready || !view.visible
+                source: card.hasSessionStill ? "" : card.stillUrl
+                visible: !card.hasSessionStill
                 fillMode: Image.PreserveAspectCrop
                 asynchronous: true
                 cache: true // the URL carries the still's mtime, so a new still is a new key
                 retainWhileLoading: true // keep the last thumbnail until the new one is decoded
                 sourceSize: Qt.size(256, 256)
             }
+            Image {
+                id: sessionStill
+                objectName: "cardSessionStill"
+                anchors.fill: parent
+                source: card.hasSessionStill ? card.previewSource : ""
+                visible: card.hasSessionStill
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                cache: true
+                retainWhileLoading: true
+            }
             ShaderView {
                 id: view
                 anchors.fill: parent
-                visible: card.live && card.shaderState === "ready" && !card.trashed
-                running: visible
-                source: visible ? card.shaderUrl : ""
+                // Keep the live view up after leave until the grab is ready, so the
+                // still doesn't flash the old thumbnail or a blank frame.
+                visible: showLive
+                running: showLive && card.live
+                source: showLive ? card.shaderUrl : ""
                 channels: card.channels
                 quality: ui.crisp ? 1.0 : 0.35
                 fps: Math.min(30, card.fps)
-                // Resume where this card left off during this session.
-                onVisibleChanged: {
-                    if (visible) time = (card.store ? card.store.resumeAt(card.slug) : 0) || 2.0
-                    else if (card.store) card.store.saveResume(card.slug, time)
+                property bool showLive: false
+                property int grabGen: 0
+                property string playingSlug: ""
+
+                function syncLive() {
+                    const want = card.live && card.shaderState === "ready" && !card.trashed
+                    if (want) {
+                        grabWatch.stop()
+                        grabGen++
+                        const was = showLive
+                        showLive = true
+                        playingSlug = card.slug
+                        if (!was) time = (card.store ? card.store.resumeAt(card.slug) : 0) || 2.0
+                    } else if (showLive && !card.live) {
+                        beginLeaveGrab()
+                    } else if (!want) {
+                        grabWatch.stop()
+                        grabGen++
+                        showLive = false
+                        playingSlug = ""
+                    }
                 }
-                // A card the grid recycles while it plays keeps its place too.
-                Component.onDestruction: if (visible && card.store) card.store.saveResume(card.slug, time)
+
+                function beginLeaveGrab() {
+                    if (card.store && playingSlug) card.store.saveResume(playingSlug, time)
+                    if (width < 1 || height < 1) {
+                        showLive = false
+                        playingSlug = ""
+                        return
+                    }
+                    const gen = ++grabGen
+                    const slug = playingSlug || card.slug
+                    const w = Math.max(1, Math.min(256, Math.round(width * dpr)))
+                    const h = Math.max(1, Math.min(256, Math.round(height * dpr)))
+                    grabWatch.restart()
+                    // Next frame: running is already false, so this is the last painted frame.
+                    Qt.callLater(function () {
+                        if (gen !== view.grabGen) return
+                        const ok = view.grabToImage(function (res) {
+                            if (gen !== view.grabGen) return
+                            grabWatch.stop()
+                            if (res && card.store) card.store.saveStill(slug, res)
+                            if (gen === view.grabGen && !card.live) {
+                                view.showLive = false
+                                view.playingSlug = ""
+                            }
+                        }, Qt.size(w, h))
+                        if (!ok) {
+                            grabWatch.stop()
+                            if (gen === view.grabGen) {
+                                view.showLive = false
+                                view.playingSlug = ""
+                            }
+                        }
+                    })
+                }
+
+                // Recycle (same delegate, new slug): save the old time; no grab.
+                Connections {
+                    target: card
+                    function onLiveChanged() { view.syncLive() }
+                    function onShaderStateChanged() { view.syncLive() }
+                    function onTrashedChanged() { view.syncLive() }
+                    function onSlugChanged() {
+                        if (view.showLive && card.store && view.playingSlug)
+                            card.store.saveResume(view.playingSlug, view.time)
+                        grabWatch.stop()
+                        view.grabGen++
+                        view.showLive = false
+                        view.playingSlug = ""
+                        view.syncLive()
+                    }
+                }
+                Component.onCompleted: view.syncLive()
+                Component.onDestruction: if ((showLive || visible) && card.store && (playingSlug || card.slug))
+                    card.store.saveResume(playingSlug || card.slug, time)
+            }
+            Timer {
+                id: grabWatch
+                interval: 3000
+                onTriggered: {
+                    if (!card.live && view.showLive) {
+                        view.grabGen++
+                        view.showLive = false
+                        view.playingSlug = ""
+                    }
+                }
             }
             Label {
                 anchors.centerIn: parent
-                visible: (card.shaderState === "compiling" || card.shaderState === "ready") && card.stillUrl == "" && !view.visible
+                visible: (card.shaderState === "compiling" || card.shaderState === "ready") && card.previewSource == "" && !view.visible
                 text: qsTr("Preparing…")
                 dim: true
                 font.pixelSize: 11

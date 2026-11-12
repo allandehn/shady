@@ -13,6 +13,24 @@ FocusScope {
     // into their own `resume` property, which Qt can hand them as a copy.
     function resumeAt(slug) { return panel.resume[slug] || 0 }
     function saveResume(slug, t) { const m = panel.resume; m[slug] = t; panel.resume = m }
+    // Leave-frame stills for this run only. LRU of ~64 card-sized grabs; evicted
+    // cards fall back to the original thumbnail. Not written to disk.
+    property var stills: ({})
+    property var stillOrder: []
+    readonly property int stillCap: 64
+    function saveStill(slug, result) {
+        if (!slug || !result) return
+        const m = Object.assign({}, panel.stills)
+        const order = panel.stillOrder.slice()
+        const at = order.indexOf(slug)
+        if (at >= 0) order.splice(at, 1)
+        order.push(slug)
+        m[slug] = result
+        while (order.length > panel.stillCap) { const evict = order.shift(); delete m[evict] }
+        panel.stills = m
+        panel.stillOrder = order
+    }
+    function stillCount() { return panel.stillOrder.length }
     property string swNote: ""
     property string note: ""
     readonly property int currentRow: grid.currentIndex
